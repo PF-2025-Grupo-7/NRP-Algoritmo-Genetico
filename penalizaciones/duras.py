@@ -12,15 +12,10 @@ class PenalizacionesDurasMixin:
         en un día que marcó como NO disponible.
         Lógica: [cite: 100-103]
         """
-        
-        # Comparamos la matriz de disponibilidad (False = No disponible)
-        # con la matriz de asignación (Turno != 0 significa que trabaja)
-        trabaja_indisponible = (self.matriz_disponibilidad == False) & (matriz != 0)
-        
-        # Contamos cuántas violaciones ocurrieron
-        num_violaciones = np.sum(trabaja_indisponible)
-        
-        return num_violaciones * self.PENALIZACION_DURA
+        # Esta restricción ahora se repara previamente mediante
+        # `ProblemaRostering._reparar_cromosoma`. Por tanto, ya no
+        # aplicamos la penalización dura aquí y devolvemos 0.0.
+        return 0.0
 
     
     def _calcular_pen_limites_turnos(self, matriz):
@@ -29,21 +24,9 @@ class PenalizacionesDurasMixin:
         o menos de T-min turnos en el mes.
         Lógica: [cite: 104-107]
         """
-        penalizacion = 0.0
-        
-        for p in range(self.num_profesionales):
-            # Contamos los días que trabaja (cualquier turno > 0) [cite: 107]
-            turnos_trabajados = np.count_nonzero(matriz[p, :])
-            
-            # Obtenemos los límites para este profesional
-            # (Asumimos que esta info está en info_profesionales)
-            t_min = self.info_profesionales[p]['t_min']
-            t_max = self.info_profesionales[p]['t_max']
-
-            if not (t_min <= turnos_trabajados <= t_max):
-                penalizacion += self.PENALIZACION_DURA
-                
-        return penalizacion
+        # Los límites T_min / T_max se garantizan mediante la función
+        # de reparación (`_reparar_cromosoma`). No penalizamos aquí.
+        return 0.0
 
         
     def _calcular_pen_descansos(self, matriz):
@@ -52,24 +35,9 @@ class PenalizacionesDurasMixin:
         prohibida (ej: Noche -> Mañana).
         Lógica: [cite: 84-99]
         """
-        penalizacion = 0.0
-        
-        # Iteramos por cada profesional
-        for p in range(self.num_profesionales):
-            # Iteramos por cada día, menos el último
-            for d in range(self.num_dias - 1):
-                turno_actual = matriz[p, d]
-                turno_siguiente = matriz[p, d+1]
-                
-                # Creamos la tupla de secuencia
-                secuencia = (turno_actual, turno_siguiente)
-                
-                # Verificamos si está en el set de secuencias prohibidas
-                # (Asumimos que 'self.secuencias_prohibidas' se carga en __init__)
-                if secuencia in self.secuencias_prohibidas:
-                    penalizacion += self.PENALIZACION_DURA
-                    
-        return penalizacion
+        # Las secuencias prohibidas se corrigen previamente en la
+        # función de reparación. Devolvemos 0.0 para evitar dobles penalizaciones.
+        return 0.0
 
 
     def _calcular_pen_cobertura(self, matriz):
