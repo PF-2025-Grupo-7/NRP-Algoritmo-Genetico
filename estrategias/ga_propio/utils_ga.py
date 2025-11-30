@@ -13,7 +13,6 @@ def init_population(pop_size, num_profesionales, num_dias, max_turno_val, seed=N
 
 
 def diversity(pop):
-    # count unique vectors
     seen = set()
     for ind in pop:
         seen.add(ind.tobytes())

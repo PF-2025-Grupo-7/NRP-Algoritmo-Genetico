@@ -1,4 +1,3 @@
-# proyecto_rostering/problema_rostering.py
 import numpy as np
 import random
 from mealpy import Problem
@@ -22,13 +21,11 @@ class ProblemaRostering(Problem, PenalizacionesDurasMixin, PenalizacionesBlandas
                  secuencias_prohibidas,
                  turnos_a_cubrir,
                  skills_a_cubrir,
-                 # --- NUEVOS PARÁMETROS (para Blandas) ---
-                 duracion_turnos,         # Ej: {1: 8, 2: 8, 3: 8}
-                 tolerancia_equidad_general, # Ej: 8 (horas)
-                 tolerancia_equidad_dificil, # Ej: 4 (horas)
-                 dias_no_habiles,         # Ej: {5, 6, 13, 14, ...} (índices de días)
-                 turnos_noche,            # Ej: {3} (índices de turnos)
-                 # --- FIN NUEVOS ---
+                 duracion_turnos,        
+                 tolerancia_equidad_general, 
+                 tolerancia_equidad_dificil, 
+                 dias_no_habiles,         
+                 turnos_noche,        
                  **kwargs):
         
         self.num_profesionales = num_profesionales
@@ -64,26 +61,25 @@ class ProblemaRostering(Problem, PenalizacionesDurasMixin, PenalizacionesBlandas
 
         super().__init__(bounds=bounds_var, minmax=minmax, **kwargs)
 
-
     
     def obj_func(self, solution):
-        # --- 1. Decodificar el Cromosoma ---
+        # Decodificar el Cromosoma
         matriz_asignacion = solution.reshape(self.num_profesionales, self.num_dias)
 
-        # --- 2. Reparación en cascada de restricciones duras ---
+        # Reparación en cascada de restricciones duras
         matriz_reparada = self._reparar_cromosoma(matriz_asignacion)
 
-        # --- 3. Cálculo de Penalizaciones DURAS (solo COBERTURA permanece) ---
+        # Cálculo de Penalizaciones DURAS (solo COBERTURA permanece)
         penalizacion_duras = 0.0
         penalizacion_duras += self._calcular_pen_cobertura(matriz_reparada)
 
-        # --- 4. Cálculo de Penalizaciones BLANDAS con la matriz reparada ---
+        # Cálculo de Penalizaciones BLANDAS con la matriz reparada
         pen_eq = self._calcular_pen_equidad_general(matriz_reparada)
         pen_dif = self._calcular_pen_equidad_dificiles(matriz_reparada)
         pen_pdl = self._calcular_pen_pdl(matriz_reparada)
         pen_pte = self._calcular_pen_pte(matriz_reparada)
 
-        # --- 5. Función de Fitness Total ---
+        # Función de Fitness
         penalizacion_total = (penalizacion_duras) + \
                              (self.pesos_fitness['eq'] * pen_eq) + \
                              (self.pesos_fitness['dif'] * pen_dif) + \
@@ -96,13 +92,14 @@ class ProblemaRostering(Problem, PenalizacionesDurasMixin, PenalizacionesBlandas
         """
         1) Limpia asignaciones inválidas.
         2) Si sobran enfermeros es un turno, los libera.
-        3) Recorte de t_max.
-        4) Relleno inteligente de déficits (Priorizando preferencias y equidad).
+        3) Si faltan enfermeros, los asigna priorizando:
+           - Preferencias de día libre (PDL)
+           - Equidad general y de turnos difíciles
 
         """
         matriz_reparada = matriz.copy()
 
-        # --- Paso de Limpieza ---
+        # Limpieza
         # Forzar a 0 asignaciones que no aportan a la cobertura para la habilidad
         for p in range(self.num_profesionales):
             skill = self.info_profesionales[p]['skill']
@@ -124,14 +121,14 @@ class ProblemaRostering(Problem, PenalizacionesDurasMixin, PenalizacionesBlandas
                 if requerido == 0:
                     matriz_reparada[p, d] = 0
 
-        # --- Secuencias prohibidas ---
+        # Secuencias prohibidas
         for p in range(self.num_profesionales):
             for d in range(self.num_dias - 1):
                 sec = (int(matriz_reparada[p, d]), int(matriz_reparada[p, d+1]))
                 if sec in self.secuencias_prohibidas:
                     matriz_reparada[p, d+1] = 0
 
-        # --- Podado de Sobre-Asignación ---
+        # Podado de Sobre-Asignación
         # Elimina profesionales de turnos que ya tienen exceso de gente
         for d in range(self.num_dias):
             for turno in self.turnos_a_cubrir:
@@ -154,7 +151,7 @@ class ProblemaRostering(Problem, PenalizacionesDurasMixin, PenalizacionesBlandas
                             p_elim = asignados.pop()
                             matriz_reparada[p_elim, d] = 0
 
-        # --- Inicializar Contadores y Estructuras Auxiliares ---
+        # Inicializar Contadores y Estructuras Auxiliares
         assigned_counts = {}
         prof_counts = [0] * self.num_profesionales
         dificiles_counts = [0] * self.num_profesionales 
@@ -182,11 +179,12 @@ class ProblemaRostering(Problem, PenalizacionesDurasMixin, PenalizacionesBlandas
                     if es_finde or es_noche:
                         dificiles_counts[p] += 1
 
-        # --- Si hay profesionales por encima de t_max, recortarlos ---
+        # Si hay profesionales por encima de t_max, recortarlos
         for p in range(self.num_profesionales):
             t_max = self.info_profesionales[p]['t_max']
             skill = self.info_profesionales[p]['skill']
-            if prof_counts[p] <= t_max: continue
+            if prof_counts[p] <= t_max: 
+                continue
 
             # Priorizar eliminación de días con mayor exceso de cobertura
             trabajados = [d for d in range(self.num_dias) if int(matriz_reparada[p, d]) != 0]
@@ -199,6 +197,7 @@ class ProblemaRostering(Problem, PenalizacionesDurasMixin, PenalizacionesBlandas
                 turno_elim = int(matriz_reparada[p, d_elim])
                 es_finde = d_elim in self.dias_no_habiles
                 es_noche = turno_elim in self.turnos_noche
+                
                 if es_finde or es_noche:
                     dificiles_counts[p] -= 1
                 
@@ -209,7 +208,7 @@ class ProblemaRostering(Problem, PenalizacionesDurasMixin, PenalizacionesBlandas
                 prof_counts[p] -= 1
                 eliminar -= 1
 
-        # --- Cubrir déficit de cobertura ---
+        # Cubrir déficit de cobertura 
         for d in range(self.num_dias):
             for turno in self.turnos_a_cubrir:
                 
@@ -244,7 +243,6 @@ class ProblemaRostering(Problem, PenalizacionesDurasMixin, PenalizacionesBlandas
 
                         if not candidatos: break
 
-                        # --- ESTRATEGIA DE SELECCIÓN ---
                         # Definimos una función para ordenar
                         def puntaje_candidato(p_idx):
                             # 1. Penalizar si viola PDL (Preferencia Día Libre) - Prioridad Máxima
@@ -273,7 +271,7 @@ class ProblemaRostering(Problem, PenalizacionesDurasMixin, PenalizacionesBlandas
                         assigned_counts[d][turno][skill] = assigned_counts[d][turno].get(skill, 0) + 1
                         deficit -= 1
 
-        # --- Rellenar hasta t_min ---
+        # Rellenar hasta t_min
         for p in range(self.num_profesionales):
             if prof_counts[p] >= self.info_profesionales[p]['t_min']: continue
             

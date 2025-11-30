@@ -1,9 +1,6 @@
 import random
 import numpy as np
 
-# We'll reuse the repair logic from the mealpy problem but keep it independent
-# The function here expects `problem` to supply the same attributes as ProblemaRostering
-
 def reparar_cromosoma(matriz, problem):
     matriz_reparada = matriz.copy()
 
@@ -66,7 +63,7 @@ def reparar_cromosoma(matriz, problem):
                         assigned += 1
                 assigned_counts[d][turno][k] = assigned
 
-    # Inicial conteos
+    # Iniciar conteos
     for p in range(problem.num_profesionales):
         for d in range(problem.num_dias):
             turno = int(matriz_reparada[p, d])

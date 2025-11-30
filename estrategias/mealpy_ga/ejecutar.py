@@ -1,4 +1,9 @@
-# proyecto_rostering/ejecutar.py
+import os
+import sys
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 import random
 import numpy as np
 from mealpy import GA
@@ -7,25 +12,24 @@ from problema_rostering import ProblemaRostering
 def cargar_datos_de_prueba():
     """
     Función de prueba para cargar datos de ejemplo.
+
     """
     print("Cargando datos de prueba...")
     
     # --- 1. Configuración General ---
-    P = 18  # Aumentamos a 18 profesionales
+    P = 18  # 18 profesionales
     D = 30  # 30 días
     max_turno = 3
     turnos_a_cubrir = [1, 2, 3] # Mañana, Tarde, Noche
     skills_a_cubrir = ['junior', 'senior']
     
     # --- 2. Info de Profesionales ---
-    # Estrategia: 6 Seniors y 6 Juniors.
-    # Demanda estimada: ~165 turnos en el mes.
-    # Capacidad media: 165 / 12 = 13.75 turnos por persona.
-    # Establecemos t_min=12 y t_max=16. Es un margen MUY estrecho (tight).
+    # 10 Seniors y 8 Juniors.
+    # Establecemos t_min=12 y t_max=16.
     
     info_prof = []
     for i in range(P):
-        skill = 'senior' if i < 10 else 'junior' # P0-P5 Senior, P6-P11 Junior
+        skill = 'senior' if i < 10 else 'junior' 
         info_prof.append({
             'skill': skill,
             't_min': 12, 
@@ -38,8 +42,8 @@ def cargar_datos_de_prueba():
         if d % 7 == 5 or d % 7 == 6: # Sábado o Domingo
             dias_no_habiles.add(d)
 
-    # --- 4. Requerimientos de Cobertura (Variable) ---
-    # Lunes y Viernes: ALTA demanda (consultas, cirugías, etc.)
+    # --- 4. Requerimientos de Cobertura ---
+    # Lunes y Viernes: ALTA demanda 
     # Resto semana: MEDIA demanda.
     # Fin de semana: BAJA demanda (pero difícil de cubrir por penalización).
     
@@ -59,60 +63,54 @@ def cargar_datos_de_prueba():
             # Lógica de cobertura por turno
             if s == 1: # Mañana
                 if es_pico:
-                    j, sr = 2, 2 # 4 personas
+                    j, sr = 2, 2 
                 elif es_finde:
-                    j, sr = 1, 1 # 2 personas
+                    j, sr = 1, 1 
                 else:
-                    j, sr = 2, 1 # 3 personas
+                    j, sr = 2, 1 
             elif s == 2: # Tarde
                 if es_pico:
-                    j, sr = 2, 1 # 3 personas
+                    j, sr = 2, 1 
                 elif es_finde:
-                    j, sr = 1, 1 # 2 personas
+                    j, sr = 1, 1 
                 else:
-                    j, sr = 1, 1 # 2 personas
-            elif s == 3: # Noche (Siempre 1 y 1)
-                j, sr = 1, 1 # 2 personas
+                    j, sr = 1, 1 
+            elif s == 3: # Noche 
+                j, sr = 1, 1 
             
             reqs[d][s]['junior'] = j
             reqs[d][s]['senior'] = sr
             total_demand += (j + sr)
 
     print(f"Demanda Total de Turnos calculada: {total_demand}")
-    print(f"Capacidad Máxima del equipo: {12 * 16} (t_max=16 * 12 pers)")
-    print("Nota: Si la demanda > capacidad, es infactible. Aquí debe haber margen justo.")
+    print(f"Capacidad Máxima del equipo: {18 * 16} (t_max=16 * 18 pers)")
 
-    # --- 5. Disponibilidad (Indisponibilidad superpuesta) ---
+    # --- 5. Disponibilidad ---
     dispon = np.full((P, D), True)
     
     # P0: Vacaciones primera semana
     dispon[0, 0:7] = False
-    
-    # P6: Vacaciones superpuestas parcialmente (días 5-10)
+    # P6: Vacaciones superpuestas (días 5-10)
     dispon[6, 5:11] = False
-    
-    # P11 (Junior): Baja médica fin de mes
+    # P11: Baja médica fin de mes
     dispon[11, 25:30] = False
-    
-    # P3 (Senior): No puede trabajar ningún fin de semana (Curso de posgrado)
+    # P3: No puede trabajar ningún fin de semana (Curso de posgrado)
     for d in dias_no_habiles:
         dispon[3, d] = False
 
-    # --- 6. Preferencias (Conflictos) ---
+    # --- 6. Preferencias ---
     prefs = np.zeros((P, D))
     
-    # Conflicto 1: Día 15 (Mitad de mes), 3 Seniors piden el día libre.
-    # Si la demanda de Seniors ese día es alta, alguien se va a enojar.
+    # Día 15, 3 Seniors piden el día libre.
     prefs[0, 15] = -1
     prefs[1, 15] = -1
     prefs[2, 15] = -1
     
-    # Conflicto 2: P8 y P9 (Juniors) quieren el Turno Mañana el Día 20.
-    # Si solo se requiere 1 Junior a la mañana, uno ganará y el otro perderá (PTE parcial).
+    # P8 y P9 (Juniors) quieren el Turno Mañana el Día 20.
     prefs[8, 20] = 1
     prefs[9, 20] = 1
     
-    # Padecimiento de P5: Pide NOCHE el día 5, 6 y 7 (quiere acumular plus nocturno).
+    # P5 pide NOCHE el día 5, 6 y 7 (quiere acumular plus nocturno).
     prefs[5, 5] = 3
     prefs[5, 6] = 3
     prefs[5, 7] = 3
@@ -146,9 +144,7 @@ def cargar_datos_de_prueba():
 # --- SCRIPT PRINCIPAL ---
 if __name__ == "__main__":
 
-    # === FIJAR LA SEMILLA ===
-    # Probamos con una semilla fija. Si el resultado es malo, prueba cambiarla a 123, 999, etc.
-    SEED = 42 
+    SEED = 1234
     np.random.seed(SEED)
     random.seed(SEED)
     
@@ -176,7 +172,6 @@ if __name__ == "__main__":
         log_to="console"
     )
 
-    # Aumentamos un poco la población debido a la mayor complejidad
     epoch = 150
     pop_size = 400 
     pc = 0.9
@@ -186,7 +181,6 @@ if __name__ == "__main__":
     
     print(f"Ejecutando GA para instancia compleja ({datos_problema['num_profesionales']} enfermeros)...")
     
-    # Importante: seed y mode="single" para consistencia
     g_best_agent = modelo_ga.solve(problema, seed=SEED, mode="single")
 
     print(f"Optimización finalizada.")

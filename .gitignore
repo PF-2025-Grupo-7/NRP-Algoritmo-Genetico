@@ -1,0 +1,25 @@
+.venv311/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+.idea/
+.vscode/
+.DS_Store
+*.egg-info/
+/dist/
+/build/
+# If you use Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Optional: exclude local data sets
+data/
+
+# Virtual environment created by Windows
+Scripts/Activate.ps1

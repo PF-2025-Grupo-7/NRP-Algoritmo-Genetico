@@ -4,6 +4,7 @@ from penalizaciones.blandas import PenalizacionesBlandasMixin
 from repair_ga_propio import reparar_cromosoma
 
 class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
+    PENALIZACION_DURA = 1_000_000
     def __init__(self,
                  num_profesionales,
                  num_dias,
@@ -51,6 +52,7 @@ class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
         pen_dif = self._calcular_pen_equidad_dificiles(matriz_reparada)
         pen_pdl = self._calcular_pen_pdl(matriz_reparada)
         pen_pte = self._calcular_pen_pte(matriz_reparada)
+        
         total = penalizacion + (self.pesos_fitness['eq'] * pen_eq) + (self.pesos_fitness['dif'] * pen_dif) + (self.pesos_fitness['pdl'] * pen_pdl) + (self.pesos_fitness['pte'] * pen_pte)
         return float(total)
 

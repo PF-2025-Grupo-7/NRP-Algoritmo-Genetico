@@ -8,7 +8,6 @@ def torneo_seleccion(population, fitnesses, k=3):
 
 
 def crossover_block_aware(parent1, parent2, num_profesionales, num_dias):
-    # parents are flattened vectors
     p1 = parent1.reshape(num_profesionales, num_dias)
     p2 = parent2.reshape(num_profesionales, num_dias)
     child = np.zeros_like(p1)
@@ -95,7 +94,6 @@ def mutate_swap_same_day(sol, problema):
 
 def mutate_flip(sol, problema):
     matriz = sol.reshape(problema.num_profesionales, problema.num_dias).copy()
-    # pick a random non-fixed gene and assign another valid turno or 0
     p = random.randint(0, problema.num_profesionales - 1)
     d = random.randint(0, problema.num_dias - 1)
     if not bool(problema.matriz_disponibilidad[p, d]):
