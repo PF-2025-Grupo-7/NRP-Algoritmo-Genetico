@@ -20,6 +20,14 @@ from operadores_ga_propio import torneo_seleccion, crossover_block_aware, aplica
 from utils_ga import init_population, diversity, population_stats
 from loader import cargar_configuracion_ga, cargar_instancia_problema
 
+# Import del Logger (NUEVO)
+try:
+    from logger import crear_estructura_logs, guardar_resultados
+except ImportError:
+    # Fallback silencioso si no existe el archivo logger.py
+    crear_estructura_logs = None
+    guardar_resultados = None
+
 def main():
     # Configuración de Argumentos de Consola
     parser = argparse.ArgumentParser(description="Ejecutar GA Propio para Nurse Rostering")
@@ -32,8 +40,19 @@ def main():
     
     args = parser.parse_args()
 
+    # Setup de Logs (NUEVO)
+    ruta_logs = None
+    if crear_estructura_logs:
+        try:
+            ruta_logs = crear_estructura_logs(tipo="propio")
+        except Exception as e:
+            print(f"Advertencia: No se pudieron crear los logs. {e}")
+
     print("\n" + "="*50)
     print(" Ejecutando AG Propio")
+    # Mostrar ruta de logs si se creó (NUEVO)
+    if ruta_logs:
+        print(f" Logs en: {ruta_logs}")
     print("="*50)
     print(f"Instancia: {os.path.basename(args.instancia)}")
     print(f"Config:    {os.path.basename(args.config)}")
@@ -113,7 +132,6 @@ def main():
             if random.random() < pm:
                 child = aplicar_mutaciones(child, problema)
             
-            # Reparación (Evolución Lamarckiana)
             # Reparamos el hijo y lo devolvemos a la población ya corregido
             matriz_child = child.reshape(problema.num_profesionales, problema.num_dias)
             matriz_child = problema._reparar_cromosoma(matriz_child)
@@ -160,6 +178,19 @@ def main():
     
     print("\nCronograma Resultante (Filas=Profesionales, Cols=Días):")
     print(matriz_final.astype(int))
+
+    # Guardar logs al finalizar
+    if ruta_logs and guardar_resultados:
+        print(f"Guardando logs en: {ruta_logs}")
+        stats = {
+            "tiempo_total": elapsed,
+            "mejor_fitness": best_global_f,
+            "generaciones": generaciones,
+            "pop_size": pop_size,
+            "solucion_valida": bool(best_global_f < 1000)
+        }
+        guardar_resultados(ruta_logs, config, stats, matriz_final, problema)
+        print("Logs guardados correctamente.")
 
     # Opcional: Aquí podrías llamar a una función para exportar a Excel
     # exportar_solucion(matriz_final, datos_problema)
