@@ -1,53 +1,43 @@
-NRP-Algoritmo-Genetico
-======================
+# Algoritmo Genético para NPR
 
-Breve guía para poner en marcha el proyecto y ejecutar las estrategias.
+Prototipo de optimización para la asignación de guardias médicas en hospitales japoneses, utilizando Algoritmos Genéticos. Este proyecto busca resolver el Nurse Rostering Problem considerando restricciones legales y preferencias del personal.
 
-Requisitos mínimos
-- Python 3.11 (u 3.10+)
-- Se recomienda crear un entorno virtual para este proyecto.
+## Requisitos Previos
+- Python 3.10 o superior
 
-Crear y activar un entorno virtual (Windows PowerShell)
-```powershell
-# Desde la raíz del repositorio
-python -m venv .venv311
-# Activar el virtualenv (PowerShell)
-.\.venv311\Scripts\Activate.ps1
-# O (si tu shell usa cmd): .\.venv311\Scripts\activate.bat
+## Instalación y Configuración
+1. Crear entorno virtual
+```bash
+python -m venv .venv
+```
+2. Activar entorno
+```bash
+.\.venv\Scripts\Activate
+```
+3. Instalar dependencias
+```bash
+pip install -r requirements.txt
+```
+## Ejecución de Estrategias
+Actualmente existen dos implementaciones del motor genético. Se recomienda ejecutar desde la raíz del repositorio.
+### 1 - GA Propio
+Implementación a medida con operadores de cruce y mutación diseñados para mantener la estructura de bloques de los turnos. Incluye reparación inteligente de individuos.
+```bash
+python estrategias/ga_propio/ejecutar_ga_propio.py
+```
+### 2 - Mealpy GA
+Implementación basada en la librería estándar mealpy. Útil para comparar el rendimiento base frente a la solución propia.
+```bash
+python estrategias/mealpy_ga/ejecutar.py
 ```
 
-Instalar dependencias (sugeridas)
-```powershell
-pip install --upgrade pip
-pip install numpy mealpy
-# Si quieres fijar dependencias, crea un requirements.txt y luego:
-# pip install -r requirements.txt
-```
+## Estructura del Código
+* estrategias/: contiene los runners y la lógica de cada enfoque.
+* penalizaciones/: lógica compartida de negocio:
+  * duras.py: restricciones inviolables.
+  * blandas.py: función de fitness
 
-Archivos y comandos principales
-- `estrategias/mealpy_ga/ejecutar.py` : Runner que usa la implementación basada en `mealpy` (OriginalGA).
-- `estrategias/ga_propio/ejecutar_ga_propio.py` : Runner de la implementación propia del GA (sin dependencia de mealpy).
+## Notas para el Equipo
+* Datos de Prueba: Actualmente los parámetros (enfermeros, días, demanda) están definidos dentro de los scripts ejecutar_*.py.
 
-Ejecutar los scripts (desde la raíz del repo, con el virtualenv activado)
-```powershell
-# GA propio
-.\.venv311\Scripts\python.exe .\estrategias\ga_propio\ejecutar_ga_propio.py
-
-# GA basado en mealpy
-.\.venv311\Scripts\python.exe .\estrategias\mealpy_ga\ejecutar.py
-```
-
-Nota sobre el entorno virtual y Git
-- El directorio del entorno virtual `.venv311/` está incluido en `.gitignore` y NO debe subirse a GitHub.
-- Si accidentalmente ya lo añadiste al repositorio, puedes eliminarlo del control de versiones con:
-```powershell
-git rm -r --cached .venv311
-git commit -m "Remove venv from repo and add .gitignore"
-```
-
-Notas de mantenimiento
-- Las penalizaciones compartidas ahora están en `penalizaciones/` en la raíz del proyecto. Evita duplicarlas en las carpetas de estrategia.
-- Si prefieres ejecutar como módulo (python -m), añade `__init__.py` en los paquetes según tu flujo de trabajo.
-
-Contacto
-- Proyecto mantenido por el equipo NRP (PF-2025-Grupo-7). Para preguntas abre un issue o contacta al autor del repo.
+* Logs: La salida por consola muestra el progreso generacional y la matriz resultante formateada al final.  
