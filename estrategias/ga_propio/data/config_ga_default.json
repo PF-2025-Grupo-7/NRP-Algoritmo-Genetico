@@ -1,6 +1,6 @@
 {
     "pop_size": 100,
-    "generaciones": 150,
+    "generaciones": 250,
     "pc": 0.85,
     "pm": 0.20,
     "elitismo": true,
