@@ -192,8 +192,5 @@ def main():
         guardar_resultados(ruta_logs, config, stats, matriz_final, problema)
         print("Logs guardados correctamente.")
 
-    # Opcional: Aquí podrías llamar a una función para exportar a Excel
-    # exportar_solucion(matriz_final, datos_problema)
-
 if __name__ == '__main__':
     main()
