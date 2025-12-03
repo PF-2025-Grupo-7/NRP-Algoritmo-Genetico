@@ -30,7 +30,6 @@ Thumbs.db
 *.sqlite3
 
 # Datos
-data/
 logs/
 
 # Seguridad
