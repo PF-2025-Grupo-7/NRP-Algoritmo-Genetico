@@ -20,7 +20,7 @@ from operadores_ga_propio import torneo_seleccion, crossover_block_aware, aplica
 from utils_ga import init_population, diversity, population_stats
 from loader import cargar_configuracion_ga, cargar_instancia_problema
 
-# Import del Logger (NUEVO)
+# Import del Logger
 try:
     from logger import crear_estructura_logs, guardar_resultados
 except ImportError:
@@ -50,7 +50,7 @@ def main():
 
     print("\n" + "="*50)
     print(" Ejecutando AG Propio")
-    # Mostrar ruta de logs si se creó (NUEVO)
+    # Mostrar ruta de logs si se creó 
     if ruta_logs:
         print(f" Logs en: {ruta_logs}")
     print("="*50)
