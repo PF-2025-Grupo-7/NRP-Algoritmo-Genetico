@@ -2,8 +2,11 @@
 
 Prototipo de optimización para la asignación de guardias médicas en hospitales japoneses, utilizando Algoritmos Genéticos. Este proyecto busca resolver el Nurse Rostering Problem considerando restricciones legales y preferencias del personal.
 
-## Requisitos Previos
-- Python 3.10 o superior
+## Estructura del Proyecto
+* `src/`: Código fuente del algoritmo genético y lógica de negocio.
+  * `data/`: Instancias de prueba y configuración.
+  * `penalizaciones/`: Restricciones duras y blandas.
+* `logs/`: Resultados de las ejecuciones.
 
 ## Instalación y Configuración
 1. Crear entorno virtual
@@ -18,26 +21,45 @@ python -m venv .venv
 ```bash
 pip install -r requirements.txt
 ```
-## Ejecución de Estrategias
-Actualmente existen dos implementaciones del motor genético. Se recomienda ejecutar desde la raíz del repositorio.
-### 1 - GA Propio
-Implementación a medida con operadores de cruce y mutación diseñados para mantener la estructura de bloques de los turnos. Incluye reparación inteligente de individuos.
+## Ejecución 
+Desde la raíz del proyecto:
 ```bash
-python estrategias/ga_propio/ejecutar_ga_propio.py
+python src/main.py
 ```
-### 2 - Mealpy GA
-Implementación basada en la librería estándar mealpy. Útil para comparar el rendimiento base frente a la solución propia.
+O para especificar una instancia diferente:
 ```bash
-python estrategias/mealpy_ga/ejecutar.py
+python src/main.py --instancia src/data/instancia_02_grande.json
 ```
 
-## Estructura del Código
-* estrategias/: contiene los runners y la lógica de cada enfoque.
-* penalizaciones/: lógica compartida de negocio:
-  * duras.py: restricciones inviolables.
-  * blandas.py: función de fitness
+## Personalización y Configuración
 
-## Notas para el Equipo
-* Datos de Prueba: Actualmente los parámetros (enfermeros, días, demanda) están definidos dentro de los scripts ejecutar_*.py.
+El algoritmo permite ajustar sus hiperparámetros mediante archivos JSON ubicados en `src/data/`. Esto permite cambiar el comportamiento de la búsqueda sin modificar el código.
 
-* Logs: La salida por consola muestra el progreso generacional y la matriz resultante formateada al final.  
+### Parámetros Configurables
+
+| Parámetro      | Descripción                                                |
+| :---           | :---                                                       |
+| `pop_size`     | Tamaño de la población (cantidad de soluciones simultáneas). |
+| `generaciones` | Número de iteraciones del ciclo evolutivo.                 |
+| `pc`           | Probabilidad de Cruce (Crossover).                         |
+| `pm`           | Probabilidad de Mutación.                                  |
+| `elitismo`     | `true` para conservar siempre al mejor individuo.          |
+
+### ¿Cómo elegir una configuración?
+
+Utiliza el argumento `--config` al ejecutar el script principal.
+
+**Ejecución Estándar (usa default implícitamente):**
+```bash
+python src/main.py
+```
+
+**Ejecución Rápida (para pruebas):**
+```bash
+python src/main.py --config src/data/config_ga_fast.json
+```
+**Combinando Instancia y Configuración**
+Podemos mezclar una instancia difícil con una configuración rápida para ver si el código corre sin errores:
+```bash
+python src/main.py --instancia src/data/instancia_02_grande.json --config src/data/config_ga_fast.json
+```
