@@ -2,11 +2,8 @@
 
 Prototipo de optimización para la asignación de guardias médicas en hospitales japoneses, utilizando Algoritmos Genéticos. Este proyecto busca resolver el Nurse Rostering Problem considerando restricciones legales y preferencias del personal.
 
-## Estructura del Proyecto
-* `src/`: Código fuente del algoritmo genético y lógica de negocio.
-  * `data/`: Instancias de prueba y configuración.
-  * `penalizaciones/`: Restricciones duras y blandas.
-* `logs/`: Resultados de las ejecuciones.
+## 📋 Requisitos Previos
+- Python 3.10 o superior
 
 ## Instalación y Configuración
 1. Crear entorno virtual
@@ -21,7 +18,7 @@ python -m venv .venv
 ```bash
 pip install -r requirements.txt
 ```
-## Ejecución 
+## Ejecución (simple)
 Desde la raíz del proyecto:
 ```bash
 python src/main.py
@@ -30,6 +27,14 @@ O para especificar una instancia diferente:
 ```bash
 python src/main.py --instancia src/data/instancia_02_grande.json
 ```
+
+## Estructura del Proyecto
+* `src/`: Código fuente principal.
+  * `data/`: Instancias de prueba y configuración.
+  * `penalizaciones/`: Restricciones duras y blandas.
+  * `operadores.py`: Catálogoo de estrategias de selección, cruce y mutación.
+  * `main.py`: Punto de entrada único para ejecutar el algoritmo.
+* `logs/`: Resultados de las ejecuciones.
 
 ## Personalización y Configuración
 
@@ -62,4 +67,30 @@ python src/main.py --config src/data/config_ga_fast.json
 Podemos mezclar una instancia difícil con una configuración rápida para ver si el código corre sin errores:
 ```bash
 python src/main.py --instancia src/data/instancia_02_grande.json --config src/data/config_ga_fast.json
+```
+
+## Experimentación con Operadores 
+
+| Argumento      | Descripción                                                | Opciones Disponibles  |
+| :---           | :---                                                       | :---    |
+| `--mut`     | Estrategia de Mutación | `hibrida_adaptativa` (Default), `reasignar_turno`, `intercambio_dia`, `flip_simple` |
+| `--cross` | Estrategia de Cruce                 | `bloques_verticales` (Default) |
+| `--sel`           | Estrategia de Selección                         | `torneo_deterministico` (Default) |
+
+**Ejemplo**
+```bash
+python src/main.py --mut intercambio_dia --tag experimento_swap
+```
+
+## Visualización y Logs
+
+**Modo Verbose (`-v`)**
+Muestra el progreso generación a generación en la consola. Útil para ver la convergencia en tiempo real.
+```bash
+python src/main.py -v
+```
+
+Define un prefijo para la carpeta de resultados en logs/, facilitando la identificación de experimentos.
+```bash
+python src/main.py --tag prueba_final_viernes
 ```
