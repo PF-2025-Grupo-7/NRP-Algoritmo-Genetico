@@ -3,31 +3,29 @@ import datetime
 import json
 import numpy as np
 
-def crear_estructura_logs(tipo="propio"):
+def crear_estructura_logs(prefix="run"):
     """
-    Crea la carpeta de logs con timestamp.
-    Retorna la ruta absoluta de la carpeta creada.
+    Crea la carpeta de logs.
+    Ahora usamos un prefijo genérico por defecto ('run') o 'test' para batchs.
     """
-    # Si logger está en /src, la raíz está un nivel arriba (..)
-    # Y queremos guardar en /logs (hermano de /src)
+    # Ajuste de ruta relativo a src/
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'logs'))
     
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    nombre_carpeta = f"ejecucion_{tipo}_{timestamp}"
+    nombre_carpeta = f"{prefix}_{timestamp}"
     ruta_log = os.path.join(base_dir, nombre_carpeta)
     
     os.makedirs(ruta_log, exist_ok=True)
     return ruta_log
 
-def guardar_resultados(ruta_log, config, estadisticas, matriz_final, problema):
+def guardar_resultados(ruta_log, config, operadores, estadisticas, matriz_final, problema):
     """
-    Guarda dos archivos:
-    1. metadatos.json: Configuración y estadísticas crudas.
-    2. reporte_solucion.txt: Matriz visual y análisis de texto.
+    Guarda metadatos completos incluyendo qué operadores se usaron.
+    Args:
+        operadores (dict): {'seleccion': 'torneo', 'cruce': '...', 'mutacion': '...'}
     """
     
-    # GUARDAR METADATOS
-    # Convertimos sets a listas para que JSON no falle
+    # Prepara la configuración para serializar (sets a listas)
     config_serializable = {}
     for k, v in config.items():
         if isinstance(v, set):
@@ -37,10 +35,16 @@ def guardar_resultados(ruta_log, config, estadisticas, matriz_final, problema):
 
     metadatos = {
         "fecha": datetime.datetime.now().isoformat(),
-        "estadisticas_ejecucion": estadisticas,
-        "configuracion": config_serializable
+        "contexto": {
+            "algoritmo": "GA_Genetico_NRP",
+            "version": "2.0 (Systematic Testing Ready)"
+        },
+        "operadores_utilizados": operadores,  # <--- NUEVO: Trazabilidad total
+        "parametros": config_serializable,
+        "estadisticas_ejecucion": estadisticas
     }
 
+    # Guardar JSON
     with open(os.path.join(ruta_log, "metadatos.json"), "w", encoding='utf-8') as f:
         json.dump(metadatos, f, indent=4, ensure_ascii=False)
 
@@ -53,6 +57,7 @@ def guardar_resultados(ruta_log, config, estadisticas, matriz_final, problema):
         f.write(f"Fitness Final: {estadisticas['mejor_fitness']:.4f}\n")
         f.write(f"Tiempo Total:  {estadisticas['tiempo_total']:.2f} segundos\n")
         f.write(f"Generaciones:  {estadisticas['generaciones']}\n")
+        f.write(f"Operadores: {operadores['cruce']} + {operadores['mutacion']}\n")
         f.write("-" * 60 + "\n\n")
 
         f.write("--- ANÁLISIS DE PENALIZACIONES ---\n")

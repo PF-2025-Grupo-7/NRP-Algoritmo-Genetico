@@ -153,3 +153,25 @@ def aplicar_mutaciones(sol, problema):
     ops = [mutate_reassign_shift, mutate_swap_same_day, mutate_flip]
     op = random.choice(ops)
     return op(sol, problema)
+
+
+# --- CATÁLOGO DE OPERADORES ---
+# Esto permite seleccionarlos por nombre desde la línea de comandos
+
+SELECTION_OPS = {
+    "torneo_deterministico": torneo_seleccion
+}
+
+CROSSOVER_OPS = {
+    "bloques_verticales": crossover_block_aware
+}
+
+MUTATION_OPS = {
+    # La estrategia por defecto (mezcla las 3)
+    "hibrida_adaptativa": aplicar_mutaciones,
+
+    # Estrategias individuales expuestas para testing
+    "reasignar_turno": mutate_reassign_shift,  # Mueve turno a otro prof. (Balanceo)
+    "intercambio_dia": mutate_swap_same_day,   # Intercambia entre 2 profs. (Preferencias)
+    "flip_simple": mutate_flip                 # Cambia un valor al azar (Diversidad)
+}
