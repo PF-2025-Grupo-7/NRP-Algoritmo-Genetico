@@ -1,11 +1,41 @@
 import random
 import numpy as np
 
+#----------------------------
+#         SELECCIÓN
+# ---------------------------
+
 # Estrategia de selección: torneo determinístico
 def torneo_seleccion(population, fitnesses, k=3):
     idx = random.sample(range(len(population)), k)  # tomar k individuos al azar
     best = min(idx, key=lambda i: fitnesses[i])     # seleccionar al mejor
     return population[best].copy()                  # retornar copia del individuo
+
+def seleccion_ranking(population, fitnesses, k=None):
+    """
+    Ordena la población por fitness (menor es mejor) y asigna probabilidad
+    lineal. Selecciona uno basado en esa probabilidad.
+    """
+    pop_size = len(population)
+    
+    # 1. Obtener índices ordenados (el mejor fitness primero)
+    # argsort devuelve los índices que ordenarían el array
+    ranked_indices = np.argsort(fitnesses)
+    
+    # 2. Asignar pesos: El mejor (índice 0) recibe peso 'pop_size', el peor peso 1.
+    # Fórmula de ranking lineal simple.
+    ranks = np.arange(pop_size, 0, -1) # [100, 99, ..., 1]
+    total_rank = np.sum(ranks)
+    probs = ranks / total_rank
+    
+    # 3. Selección aleatoria ponderada
+    selected_idx = np.random.choice(ranked_indices, p=probs)
+    
+    return population[selected_idx].copy()
+
+#----------------------------
+#         CRUCE
+# ---------------------------
 
 # Operador de cruce: crossover vertical por días
 def crossover_block_aware(parent1, parent2, num_profesionales, num_dias):
@@ -22,11 +52,44 @@ def crossover_block_aware(parent1, parent2, num_profesionales, num_dias):
     
     return child.reshape(-1) # retornar hijo como vector
 
+def crossover_horizontal(parent1, parent2, num_profesionales, num_dias):
+    """
+    Intercambia historiales completos de profesionales.
+    Preserva la coherencia interna del horario del médico.
+    """
+    p1 = parent1.reshape(num_profesionales, num_dias)
+    p2 = parent2.reshape(num_profesionales, num_dias)
+    child = np.zeros_like(p1)
 
-#-----------------------------------------------
-#              MUTACIÓN HÍBRIDA 
-#     Se elige al azar entre tres operadores.
-# -----------------------------------------------
+    # Para cada profesional (fila), elegimos al azar de qué padre hereda
+    for p in range(num_profesionales):
+        if random.random() < 0.5:
+            child[p, :] = p1[p, :]
+        else:
+            child[p, :] = p2[p, :]
+            
+    return child.reshape(-1)
+
+def crossover_two_point(parent1, parent2, num_profesionales, num_dias):
+    """
+    Cruce clásico de dos puntos sobre el vector aplanado.
+    No considera la estructura matricial.
+    """
+    size = len(parent1)
+    # Elegir dos puntos de corte
+    cx1 = random.randint(0, size - 2)
+    cx2 = random.randint(cx1 + 1, size - 1)
+    
+    child = parent1.copy()
+    # Copiar el segmento central del padre 2
+    child[cx1:cx2] = parent2[cx1:cx2]
+    
+    return child
+
+
+#----------------------------
+#         MUTACIÓN
+# ---------------------------
 
 # Tipo 1: mutación de reasignación de turno
 def mutate_reassign_shift(sol, problema, max_attempts=20):
@@ -156,22 +219,21 @@ def aplicar_mutaciones(sol, problema):
 
 
 # --- CATÁLOGO DE OPERADORES ---
-# Esto permite seleccionarlos por nombre desde la línea de comandos
 
 SELECTION_OPS = {
-    "torneo_deterministico": torneo_seleccion
+    "torneo_deterministico": torneo_seleccion,
+    "ranking_lineal": seleccion_ranking  
 }
 
 CROSSOVER_OPS = {
-    "bloques_verticales": crossover_block_aware
+    "bloques_verticales": crossover_block_aware,
+    "bloques_horizontales": crossover_horizontal, 
+    "dos_puntos": crossover_two_point           
 }
 
 MUTATION_OPS = {
-    # La estrategia por defecto (mezcla las 3)
     "hibrida_adaptativa": aplicar_mutaciones,
-
-    # Estrategias individuales expuestas para testing
-    "reasignar_turno": mutate_reassign_shift,  # Mueve turno a otro prof. (Balanceo)
-    "intercambio_dia": mutate_swap_same_day,   # Intercambia entre 2 profs. (Preferencias)
-    "flip_simple": mutate_flip                 # Cambia un valor al azar (Diversidad)
+    "reasignar_turno": mutate_reassign_shift,
+    "intercambio_dia": mutate_swap_same_day,
+    "flip_simple": mutate_flip
 }
