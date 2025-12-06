@@ -1,41 +1,41 @@
-import random
-import numpy as np
-import time
 import os
 import sys
 import argparse
+import time
+import random
+import numpy as np
 
-# Configuración de Rutas
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
+# --- AJUSTE DE RUTAS ---
+# Ahora main.py está en /src, por lo que la raíz del proyecto es una carpeta arriba (..)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
 
-LOCAL_DIR = os.path.dirname(__file__)
-if LOCAL_DIR not in sys.path:
-    sys.path.insert(0, LOCAL_DIR)
-
-# Imports del Proyecto
-from problema_ga_propio import ProblemaGAPropio
-from operadores_ga_propio import torneo_seleccion, crossover_block_aware, aplicar_mutaciones
-from utils_ga import init_population, diversity, population_stats
+# Imports locales (al estar en la misma carpeta src, los imports son directos)
+from problema import ProblemaGAPropio  # Asumiendo que renombraste el archivo
+from operadores import torneo_seleccion, crossover_block_aware, aplicar_mutaciones
+from utils import init_population, diversity, population_stats
 from loader import cargar_configuracion_ga, cargar_instancia_problema
 
 # Import del Logger
 try:
     from logger import crear_estructura_logs, guardar_resultados
 except ImportError:
-    # Fallback silencioso si no existe el archivo logger.py
     crear_estructura_logs = None
     guardar_resultados = None
 
 def main():
-    # Configuración de Argumentos de Consola
-    parser = argparse.ArgumentParser(description="Ejecutar GA Propio para Nurse Rostering")
+    parser = argparse.ArgumentParser(description="Ejecutar Algoritmo Genético - Proyecto Final")
     
-    # Argumentos para indicar qué archivos usar. Por defecto busca en la carpeta data/ los archivos base.
-    parser.add_argument('--instancia', type=str, default=os.path.join(LOCAL_DIR, 'data', 'instancia_01_base.json'),
+    # Rutas por defecto actualizadas (relativas a main.py en src/)
+    # Nota: usamos os.path.join para ir a la carpeta data dentro de src
+    default_data_dir = os.path.join(os.path.dirname(__file__), 'data')
+    
+    parser.add_argument('--instancia', type=str, 
+                        default=os.path.join(default_data_dir, 'instancia_01_base.json'),
                         help='Ruta al archivo JSON con los datos del hospital/problema')
-    parser.add_argument('--config', type=str, default=os.path.join(LOCAL_DIR, 'data', 'config_ga_default.json'),
+    parser.add_argument('--config', type=str, 
+                        default=os.path.join(default_data_dir, 'config_ga_default.json'),
                         help='Ruta al archivo JSON con los parámetros del Algoritmo Genético')
     
     args = parser.parse_args()

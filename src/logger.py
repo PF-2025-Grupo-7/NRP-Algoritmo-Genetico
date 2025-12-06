@@ -8,7 +8,9 @@ def crear_estructura_logs(tipo="propio"):
     Crea la carpeta de logs con timestamp.
     Retorna la ruta absoluta de la carpeta creada.
     """
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'logs'))
+    # Si logger está en /src, la raíz está un nivel arriba (..)
+    # Y queremos guardar en /logs (hermano de /src)
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'logs'))
     
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     nombre_carpeta = f"ejecucion_{tipo}_{timestamp}"
