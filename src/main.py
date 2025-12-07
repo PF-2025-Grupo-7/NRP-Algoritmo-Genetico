@@ -5,192 +5,156 @@ import time
 import random
 import numpy as np
 
-# --- AJUSTE DE RUTAS ---
-# Ahora main.py está en /src, por lo que la raíz del proyecto es una carpeta arriba (..)
+# Rutas
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
-    sys.path.append(BASE_DIR)
+    sys.path.insert(0, BASE_DIR)
 
-# Imports locales (al estar en la misma carpeta src, los imports son directos)
-from problema import ProblemaGAPropio  # Asumiendo que renombraste el archivo
-from operadores import torneo_seleccion, crossover_block_aware, aplicar_mutaciones
+from problema import ProblemaGAPropio
 from utils import init_population, diversity, population_stats
 from loader import cargar_configuracion_ga, cargar_instancia_problema
+# Importamos los catálogos en lugar de las funciones sueltas
+from operadores import SELECTION_OPS, CROSSOVER_OPS, MUTATION_OPS 
 
-# Import del Logger
 try:
     from logger import crear_estructura_logs, guardar_resultados
 except ImportError:
     crear_estructura_logs = None
-    guardar_resultados = None
 
 def main():
-    parser = argparse.ArgumentParser(description="Ejecutar Algoritmo Genético - Proyecto Final")
+    parser = argparse.ArgumentParser(description="GA para Nurse Rostering")
     
-    # Rutas por defecto actualizadas (relativas a main.py en src/)
-    # Nota: usamos os.path.join para ir a la carpeta data dentro de src
-    default_data_dir = os.path.join(os.path.dirname(__file__), 'data')
+    # Rutas de datos
+    default_data = os.path.join(os.path.dirname(__file__), 'data')
+    parser.add_argument('--instancia', default=os.path.join(default_data, 'instancia_01_base.json'))
+    parser.add_argument('--config', default=os.path.join(default_data, 'config_ga_fast.json'))
     
-    parser.add_argument('--instancia', type=str, 
-                        default=os.path.join(default_data_dir, 'instancia_01_base.json'),
-                        help='Ruta al archivo JSON con los datos del hospital/problema')
-    parser.add_argument('--config', type=str, 
-                        default=os.path.join(default_data_dir, 'config_ga_default.json'),
-                        help='Ruta al archivo JSON con los parámetros del Algoritmo Genético')
+    # --- NUEVOS ARGUMENTOS PARA OPERADORES ---
+    # Usamos las claves de los diccionarios como opciones válidas
+    parser.add_argument('--sel', type=str, default='torneo_deterministico', 
+                        choices=SELECTION_OPS.keys(), help='Estrategia de Selección')
+    parser.add_argument('--cross', type=str, default='bloques_verticales', 
+                        choices=CROSSOVER_OPS.keys(), help='Operador de Cruce')
+    parser.add_argument('--mut', type=str, default='hibrida_adaptativa', 
+                        choices=MUTATION_OPS.keys(), help='Operador de Mutación')
+    
+    # Argumento para etiquetar logs (útil para experimentación masiva)
+    parser.add_argument('--tag', type=str, default='run', help='Prefijo para la carpeta de logs')
+
+    parser.add_argument('-v', '--verbose', action='store_true', 
+                        help='Muestra estadísticas detalladas en consola generación a generación')
     
     args = parser.parse_args()
 
-    # Setup de Logs (NUEVO)
+    # 1. Resolver Funciones de Operadores
+    seleccion_func = SELECTION_OPS[args.sel]
+    cruce_func = CROSSOVER_OPS[args.cross]
+    mutacion_func = MUTATION_OPS[args.mut]
+
+    # Diccionario para logs
+    ops_names = {
+        "seleccion": args.sel,
+        "cruce": args.cross,
+        "mutacion": args.mut
+    }
+
+    # 2. Setup Logs
     ruta_logs = None
     if crear_estructura_logs:
-        try:
-            ruta_logs = crear_estructura_logs(tipo="propio")
-        except Exception as e:
-            print(f"Advertencia: No se pudieron crear los logs. {e}")
+        ruta_logs = crear_estructura_logs(prefix=args.tag)
+        print(f"Logs en: {ruta_logs}")
 
-    print("\n" + "="*50)
-    print(" Ejecutando AG Propio")
-    # Mostrar ruta de logs si se creó 
-    if ruta_logs:
-        print(f" Logs en: {ruta_logs}")
-    print("="*50)
-    print(f"Instancia: {os.path.basename(args.instancia)}")
-    print(f"Config:    {os.path.basename(args.config)}")
-
-    # Carga de Datos desde JSON 
-    try:
-        config = cargar_configuracion_ga(args.config)
-        datos_problema = cargar_instancia_problema(args.instancia)
-        
-    except FileNotFoundError as e:
-        print(f"\nError: No se encontró uno de los archivos de configuración.\nDetalle: {e}")
-        return
-    except Exception as e:
-        print(f"\nError al procesar los archivos JSON.\nDetalle: {e}")
-        return
-
-    # Configuración de Semilla (Reproducibilidad)
+    # 3. Carga de Configuración
+    config = cargar_configuracion_ga(args.config)
+    datos_problema = cargar_instancia_problema(args.instancia)
+    
+    # Seed
     SEED = config.get('seed', 1234)
     random.seed(SEED)
     np.random.seed(SEED)
-    print(f"Seed:      {SEED}")
 
-    # Inicialización del Problema
-    try:
-        problema = ProblemaGAPropio(**datos_problema)
-    except TypeError as e:
-        print(f"\nError al inicializar el problema. Probablemente faltan claves en el JSON de instancia.")
-        print(f"Detalle técnico: {e}")
-        return
+    # Inicializar Problema
+    problema = ProblemaGAPropio(**datos_problema)
 
-    # Parámetros del GA 
+    # Parámetros GA
     pop_size = config.get('pop_size', 100)
     generaciones = config.get('generaciones', 200)
-    pc = config.get('pc', 0.85)  # Probabilidad de Cruce
-    pm = config.get('pm', 0.20)  # Probabilidad de Mutación
+    pc = config.get('pc', 0.85)
+    pm = config.get('pm', 0.20)
     elitismo = config.get('elitismo', True)
 
-    print(f"Población: {pop_size} | Gens: {generaciones} | PC: {pc} | PM: {pm}")
-    print("-" * 50)
+    print(f"Estrategia: {args.sel} | {args.cross} | {args.mut}")
+    print(f"Modo Verbose: {'ACTIVADO' if args.verbose else 'DESACTIVADO'}")
 
-    # Bucle Evolutivo (GA)
+    # --- BUCLE EVOLUTIVO ---
     start_time = time.time()
-
-    # Inicializar población
     pop = init_population(pop_size, problema.num_profesionales, problema.num_dias, problema.max_turno_val, seed=SEED)
-
-    # Evaluar población inicial
     fitnesses = [problema.fitness(ind) for ind in pop]
-    
-    # Encontrar mejor inicial
-    best_idx = int(min(range(len(fitnesses)), key=lambda i: fitnesses[i]))
+
+    best_idx = np.argmin(fitnesses)
     best_global = pop[best_idx].copy()
     best_global_f = fitnesses[best_idx]
 
-    print(f"Estado Inicial -> Best Fitness: {best_global_f:.4f}")
-
     for gen in range(1, generaciones + 1):
         new_pop = []
-        
-        # Elitismo: Conservar al mejor de la generación anterior
         if elitismo:
             new_pop.append(best_global.copy())
-        
-        # Generar nueva población
+
         while len(new_pop) < pop_size:
-            # Selección
-            parent1 = torneo_seleccion(pop, fitnesses, k=3)
-            parent2 = torneo_seleccion(pop, fitnesses, k=3)
-            
-            # Cruce (Crossover)
+            # Uso dinámico del operador de selección
+            p1 = seleccion_func(pop, fitnesses, k=3)
+            p2 = seleccion_func(pop, fitnesses, k=3)
+
+            # Uso dinámico del operador de cruce
             if random.random() < pc:
-                child = crossover_block_aware(parent1, parent2, problema.num_profesionales, problema.num_dias)
+                child = cruce_func(p1, p2, problema.num_profesionales, problema.num_dias)
             else:
-                child = parent1.copy() # Si no hay cruce, pasa el padre 1
-            
-            # Mutación
+                child = p1.copy()
+
+            # Uso dinámico del operador de mutación
             if random.random() < pm:
-                child = aplicar_mutaciones(child, problema)
-            
-            # Reparamos el hijo y lo devolvemos a la población ya corregido
-            matriz_child = child.reshape(problema.num_profesionales, problema.num_dias)
-            matriz_child = problema._reparar_cromosoma(matriz_child)
-            child = matriz_child.reshape(-1)
-            
+                child = mutacion_func(child, problema)
+
+            # Reparación (siempre necesaria en este diseño)
+            child = problema._reparar_cromosoma(child.reshape(problema.num_profesionales, problema.num_dias)).reshape(-1)
             new_pop.append(child)
-        
-        # Reemplazo generacional
+
         pop = new_pop[:pop_size]
         fitnesses = [problema.fitness(ind) for ind in pop]
-        
-        # Actualizar mejor global
-        current_best_idx = int(min(range(len(fitnesses)), key=lambda i: fitnesses[i]))
-        current_best_f = fitnesses[current_best_idx]
-        
-        if current_best_f < best_global_f:
-            best_global_f = current_best_f
+
+        # Estadísticas para el mejor global (esto siempre se calcula)
+        current_best_idx = np.argmin(fitnesses)
+        if fitnesses[current_best_idx] < best_global_f:
+            best_global_f = fitnesses[current_best_idx]
             best_global = pop[current_best_idx].copy()
-            print(f"   >>> ¡Mejora en Gen {gen}! Nuevo récord: {best_global_f:.4f}")
+            # Si es verbose, avisamos de la mejora inmediatamente
+            if args.verbose:
+                 print(f"   >>> ¡Mejora! Nuevo récord: {best_global_f:.4f}")
+        
+        # --- REPORTE CONDICIONAL EN CONSOLA ---
+        # Solo imprimimos si el usuario usó --verbose
+        if args.verbose and (gen % 10 == 0 or gen == 1):
+            # Calculamos estadísticas extra solo si vamos a imprimir (ahorra tiempo)
+            best_val, mean_val, std_val = population_stats(fitnesses)
+            div_val = diversity(pop)
+            print(f"Gen {gen:03d}: Best={best_val:.4f} | Mean={mean_val:.1f} | Div={div_val}")
 
-        # Logs periódicos
-        if gen % 10 == 0 or gen == 1:
-            best, mean, std = population_stats(fitnesses)
-            div = diversity(pop)
-            print(f"Gen {gen:03d}: Best={best:.4f} | Mean={mean:.1f} | Div={div}")
-
-    # Resultados Finales
     end_time = time.time()
     elapsed = end_time - start_time
     
-    print("="*50)
-    print(f"Ejecución Finalizada en {elapsed:.2f} segundos")
-    print(f"Mejor Fitness Final: {best_global_f:.4f}")
+    print(f"Fin. Fitness: {best_global_f:.4f}. Tiempo: {elapsed:.2f}s")
     
-    if best_global_f < 1000:
-        print("Solución Factible ENCONTRADA")
-    else:
-        print("Solución Inválida")
-
-    # Mostrar Matriz
-    matriz_final = best_global.reshape(problema.num_profesionales, problema.num_dias)
-    # Una última reparación por seguridad (aunque ya debería venir reparado del bucle)
-    matriz_final = problema._reparar_cromosoma(matriz_final)
-    
-    print("\nCronograma Resultante (Filas=Profesionales, Cols=Días):")
-    print(matriz_final.astype(int))
-
-    # Guardar logs al finalizar
+    # Guardado de Logs
     if ruta_logs and guardar_resultados:
-        print(f"Guardando logs en: {ruta_logs}")
+        matriz_final = problema._reparar_cromosoma(best_global.reshape(problema.num_profesionales, problema.num_dias))
         stats = {
             "tiempo_total": elapsed,
             "mejor_fitness": best_global_f,
             "generaciones": generaciones,
-            "pop_size": pop_size,
             "solucion_valida": bool(best_global_f < 1000)
         }
-        guardar_resultados(ruta_logs, config, stats, matriz_final, problema)
-        print("Logs guardados correctamente.")
+        # Pasamos el nuevo diccionario 'ops_names'
+        guardar_resultados(ruta_logs, config, ops_names, stats, matriz_final, problema)
 
 if __name__ == '__main__':
     main()
