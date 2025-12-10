@@ -29,21 +29,33 @@ def cargar_datos(directorio):
                     
                     # Extraer info del nombre de la carpeta
                     nombre_carpeta = os.path.basename(root)
-                    partes = nombre_carpeta.split("_SEED_")
-                    nombre_exp = partes[0]
                     
-                    # Detectar Instancia (BASE vs AJUSTADA)
-                    if nombre_exp.startswith("BASE_"):
-                        instancia = "BASE"
-                        experimento = nombre_exp.replace("BASE_", "")
-                    elif nombre_exp.startswith("AJUSTADA_"):
-                        instancia = "AJUSTADA"
-                        experimento = nombre_exp.replace("AJUSTADA_", "")
+                    # Separamos por _SEED_ para aislar el nombre del experimento
+                    if "_SEED_" in nombre_carpeta:
+                        partes = nombre_carpeta.split("_SEED_")
+                        nombre_exp_sucio = partes[0]
                     else:
-                        instancia = "DESCONOCIDA"
-                        experimento = nombre_exp
+                        # Fallback por si la carpeta tiene mal formato
+                        nombre_exp_sucio = nombre_carpeta
 
-                    # Extraer métricas
+                    # --- LÓGICA DE CORRECCIÓN DE NOMBRES ---
+                    if nombre_exp_sucio.startswith("BASE_"):
+                        instancia = "BASE"
+                        experimento = nombre_exp_sucio.replace("BASE_", "", 1) # Reemplaza solo la primera ocurrencia
+                    
+                    elif nombre_exp_sucio.startswith("AJUSTADA_"):
+                        instancia = "AJUSTADA"
+                        experimento = nombre_exp_sucio.replace("AJUSTADA_", "", 1)
+                        
+                    else:
+                        # CASO SIN PREFIJO:
+                        # Como sabemos que los BASE tienen prefijo obligatoriamente (por la migración),
+                        # cualquier carpeta huérfana debe ser de la AJUSTADA.
+                        instancia = "AJUSTADA"
+                        experimento = nombre_exp_sucio
+                    # ---------------------------------------
+
+                    # Extraer métricas del JSON
                     stats = data['estadisticas_ejecucion']
                     params = data['parametros']
                     
