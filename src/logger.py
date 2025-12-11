@@ -8,13 +8,27 @@ def crear_estructura_logs(prefix="run"):
     Crea la carpeta de logs.
     Ahora usamos un prefijo genérico por defecto ('run') o 'test' para batchs.
     """
-    # Ajuste de ruta relativo a src/
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'logs'))
-    
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    nombre_carpeta = f"{prefix}_{timestamp}"
+    # Permitir anular la carpeta base y el nombre desde variables de entorno
+    # LOGS_TARGET_DIR: ruta absoluta donde crear la carpeta (si no, por defecto '../logs')
+    # LOGS_FORCE_EXACT_NAME: '1' para usar LOGS_FORCE_NAME sin añadir timestamp
+    # LOGS_FORCE_NAME: nombre exacto de carpeta a crear cuando LOGS_FORCE_EXACT_NAME=='1'
+    env_target = os.environ.get('LOGS_TARGET_DIR')
+    if env_target:
+        base_dir = os.path.abspath(env_target)
+    else:
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'logs'))
+
+    force_exact = os.environ.get('LOGS_FORCE_EXACT_NAME') == '1'
+    force_name = os.environ.get('LOGS_FORCE_NAME')
+
+    if force_exact and force_name:
+        nombre_carpeta = force_name
+    else:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        nombre_carpeta = f"{prefix}_{timestamp}"
+
     ruta_log = os.path.join(base_dir, nombre_carpeta)
-    
+
     os.makedirs(ruta_log, exist_ok=True)
     return ruta_log
 
