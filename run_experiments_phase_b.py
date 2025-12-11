@@ -238,22 +238,32 @@ def generar_csv_final():
             
             if os.path.exists(meta):
                 try:
-                    with open(meta, 'r') as f: d = json.load(f)
+                    with open(meta, 'r', encoding='utf-8') as f:
+                        d = json.load(f)
+
                     txt = extraer_datos_txt(rep)
-                    
+
                     nombre_exp = item.split('_SEED_')[0]
                     stats = d.get('estadisticas_ejecucion', {})
-                    
+
+                    # Compatibilidad: algunos metadatos usan 'pop_size' y otros 'poblacion'
+                    poblacion = d.get('parametros', {}).get('poblacion')
+                    if poblacion is None:
+                        poblacion = d.get('parametros', {}).get('pop_size')
+
+                    seed_val = d.get('parametros', {}).get('seed')
+
                     filas.append({
                         "Experimento": nombre_exp,
-                        "Seed": d['parametros']['seed'],
-                        "Poblacion": d['parametros']['poblacion'],
+                        "Seed": seed_val,
+                        "Poblacion": poblacion,
                         "Fitness": stats.get('mejor_fitness'),
                         "Tiempo": stats.get('tiempo_total'),
-                        "Gen_Hallazgo": txt["Gen_Hallazgo"] if txt["Gen_Hallazgo"] else stats.get('generaciones'),
-                        "Cob": txt["Cob"], "Pref": txt["Pref"], "Eq": txt["Eq"]
+                        "Gen_Hallazgo": txt.get("Gen_Hallazgo") or stats.get('generaciones'),
+                        "Cob": txt.get("Cob"), "Pref": txt.get("Pref"), "Eq": txt.get("Eq")
                     })
-                except: pass
+                except Exception as e:
+                    print(f"⚠️ Error leyendo {meta}: {e}")
 
     if filas:
         df = pd.DataFrame(filas)
