@@ -1,0 +1,54 @@
+{
+    "num_profesionales": 75,
+    "num_dias": 30,
+    "max_turno_val": 3,
+    "turnos_a_cubrir": [1, 2, 3],
+    "skills_a_cubrir": ["junior", "senior"],
+    "turnos_noche": [3],
+    "secuencias_prohibidas": [[3, 1], [3, 2], [2, 1]],
+    
+    "pesos_fitness": { "eq": 1.5, "dif": 2.0, "pdl": 3.0, "pte": 0.8, "alpha_pte": 0.5 },
+    "tolerancia_equidad_general": 12,
+    "tolerancia_equidad_dificil": 6,
+    "duracion_turnos": {"1": 8, "2": 8, "3": 8},
+
+    "reglas_cobertura": {
+        "dias_pico": [0, 4, 15, 20, 25], 
+        "demanda_pico":   {
+            "1": {"junior": 13, "senior": 11}, 
+            "2": {"junior": 11, "senior": 9}, 
+            "3": {"junior": 8, "senior": 6}
+        },
+        "demanda_finde":  {
+            "1": {"junior": 8, "senior": 6}, 
+            "2": {"junior": 6, "senior": 6}, 
+            "3": {"junior": 5, "senior": 5}
+        },
+        "demanda_normal": {
+            "1": {"junior": 11, "senior": 9}, 
+            "2": {"junior": 9, "senior": 8}, 
+            "3": {"junior": 6, "senior": 5}
+        }
+    },
+
+    "info_profesionales_base": {
+        "total": 75,
+        "senior_count": 38,
+        "t_min": 14,
+        "t_max": 22
+    },
+
+    "excepciones_disponibilidad": [
+        {"prof_index": 0,  "dias_range": [0, 5], "disponible": false},
+        {"prof_index": 20, "dias_range": [28, 30], "disponible": false},
+        {"prof_index": 40, "tipo": "fines_de_semana", "disponible": false},
+        {"prof_index": 60, "dias_range": [10, 20], "disponible": false},
+        {"prof_index": 70, "dias_range": [0, 10], "disponible": false}
+    ],
+
+    "excepciones_preferencias": [
+        {"prof_indices": [0, 1, 2], "dia": 10, "valor": -1},
+        {"prof_indices": [35, 36], "dia": 0, "valor": 1},
+        {"prof_indices": [72, 73], "dia": 29, "valor": 3}
+    ]
+}
