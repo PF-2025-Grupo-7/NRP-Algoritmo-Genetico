@@ -2,7 +2,7 @@ import numpy as np
 # Al estar ambos en src/, esto debería funcionar directo:
 from penalizaciones.duras import PenalizacionesDurasMixin
 from penalizaciones.blandas import PenalizacionesBlandasMixin
-from ga_engine.repair import reparar_cromosoma # Si renombraste repair_ga_propio.py
+from repair import reparar_cromosoma
 
 class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
     PENALIZACION_DURA = 1_000_000
