@@ -11,7 +11,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from problema import ProblemaGAPropio
-from utils import init_population, diversity, population_stats
+from ga_engine.utils import init_population, diversity, population_stats
 from loader import cargar_configuracion_ga, cargar_instancia_problema
 # Importamos los catálogos en lugar de las funciones sueltas
 from operadores import SELECTION_OPS, CROSSOVER_OPS, MUTATION_OPS 
