@@ -3,18 +3,16 @@ import random
 import numpy as np
 from problema import ProblemaGAPropio
 from utils import init_population
-# Importamos el procesador de datos que acabamos de refactorizar
 from loader import procesar_datos_instancia 
 from operadores import SELECTION_OPS, CROSSOVER_OPS, MUTATION_OPS 
 
-def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias):
+def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias, job_id=None, reporte_progreso=None):
     """
-    Ejecuta el GA y devuelve el resultado.
+    Ejecuta el GA y reporta el progreso en tiempo real.
     
     Args:
-        config (dict): Configuración del GA (pop_size, generaciones, etc.)
-        datos_problema_raw (dict): Datos crudos del JSON (listas, ints, etc.)
-        estrategias (dict): Selección de operadores {'sel': '...', 'cross': '...', 'mut': '...'}
+        job_id (str): ID del trabajo (para actualizar el diccionario compartido).
+        reporte_progreso (dict): Diccionario compartido (Manager) para escribir el estado.
     """
     
     # 1. Configurar Semilla
@@ -22,15 +20,13 @@ def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias):
     random.seed(SEED)
     np.random.seed(SEED)
 
-    # 2. Procesar datos (JSON -> Estructuras de Python/Numpy)
-    # Esto convierte las listas de secuencias prohibidas en sets de tuplas, etc.
+    # 2. Procesar datos
     datos_procesados = procesar_datos_instancia(datos_problema_raw)
 
     # 3. Inicializar Problema
     problema = ProblemaGAPropio(**datos_procesados)
 
     # 4. Resolver Funciones de Operadores
-    # Si no vienen estrategias, usamos las defaults
     estrategias = estrategias or {}
     seleccion_func = SELECTION_OPS[estrategias.get('sel', 'torneo_deterministico')]
     cruce_func = CROSSOVER_OPS[estrategias.get('cross', 'bloques_verticales')]
@@ -53,6 +49,19 @@ def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias):
     best_global_f = fitnesses[best_idx]
 
     for gen in range(1, generaciones + 1):
+        # --- LÓGICA DE REPORTE DE PROGRESO ---
+        if reporte_progreso is not None and job_id:
+            # Actualizamos el diccionario compartido
+            # Calculamos porcentaje
+            porcentaje = int((gen / generaciones) * 100)
+            reporte_progreso[job_id] = {
+                "gen_actual": gen,
+                "gen_total": generaciones,
+                "porcentaje": porcentaje,
+                "mejor_fitness_actual": float(best_global_f) # Opcional: mostrar fitness en vivo
+            }
+        # -------------------------------------
+
         new_pop = []
         if elitismo:
             new_pop.append(best_global.copy())
@@ -69,7 +78,6 @@ def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias):
             if random.random() < pm:
                 child = mutacion_func(child, problema)
 
-            # Reparación
             child = problema._reparar_cromosoma(child.reshape(problema.num_profesionales, problema.num_dias)).reshape(-1)
             new_pop.append(child)
 
@@ -84,10 +92,8 @@ def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias):
     end_time = time.time()
     elapsed = end_time - start_time
     
-    # Reparar final para entregar matriz limpia
     matriz_final = problema._reparar_cromosoma(best_global.reshape(problema.num_profesionales, problema.num_dias))
     
-    # Retornamos un diccionario puro
     return {
         "fitness": float(best_global_f),
         "tiempo_ejecucion": elapsed,

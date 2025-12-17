@@ -1,28 +1,31 @@
 import uuid
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import Manager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 
-# Importamos nuestro motor y cargador
 from motor_ga import ejecutar_algoritmo_genetico
-from loader import cargar_instancia_problema # Podríamos necesitar adaptar esto para recibir JSON directo
 
 app = FastAPI(title="API Planificación Guardias - Grupo 7")
 
-# --- SIMULACIÓN DE BASE DE DATOS ---
-# Estructura: { "job_id": { "status": "processing"|"completed"|"failed", "result": ... } }
+# --- GESTIÓN DE ESTADO COMPARTIDO ---
+# Necesitamos un Manager para compartir memoria entre procesos de forma segura
+manager = Manager()
+# Este diccionario guardará el progreso en vivo: { "job_id": { "porcentaje": 10... } }
+PROGRESO_TRABAJOS = manager.dict()
+
+# Base de datos simple para resultados finales y metadatos
 TRABAJOS = {}
 
-# Ejecutor para tareas pesadas (CPU bound)
-executor = ProcessPoolExecutor(max_workers=2) # Máximo 2 planificaciones simultáneas para no saturar
+executor = ProcessPoolExecutor(max_workers=2)
 
-# --- MODELOS DE DATOS (Pydantic) ---
+# --- MODELOS ---
 class SolicitudPlanificacion(BaseModel):
-    config: Dict[str, Any]       # Configuración del GA (generaciones, prob, etc.)
-    datos_problema: Dict[str, Any] # La estructura del JSON de instancia completa
-    estrategias: Optional[Dict[str, str]] = { # Opcional
+    config: Dict[str, Any]
+    datos_problema: Dict[str, Any]
+    estrategias: Optional[Dict[str, str]] = {
         "sel": "torneo_deterministico", 
         "cross": "bloques_verticales", 
         "mut": "hibrida_adaptativa"
@@ -33,31 +36,37 @@ class RespuestaCreacion(BaseModel):
     mensaje: str
     status_url: str
 
-# --- FUNCIÓN WORKER (Se ejecuta en otro proceso) ---
-def correr_trabajo_pesado(job_id: str, config, datos, estrategias):
+# --- WORKER Y WRAPPER ---
+def correr_trabajo_pesado(job_id, config, datos, estrategias, shared_dict):
+    """
+    Función que corre en otro proceso. Recibe el shared_dict para reportar.
+    """
     try:
-        # Aquí llamamos a la lógica pura que extrajimos
-        resultado = ejecutar_algoritmo_genetico(config, datos, estrategias)
+        # Llamamos al motor pasando el diccionario compartido
+        resultado = ejecutar_algoritmo_genetico(config, datos, estrategias, job_id, shared_dict)
         return ("completed", resultado)
     except Exception as e:
         return ("failed", str(e))
 
-async def wrapper_trabajo(job_id: str, config, datos, estrategias):
-    """
-    Wrapper asíncrono que espera al ejecutor y actualiza la 'Base de Datos'
-    """
+async def wrapper_trabajo(job_id, config, datos, estrategias):
     loop = asyncio.get_running_loop()
-    # Ejecutamos el bloqueo en un proceso separado para no congelar la API
+    
+    # Iniciamos entrada en el dict de progreso
+    PROGRESO_TRABAJOS[job_id] = {"porcentaje": 0, "gen_actual": 0, "estado": "iniciando"}
+
     estado, data = await loop.run_in_executor(
         executor, 
         correr_trabajo_pesado, 
-        job_id, config, datos, estrategias
+        job_id, config, datos, estrategias, PROGRESO_TRABAJOS
     )
     
-    # Actualizamos el estado
+    # Actualizamos el estado final en la memoria local
     TRABAJOS[job_id]["status"] = estado
     if estado == "completed":
         TRABAJOS[job_id]["result"] = data
+        # Limpiamos el progreso para no ocupar memoria del Manager innecesariamente
+        if job_id in PROGRESO_TRABAJOS:
+            del PROGRESO_TRABAJOS[job_id]
     else:
         TRABAJOS[job_id]["error"] = data
 
@@ -65,20 +74,13 @@ async def wrapper_trabajo(job_id: str, config, datos, estrategias):
 
 @app.post("/planificar", response_model=RespuestaCreacion)
 async def iniciar_planificacion(solicitud: SolicitudPlanificacion, background_tasks: BackgroundTasks):
-    """
-    Recibe los datos y lanza el proceso en segundo plano.
-    Retorna inmediatamente un ID de trabajo.
-    """
     job_id = str(uuid.uuid4())
     
-    # Inicializamos estado
     TRABAJOS[job_id] = {
         "status": "processing",
-        "submitted_at": str(uuid.uuid1().time) # Timestamp simple
+        "submitted_at": str(uuid.uuid1().time)
     }
     
-    # Agregamos la tarea al fondo (BackgroundTasks de FastAPI maneja el 'disparo y olvido')
-    # Pero usamos nuestro wrapper para manejar el ProcessPool
     background_tasks.add_task(
         wrapper_trabajo, 
         job_id, 
@@ -89,7 +91,7 @@ async def iniciar_planificacion(solicitud: SolicitudPlanificacion, background_ta
     
     return {
         "job_id": job_id,
-        "mensaje": "Planificación iniciada exitosamente.",
+        "mensaje": "Planificación iniciada.",
         "status_url": f"/status/{job_id}"
     }
 
@@ -98,11 +100,28 @@ async def consultar_estado(job_id: str):
     if job_id not in TRABAJOS:
         raise HTTPException(status_code=404, detail="Trabajo no encontrado")
     
-    job = TRABAJOS[job_id]
-    return {
+    job_local = TRABAJOS[job_id]
+    status_general = job_local["status"]
+
+    respuesta = {
         "job_id": job_id,
-        "status": job["status"]
+        "status": status_general
     }
+
+    # Si está procesando, buscamos el detalle en tiempo real en el Manager
+    if status_general == "processing":
+        # Usamos .get() porque en condiciones de carrera podría borrarse justo antes de leer
+        info_vivo = PROGRESO_TRABAJOS.get(job_id)
+        if info_vivo:
+            respuesta["progreso"] = {
+                "porcentaje": f"{info_vivo.get('porcentaje')}%",
+                "generacion": f"{info_vivo.get('gen_actual')}/{info_vivo.get('gen_total')}",
+                "fitness_actual": info_vivo.get('mejor_fitness_actual')
+            }
+        else:
+            respuesta["progreso"] = "Iniciando..."
+
+    return respuesta
 
 @app.get("/result/{job_id}")
 async def obtener_resultado(job_id: str):
@@ -112,7 +131,7 @@ async def obtener_resultado(job_id: str):
     job = TRABAJOS[job_id]
     
     if job["status"] == "processing":
-        return {"mensaje": "El trabajo sigue en proceso. Intente más tarde."}
+        return {"mensaje": "Trabajo en proceso", "status_url": f"/status/{job_id}"}
     
     if job["status"] == "failed":
         return {"status": "failed", "error": job.get("error")}
