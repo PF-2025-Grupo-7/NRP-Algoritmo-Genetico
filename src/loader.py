@@ -1,131 +1,101 @@
-import json
 import numpy as np
 
-def cargar_configuracion_ga(ruta_archivo):
+def procesar_datos_instancia(data: dict) -> dict:
     """
-    Carga la configuración desde un archivo (útil para tests locales).
-    En la API, la configuración vendrá directa del request.
+    Orquestador que transforma el JSON de la API en el formato 
+    requerido por el Algoritmo Genético.
     """
-    with open(ruta_archivo, 'r') as f:
-        return json.load(f)
-
-def cargar_instancia_problema(ruta_archivo):
-    """
-    Función legacy para cargar desde archivo.
-    Usa la nueva función de procesamiento interno.
-    """
-    with open(ruta_archivo, 'r') as f:
-        data = json.load(f)
-    return procesar_datos_instancia(data)
-
-def procesar_datos_instancia(data):
-    """
-    Recibe un diccionario (ya cargado o venido de la API) y transforma
-    las estructuras de datos para que el Algoritmo Genético las entienda
-    (sets, tuplas, numpy arrays, etc).
-    """
-    P = data['num_profesionales']
-    D = data['num_dias']
-
-    # --- 1. CONVERSIONES BÁSICAS ---
-    # Convertir listas a Sets/Tuplas (JSON no soporta sets/tuplas nativos)
-    data['secuencias_prohibidas'] = set(tuple(x) for x in data['secuencias_prohibidas'])
-    data['turnos_noche'] = set(data['turnos_noche'])
-
-    # Convertir los IDs de turnos a enteros para que coincidan con las claves
-    data['turnos_a_cubrir'] = [int(t) for t in data['turnos_a_cubrir']]
+    # 1. Limpieza y conversión de tipos básicos
+    data = _preprocesar_datos_basicos(data)
     
-    # Duración turnos: las keys de json son str, pasarlas a int
+    # 2. Generar información detallada de profesionales
+    data['info_profesionales'] = _generar_info_profesionales(
+        data['num_profesionales'], 
+        data.get('info_profesionales_base', {})
+    )
+    
+    # 3. Calcular requerimientos de cobertura por día/turno/skill
+    data['requerimientos_cobertura'] = _generar_requerimientos_cobertura(data)
+    
+    # 4. Generar matrices de restricciones (NumPy)
+    data['matriz_disponibilidad'] = _generar_matriz_disponibilidad(data)
+    data['matriz_preferencias'] = _generar_matriz_preferencias(data)
+
+    # 5. Limpieza final de llaves temporales
+    for k in ['reglas_cobertura', 'info_profesionales_base', 
+              'excepciones_disponibilidad', 'excepciones_preferencias']:
+        data.pop(k, None)
+
+    return data
+
+def _preprocesar_datos_basicos(data: dict) -> dict:
+    """Convierte listas de JSON a sets y asegura tipos numéricos."""
+    data['secuencias_prohibidas'] = set(tuple(x) for x in data.get('secuencias_prohibidas', []))
+    data['turnos_noche'] = set(data.get('turnos_noche', [3]))
+    data['turnos_a_cubrir'] = [int(t) for t in data.get('turnos_a_cubrir', [1, 2, 3])]
+    
     if "duracion_turnos" in data:
         data['duracion_turnos'] = {int(k): v for k, v in data['duracion_turnos'].items()}
 
-    # Calcular días no hábiles (fines de semana)
-    dias_no_habiles = set()
-    for d in range(D):
-        if d % 7 == 5 or d % 7 == 6: # Sábado(5) o Domingo(6)
-            dias_no_habiles.add(d)
-    data['dias_no_habiles'] = dias_no_habiles
+    # Cálculo de días no hábiles (Sábados y Domingos)
+    data['dias_no_habiles'] = {d for d in range(data['num_dias']) if d % 7 in [5, 6]}
+    return data
 
-    # --- 2. GENERAR INFO PROFESIONALES ---
-    info_prof = []
-    base_info = data['info_profesionales_base']
-    for i in range(P):
-        skill = 'senior' if i < base_info['senior_count'] else 'junior'
-        info_prof.append({
-            'skill': skill,
-            't_min': base_info['t_min'],
-            't_max': base_info['t_max']
-        })
-    data['info_profesionales'] = info_prof
+def _generar_info_profesionales(num_p: int, base: dict) -> list:
+    """Genera la lista de perfiles (skills y horas) para cada profesional."""
+    senior_count = base.get('senior_count', num_p // 2)
+    return [{
+        'skill': 'senior' if i < senior_count else 'junior',
+        't_min': base.get('t_min', 0),
+        't_max': base.get('t_max', 160)
+    } for i in range(num_p)]
 
-    # --- 3. GENERAR REQUERIMIENTOS DE COBERTURA ---
+def _generar_requerimientos_cobertura(data: dict) -> dict:
+    """Calcula la demanda de personal según el tipo de día (pico, finde, normal)."""
     reqs = {}
-    reglas = data['reglas_cobertura']
+    reglas = data.get('reglas_cobertura', {})
+    dias_no_habiles = data['dias_no_habiles']
     
-    for d in range(D):
+    for d in range(data['num_dias']):
         reqs[d] = {}
-        dia_semana = d % 7
         es_finde = (d in dias_no_habiles)
-        es_pico = (dia_semana in reglas['dias_pico'])
+        es_pico = ((d % 7) in reglas.get('dias_pico', []))
         
-        for s_str in data['turnos_a_cubrir']: 
-            s = int(s_str) 
+        for s in data['turnos_a_cubrir']:
             s_key = str(s)
-            
-            reqs[d][s] = {}
-            
-            if s == 1: # Mañana
-                perfil = reglas['demanda_pico'] if es_pico else (reglas['demanda_finde'] if es_finde else reglas['demanda_normal'])
-            elif s == 2: # Tarde
-                perfil = reglas['demanda_pico'] if es_pico else (reglas['demanda_finde'] if es_finde else reglas['demanda_normal'])
+            # Lógica de selección de perfil de demanda
+            if s in [1, 2]: # Mañana/Tarde
+                perfil = reglas.get('demanda_pico') if es_pico else (
+                    reglas.get('demanda_finde') if es_finde else reglas.get('demanda_normal')
+                )
             else: # Noche
-                perfil = reglas['demanda_finde'] 
+                perfil = reglas.get('demanda_finde') 
                 
-            demandas_turno = perfil.get(s_key, reglas['demanda_normal'][s_key])
+            demandas = perfil.get(s_key, reglas.get('demanda_normal', {}).get(s_key, {"junior": 1, "senior": 1}))
+            reqs[d][s] = {"junior": demandas['junior'], "senior": demandas['senior']}
             
-            reqs[d][s]['junior'] = demandas_turno['junior']
-            reqs[d][s]['senior'] = demandas_turno['senior']
+    return reqs
 
-    data['requerimientos_cobertura'] = reqs
+def _generar_matriz_disponibilidad(data: dict) -> np.ndarray:
+    """Crea la matriz booleana de disponibilidad aplicando excepciones."""
+    matriz = np.full((data['num_profesionales'], data['num_dias']), True)
+    for exc in data.get('excepciones_disponibilidad', []):
+        p_idx = exc.get('prof_index')
+        if 'dias_range' in exc:
+            matriz[p_idx, exc['dias_range'][0]:exc['dias_range'][1]] = exc['disponible']
+        elif exc.get('tipo') == 'fines_de_semana':
+            for d in data['dias_no_habiles']:
+                matriz[p_idx, d] = exc['disponible']
+    return matriz
 
-    # --- 4. GENERAR MATRIZ DISPONIBILIDAD ---
-    dispon = np.full((P, D), True)
-    for excepcion in data.get('excepciones_disponibilidad', []):
-        p_idx = excepcion.get('prof_index')
-        
-        if 'dias_range' in excepcion:
-            start, end = excepcion['dias_range']
-            dispon[p_idx, start:end] = excepcion['disponible']
-            
-        elif excepcion.get('tipo') == 'fines_de_semana':
-            for d in dias_no_habiles:
-                dispon[p_idx, d] = excepcion['disponible']
-                
-    data['matriz_disponibilidad'] = dispon
-
-    # --- 5. GENERAR MATRIZ PREFERENCIAS ---
-    prefs = np.zeros((P, D), dtype=int)
+def _generar_matriz_preferencias(data: dict) -> np.ndarray:
+    """Crea la matriz de pesos de preferencias (PTE/PDL)."""
+    matriz = np.zeros((data['num_profesionales'], data['num_dias']), dtype=int)
     for exc in data.get('excepciones_preferencias', []):
         valor = exc['valor']
-        profesionales = exc.get('prof_indices', [])
-        
-        if 'dia' in exc:
-            d = exc['dia']
-            for p in profesionales:
-                prefs[p, d] = valor
-                
-        if 'dias' in exc:
-            for d in exc['dias']:
-                for p in profesionales:
-                    prefs[p, d] = valor
-
-    data['matriz_preferencias'] = prefs
-
-    # Limpieza
-    claves_a_borrar = ['reglas_cobertura', 'info_profesionales_base', 
-                       'excepciones_disponibilidad', 'excepciones_preferencias']
-    for k in claves_a_borrar:
-        if k in data:
-            del data[k]
-
-    return data
+        profs = exc.get('prof_indices', [])
+        dias = exc.get('dias', [exc.get('dia')] if 'dia' in exc else [])
+        for p in profs:
+            for d in dias:
+                if d is not None: matriz[p, d] = valor
+    return matriz
