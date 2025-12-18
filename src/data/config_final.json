@@ -1,0 +1,11 @@
+{
+  "pop_size": 100,
+  "generaciones": 150,
+  "selection_strategy": "torneo_deterministico",
+  "crossover_operator": "bloques_horizontales",
+  "mutation_operator": "hibrida_adaptativa",
+  "elitismo": true,
+  "prob_cruce": 0.9,
+  "prob_mutacion": 0.1,
+  "seed": 42
+}

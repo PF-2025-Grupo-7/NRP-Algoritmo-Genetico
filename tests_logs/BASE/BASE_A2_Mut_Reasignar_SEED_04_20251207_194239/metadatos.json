@@ -1,0 +1,26 @@
+{
+    "fecha": "2025-12-07T19:44:33.098245",
+    "contexto": {
+        "algoritmo": "GA_Genetico_NRP",
+        "version": "2.0 (Systematic Testing Ready)"
+    },
+    "operadores_utilizados": {
+        "seleccion": "torneo_deterministico",
+        "cruce": "bloques_verticales",
+        "mutacion": "reasignar_turno"
+    },
+    "parametros": {
+        "pop_size": 100,
+        "generaciones": 150,
+        "pc": 0.85,
+        "pm": 0.2,
+        "elitismo": true,
+        "seed": 4
+    },
+    "estadisticas_ejecucion": {
+        "tiempo_total": 113.42964029312134,
+        "mejor_fitness": 1.8425925925925921,
+        "generaciones": 150,
+        "solucion_valida": true
+    }
+}
