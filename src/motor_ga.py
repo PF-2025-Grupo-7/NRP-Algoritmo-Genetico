@@ -1,10 +1,10 @@
 import time
 import random
 import numpy as np
-from problema import ProblemaGAPropio
-from utils import init_population
-from loader import procesar_datos_instancia 
-from operadores import SELECTION_OPS, CROSSOVER_OPS, MUTATION_OPS 
+from .problema import ProblemaGAPropio
+from .utils import init_population
+from .loader import procesar_datos_instancia 
+from .operadores import SELECTION_OPS, CROSSOVER_OPS, MUTATION_OPS 
 
 def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias, job_id=None, reporte_progreso=None):
     """

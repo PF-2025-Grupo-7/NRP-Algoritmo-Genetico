@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 
-from motor_ga import ejecutar_algoritmo_genetico
+from .motor_ga import ejecutar_algoritmo_genetico
 
 app = FastAPI(title="API Planificación Guardias - Grupo 7")
 
@@ -21,8 +21,8 @@ class SolicitudEvaluacion(BaseModel):
 @app.post("/soluciones/evaluar", tags=["Auditoría"])
 async def evaluar_solucion_especifica(solicitud: SolicitudEvaluacion):
     try:
-        from problema import ProblemaGAPropio
-        from loader import procesar_datos_instancia # <--- IMPORTANTE
+        from .problema import ProblemaGAPropio
+        from .loader import procesar_datos_instancia
         import numpy as np
         
         # 1. Transformamos los datos crudos del JSON al formato que entiende la lógica

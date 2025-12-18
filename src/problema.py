@@ -1,8 +1,7 @@
 import numpy as np
-# Al estar ambos en src/, esto debería funcionar directo:
-from penalizaciones.duras import PenalizacionesDurasMixin
-from penalizaciones.blandas import PenalizacionesBlandasMixin
-from repair import reparar_cromosoma
+from .penalizaciones.duras import PenalizacionesDurasMixin
+from .penalizaciones.blandas import PenalizacionesBlandasMixin
+from .repair import reparar_cromosoma
 
 class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
     PENALIZACION_DURA = 1_000_000
