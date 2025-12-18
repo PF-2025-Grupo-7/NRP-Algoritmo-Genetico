@@ -59,3 +59,52 @@ class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
 
     def _reparar_cromosoma(self, matriz):
         return reparar_cromosoma(matriz, self)
+    
+    def evaluar_detallado(self, solution_vector):
+        matriz = solution_vector.reshape(self.num_profesionales, self.num_dias)
+        matriz_reparada = self._reparar_cromosoma(matriz)
+        
+        # Asegurate de que estos métodos en duras.py y blandas.py acepten detallar=True
+        pen_cob, inc_cob = self._calcular_pen_cobertura(matriz_reparada, detallar=True)
+        pen_pdl, inc_pdl = self._calcular_pen_pdl(matriz_reparada, detallar=True)
+        pen_pte, inc_pte = self._calcular_pen_pte(matriz_reparada, detallar=True)
+        
+        # Ahora el método está correctamente indentado dentro de la clase
+        horas_gen = self._obtener_horas_por_profesional(matriz_reparada, tipo="general")
+        
+        return {
+            "status": "success",
+            "metricas": {
+                "fitness_total": self.fitness(solution_vector),
+                "cobertura_cumplida": pen_cob == 0
+            },
+            "violaciones_duras": {
+                "deficit_cobertura": inc_cob
+            },
+            "violaciones_blandas": {
+                "preferencia_libre_incumplida": inc_pdl,
+                "preferencia_turno_incumplida": inc_pte
+            },
+            "datos_equidad": {
+                "horas_por_profesional": horas_gen.tolist(),
+                "promedio_objetivo": float(np.mean(horas_gen))
+            }
+        }
+
+    # MÉTODO CORREGIDO (Indentado y con argumento 'tipo')
+    def _obtener_horas_por_profesional(self, matriz, tipo="general"):
+        """Extrae el vector de horas trabajadas (útil para el reporte)."""
+        horas = np.zeros(self.num_profesionales)
+        for p in range(self.num_profesionales):
+            for d in range(self.num_dias):
+                turno = int(matriz[p, d])
+                if turno > 0:
+                    # Lógica similar a _calcular_pen_equidad_general/dificiles en blandas.py
+                    if tipo == "dificil":
+                        es_finde_o_feriado = (d in self.dias_no_habiles)
+                        es_turno_noche = (turno in self.turnos_noche)
+                        if es_finde_o_feriado or es_turno_noche:
+                            horas[p] += self.duracion_turnos.get(turno, 0)
+                    else: # general
+                        horas[p] += self.duracion_turnos.get(turno, 0)
+        return horas

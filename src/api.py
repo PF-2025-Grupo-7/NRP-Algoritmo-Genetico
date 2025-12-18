@@ -10,6 +10,36 @@ from motor_ga import ejecutar_algoritmo_genetico
 
 app = FastAPI(title="API Planificación Guardias - Grupo 7")
 
+# --- NUEVO MODELO PARA EVALUACIÓN ---
+from typing import List
+
+class SolicitudEvaluacion(BaseModel):
+    vector: List[int]
+    datos_problema: Dict[str, Any]
+
+# --- NUEVO ENDPOINT ---
+@app.post("/soluciones/evaluar", tags=["Auditoría"])
+async def evaluar_solucion_especifica(solicitud: SolicitudEvaluacion):
+    """
+    Recibe un vector (cronograma) y devuelve el desglose de incidentes.
+    No ejecuta el GA, solo evalúa lo que recibe.
+    """
+    try:
+        from problema import ProblemaGAPropio
+        import numpy as np
+        
+        # Inicializamos el problema con los datos recibidos
+        problema = ProblemaGAPropio(**solicitud.datos_problema)
+        vector_np = np.array(solicitud.vector)
+        
+        # Llamamos al método que creamos antes
+        reporte = problema.evaluar_detallado(vector_np)
+        
+        return reporte
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error en evaluación: {str(e)}")
+
+
 # --- GESTIÓN DE ESTADO COMPARTIDO ---
 # Necesitamos un Manager para compartir memoria entre procesos de forma segura
 manager = Manager()

@@ -7,6 +7,8 @@ class PenalizacionesBlandasMixin:
 
     """
 
+    
+
     def _calcular_score_equidad(self, horas_trabajadas_por_prof, tolerancia):
         """
         Calcula la penalización de equidad basada en la
@@ -45,6 +47,7 @@ class PenalizacionesBlandasMixin:
         
         return penalizacion_equidad
 
+    
 
     def _calcular_pen_equidad_general(self, matriz):
         """
@@ -97,7 +100,7 @@ class PenalizacionesBlandasMixin:
         )
 
 
-    def _calcular_pen_pdl(self, matriz):
+    def _calcular_pen_pdl(self, matriz, detallar=False):
         """
         Penaliza si a un profesional se le asigna un turno
         en un día que marcó como "Prefiere Día Libre" (PDL).
@@ -108,36 +111,36 @@ class PenalizacionesBlandasMixin:
         prefiere_libre = (self.matriz_preferencias == -1)
         # Dónde se asignó trabajo? (Asignación != 0)
         trabaja_asignado = (matriz != 0)
+        violaciones_mask = prefiere_libre & trabaja_asignado
         
-        # La violación ocurre donde ambas son True
-        num_violaciones = np.sum(prefiere_libre & trabaja_asignado)
+        if detallar:
+            coords = np.argwhere(violaciones_mask) # Devuelve lista de [profesional, dia]
+            incidentes = [{"profesional_id": int(p), "dia": int(d)} for p, d in coords]
+            return float(len(incidentes)), incidentes
         
-        return float(num_violaciones)
+        return float(np.sum(violaciones_mask))
 
 
-    def _calcular_pen_pte(self, matriz):
+    def _calcular_pen_pte(self, matriz, detallar=False):
         """
         Penaliza si un profesional pidió un turno específico (PTE)
         y no se le asignó.
        
         """
         penalizacion = 0.0
-        
+        incidentes = []
         alpha = self.pesos_fitness.get('alpha_pte', 0.5) 
         
         for p in range(self.num_profesionales):
             for d in range(self.num_dias):
-                
                 pref = self.matriz_preferencias[p, d]
                 asign = matriz[p, d]
-                
-                # Si la preferencia es > 0 (pidió turno s)
                 if pref > 0:
-                    # Violación Mayor: trabaja, pero en un turno incorrecto
                     if asign != 0 and asign != pref:
                         penalizacion += 1.0
-                    # Violación Parcial: se le dio libre en vez del turno
+                        if detallar: incidentes.append({"profesional_id": p, "dia": d, "tipo": "turno_incorrecto", "pedido": int(pref), "asignado": int(asign)})
                     elif asign == 0:
                         penalizacion += alpha
+                        if detallar: incidentes.append({"profesional_id": p, "dia": d, "tipo": "no_asignado", "pedido": int(pref)})
                         
-        return penalizacion
+        return (penalizacion, incidentes) if detallar else penalizacion

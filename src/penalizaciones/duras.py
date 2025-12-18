@@ -40,13 +40,14 @@ class PenalizacionesDurasMixin:
         return 0.0
 
 
-    def _calcular_pen_cobertura(self, matriz):
+    def _calcular_pen_cobertura(self, matriz, detallar=False):
         """
         Penaliza si un turno no tiene la cobertura mínima
         requerida para un nivel de habilidad.
 
         """
         penalizacion = 0.0
+        incidentes = []
         
         # Iteramos por cada día del mes
         for d in range(self.num_dias):
@@ -76,7 +77,15 @@ class PenalizacionesDurasMixin:
                     # Comparamos y penalizamos el déficit
                     if asignado < requerido:
                         faltantes = requerido - asignado
-                        # Penalizamos por CADA profesional que falta
                         penalizacion += (faltantes * self.PENALIZACION_DURA)
+                        if detallar:
+                            incidentes.append({
+                                "dia": d,
+                                "turno": s,
+                                "skill": k,
+                                "requerido": requerido,
+                                "asignado": asignado,
+                                "faltantes": faltantes
+                        })
                         
-        return penalizacion
+        return (penalizacion, incidentes) if detallar else penalizacion

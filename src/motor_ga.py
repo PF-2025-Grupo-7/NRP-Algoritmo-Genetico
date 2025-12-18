@@ -9,10 +9,7 @@ from operadores import SELECTION_OPS, CROSSOVER_OPS, MUTATION_OPS
 def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias, job_id=None, reporte_progreso=None):
     """
     Ejecuta el GA y reporta el progreso en tiempo real.
-    
-    Args:
-        job_id (str): ID del trabajo (para actualizar el diccionario compartido).
-        reporte_progreso (dict): Diccionario compartido (Manager) para escribir el estado.
+    Ahora incluye el reporte detallado de explicabilidad al finalizar.
     """
     
     # 1. Configurar Semilla
@@ -51,16 +48,13 @@ def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias, job_id=
     for gen in range(1, generaciones + 1):
         # --- LÓGICA DE REPORTE DE PROGRESO ---
         if reporte_progreso is not None and job_id:
-            # Actualizamos el diccionario compartido
-            # Calculamos porcentaje
             porcentaje = int((gen / generaciones) * 100)
             reporte_progreso[job_id] = {
                 "gen_actual": gen,
                 "gen_total": generaciones,
                 "porcentaje": porcentaje,
-                "mejor_fitness_actual": float(best_global_f) # Opcional: mostrar fitness en vivo
+                "mejor_fitness_actual": float(best_global_f)
             }
-        # -------------------------------------
 
         new_pop = []
         if elitismo:
@@ -78,6 +72,7 @@ def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias, job_id=
             if random.random() < pm:
                 child = mutacion_func(child, problema)
 
+            # Reparación y aplanado
             child = problema._reparar_cromosoma(child.reshape(problema.num_profesionales, problema.num_dias)).reshape(-1)
             new_pop.append(child)
 
@@ -92,12 +87,17 @@ def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias, job_id=
     end_time = time.time()
     elapsed = end_time - start_time
     
+    # 6. Generar Solución Final y Explicabilidad
     matriz_final = problema._reparar_cromosoma(best_global.reshape(problema.num_profesionales, problema.num_dias))
+    
+    # Llamamos al nuevo método para obtener el desglose de incidentes
+    reporte_explicabilidad = problema.evaluar_detallado(best_global)
     
     return {
         "fitness": float(best_global_f),
         "tiempo_ejecucion": elapsed,
         "solucion": matriz_final.tolist(), 
         "generaciones_completadas": generaciones,
-        "config_utilizada": config
+        "config_utilizada": config,
+        "explicabilidad": reporte_explicabilidad  # <--- Nuevo campo para la App
     }
