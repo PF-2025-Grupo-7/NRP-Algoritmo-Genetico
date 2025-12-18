@@ -1,96 +1,97 @@
-# Algoritmo Genético para NPR
+# Motor de Optimización para Planificación de Guardias (NRP) - Grupo 7
 
-Prototipo de optimización para la asignación de guardias médicas en hospitales japoneses, utilizando Algoritmos Genéticos. Este proyecto busca resolver el Nurse Rostering Problem considerando restricciones legales y preferencias del personal.
+Este repositorio contiene el núcleo algorítmico y la API de servicios para el proyecto **"Aplicación para la Planificación de Guardias en Hospitales Japoneses"**, desarrollado para la asignatura Proyecto Final de la carrera Ingeniería en Sistemas de Información (UTN FRCU).
 
-## 📋 Requisitos Previos
-- Python 3.10 o superior
+El sistema resuelve el *Nurse Rostering Problem* (NRP) mediante **Algoritmos Genéticos** (AG), permitiendo automatizar la asignación de turnos médicos cumpliendo con restricciones legales, operativas y de equidad horaria.
 
-## Instalación y Configuración
-1. Crear entorno virtual
-```bash
-python -m venv .venv
-```
-2. Activar entorno
-```bash
-.\.venv\Scripts\Activate
-```
-3. Instalar dependencias
-```bash
-pip install -r requirements.txt
-```
-## Ejecución (simple)
-Desde la raíz del proyecto:
-```bash
-python src/main.py
-```
-O para especificar una instancia diferente:
-```bash
-python src/main.py --instancia src/data/instancia_02_grande.json
-```
+## Arquitectura del Sistema
+
+El proyecto implementa una arquitectura por capas para garantizar la separación de intereses y facilitar el mantenimiento:
+
+* **Capa de API (FastAPI):** Define los contratos de datos mediante modelos estrictos de Pydantic V2 y gestiona los puntos de entrada del sistema.
+* **Capa de Servicios (`services.py`):** Gestiona la asincronía y el paralelismo. Utiliza un `ProcessPoolExecutor` para ejecutar el algoritmo genético sin bloquear el servidor web.
+* **Motor GA (`motor_ga.py`):** Contiene la lógica del ciclo evolutivo (Selección, Cruce, Mutación y Reparación).
+* **Modelo del Problema (`problema.py`):** Define la función de *Fitness* y las métricas de auditoría/explicabilidad.
+* **Loader (`loader.py`):** Modulo encargado de transformar datos de negocio en estructuras de datos optimizadas (Sets y matrices NumPy).
+
+## Tecnologías Utilizadas
+
+* **Python 3.12+**: Lenguaje base del proyecto.
+* **FastAPI**: Framework para la construcción de la API asincrónica.
+* **Pydantic V2**: Validación de datos y modelos de configuración.
+* **NumPy**: Procesamiento eficiente de matrices de guardias.
+* **Pytest & HTTPX**: Infraestructura para pruebas automatizadas de integración y unidad.
 
 ## Estructura del Proyecto
-* `src/`: Código fuente principal.
-  * `data/`: Instancias de prueba y configuración.
-  * `penalizaciones/`: Restricciones duras y blandas.
-  * `operadores.py`: Catálogoo de estrategias de selección, cruce y mutación.
-  * `main.py`: Punto de entrada único para ejecutar el algoritmo.
-* `logs/`: Resultados de las ejecuciones.
 
-## Personalización y Configuración
-
-El algoritmo permite ajustar sus hiperparámetros mediante archivos JSON ubicados en `src/data/`. Esto permite cambiar el comportamiento de la búsqueda sin modificar el código.
-
-### Parámetros Configurables
-
-| Parámetro      | Descripción                                                |
-| :---           | :---                                                       |
-| `pop_size`     | Tamaño de la población (cantidad de soluciones simultáneas). |
-| `generaciones` | Número de iteraciones del ciclo evolutivo.                 |
-| `pc`           | Probabilidad de Cruce (Crossover).                         |
-| `pm`           | Probabilidad de Mutación.                                  |
-| `elitismo`     | `true` para conservar siempre al mejor individuo.          |
-
-### ¿Cómo elegir una configuración?
-
-Utiliza el argumento `--config` al ejecutar el script principal.
-
-**Ejecución Estándar (usa default implícitamente):**
-```bash
-python src/main.py
+```text
+├── src/
+│   ├── api.py              # Endpoints y validación de modelos
+│   ├── services.py         # Orquestación de procesos y estado compartido
+│   ├── motor_ga.py         # Lógica del Algoritmo Genético
+│   ├── problema.py         # Modelado de restricciones y fitness
+│   ├── loader.py           # Transformación y carga de datos
+│   ├── operadores.py       # Operadores genéticos (cruce, mutación, selección)
+│   ├── repair.py           # Operador de reparación de soluciones
+│   └── penalizaciones/     # Mixins de reglas de negocio (Duras y Blandas)
+├── tests/                  # Suite de tests (Workflow completo, API, Loader)
+├── examples/               # Archivos JSON de ejemplo para pruebas
+├── requirements.txt        # Dependencias del sistema
+└── README.md
 ```
 
-**Ejecución Rápida (para pruebas):**
+## Instalación y Configuración
+
+1.  **Clonar el repositorio:**
+    ```bash
+    git clone <url-del-repositorio>
+    cd nrp-algoritmo-genetico
+    ```
+
+2.  **Configurar el entorno virtual:**
+    ```bash
+    python -m venv .venv
+    # Activar en Windows:
+    .venv\Scripts\activate
+    # Activar en Linux/Mac:
+    source .venv/bin/activate
+    ```
+
+3.  **Instalar dependencias:**
+    ```bash
+    pip install -r requirements.txt
+    # Para desarrollo y tests:
+    pip install pytest httpx requests
+    ```
+
+## Ejecución y Testing
+
+### Iniciar la API
+Para ejecutar el servidor de desarrollo:
 ```bash
-python src/main.py --config src/data/config_ga_fast.json
+uvicorn src.api:app --reload
 ```
-**Combinando Instancia y Configuración**
-Podemos mezclar una instancia difícil con una configuración rápida para ver si el código corre sin errores:
+
+La documentación interactiva (Swagger) se genera automáticamente en: `http://127.0.0.1:8000/docs`
+
+### Ejecutar Pruebas Automatizadas
+Para correr la suite de tests completa y asegurar la integridad del sistema tras cualquier refactorización:
 ```bash
-python src/main.py --instancia src/data/instancia_02_grande.json --config src/data/config_ga_fast.json
+python -m pytest
 ```
 
-## Experimentación con Operadores 
+## Endpoints de Interés
 
-| Argumento      | Descripción                                                | Opciones Disponibles  |
-| :---           | :---                                                       | :---    |
-| `--mut`     | Estrategia de Mutación | `hibrida_adaptativa` (Default), `reasignar_turno`, `intercambio_dia`, `flip_simple` |
-| `--cross` | Estrategia de Cruce                 | `bloques_verticales` (Default) |
-| `--sel`           | Estrategia de Selección                         | `torneo_deterministico` (Default) |
+* **`POST /planificar`**: Inicia la búsqueda de la planificación óptima de forma asincrónica utilizando el `ProcessPoolExecutor` para evitar bloqueos.
+* **`GET /status/{job_id}`**: Permite monitorear el progreso (generación actual, porcentaje y mejor fitness) en tiempo real consultando la memoria compartida del sistema.
+* **`GET /result/{job_id}`**: Recupera la matriz final de guardias y el reporte detallado de explicabilidad una vez que el estado es `completed`.
+* **`POST /soluciones/evaluar`**: Endpoint dedicado a la auditoría técnica que permite validar vectores de solución externos y obtener un desglose de penalizaciones.
 
-**Ejemplo**
-```bash
-python src/main.py --mut intercambio_dia --tag experimento_swap
-```
+## Equipo de Desarrollo - Grupo 7
 
-## Visualización y Logs
-
-**Modo Verbose (`-v`)**
-Muestra el progreso generación a generación en la consola. Útil para ver la convergencia en tiempo real.
-```bash
-python src/main.py -v
-```
-
-Define un prefijo para la carpeta de resultados en logs/, facilitando la identificación de experimentos.
-```bash
-python src/main.py --tag prueba_final_viernes
-```
+* **Integrantes**:
+    * Fernandez, María Emilia
+    * Orcellet, Nicolás Agustín
+    * Tiguá, Salvador
+* **Tutor**: Casanova Pietroboni, Carlos Antonio
+* **Institución**: Universidad Tecnológica Nacional - Facultad Regional Concepción del Uruguay (UTN FRCU)
