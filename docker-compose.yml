@@ -1,0 +1,12 @@
+services:
+  api-nrp:
+    build: .
+    container_name: nrp_api_grupo7
+    ports:
+      - "8000:8000"  # Mapea el puerto 8000 de tu PC al 8000 del contenedor
+    volumes:
+      - ./:/app      # <--- ESTA ES LA CLAVE: Tu código local se ve dentro del contenedor en tiempo real
+    environment:
+      - WATCHFILES_FORCE_POLLING=true # A veces necesario en Windows para detectar cambios
+    # Sobrescribimos el comando para activar el modo --reload
+    command: uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload

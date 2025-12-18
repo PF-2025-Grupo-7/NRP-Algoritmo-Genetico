@@ -1,0 +1,14 @@
+# Ignorar entorno virtual local (el culpable de los 400MB)
+.venv
+venv
+env
+
+# Ignorar archivos compilados de Python
+__pycache__
+*.pyc
+
+# Ignorar carpeta de git (innecesaria para correr la app)
+.git
+
+# Ignorar cache de pytest
+.pytest_cache
