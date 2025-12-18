@@ -64,30 +64,43 @@ class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
         matriz = solution_vector.reshape(self.num_profesionales, self.num_dias)
         matriz_reparada = self._reparar_cromosoma(matriz)
         
-        # Asegurate de que estos métodos en duras.py y blandas.py acepten detallar=True
+        # ... (mantener cálculos de cobertura, PDL y PTE igual que antes)
         pen_cob, inc_cob = self._calcular_pen_cobertura(matriz_reparada, detallar=True)
         pen_pdl, inc_pdl = self._calcular_pen_pdl(matriz_reparada, detallar=True)
         pen_pte, inc_pte = self._calcular_pen_pte(matriz_reparada, detallar=True)
         
-        # Ahora el método está correctamente indentado dentro de la clase
+        # --- EXPLICABILIDAD DE EQUIDAD ---
         horas_gen = self._obtener_horas_por_profesional(matriz_reparada, tipo="general")
+        _, scores, h_avg, h_min, h_max = self._calcular_score_equidad(
+            horas_gen, self.tolerancia_equidad_general, detallar=True
+        )
         
+        outliers = []
+        for p, s in enumerate(scores):
+            if s < 1.0: # No está en el punto ideal (h_avg)
+                outliers.append({
+                    "profesional_id": p,
+                    "horas": float(horas_gen[p]),
+                    "estado": "sobrecarga" if horas_gen[p] > h_avg else "subcarga",
+                    "puntos_fuera_del_ideal": round(abs(horas_gen[p] - h_avg), 2)
+                })
+
         return {
             "status": "success",
             "metricas": {
                 "fitness_total": self.fitness(solution_vector),
                 "cobertura_cumplida": pen_cob == 0
             },
-            "violaciones_duras": {
-                "deficit_cobertura": inc_cob
-            },
+            "violaciones_duras": { "deficit_cobertura": inc_cob },
             "violaciones_blandas": {
                 "preferencia_libre_incumplida": inc_pdl,
-                "preferencia_turno_incumplida": inc_pte
+                "preferencia_turno_incumplida": inc_pte,
+                "desbalance_equidad": outliers  # <--- NUEVO: Detalle de quiénes están desbalanceados
             },
             "datos_equidad": {
-                "horas_por_profesional": horas_gen.tolist(),
-                "promedio_objetivo": float(np.mean(horas_gen))
+                "promedio_objetivo": float(h_avg),
+                "rango_ideal": [float(h_min), float(h_max)],
+                "horas_por_profesional": horas_gen.tolist()
             }
         }
 

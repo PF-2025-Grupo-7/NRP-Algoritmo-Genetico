@@ -20,21 +20,19 @@ class SolicitudEvaluacion(BaseModel):
 # --- NUEVO ENDPOINT ---
 @app.post("/soluciones/evaluar", tags=["Auditoría"])
 async def evaluar_solucion_especifica(solicitud: SolicitudEvaluacion):
-    """
-    Recibe un vector (cronograma) y devuelve el desglose de incidentes.
-    No ejecuta el GA, solo evalúa lo que recibe.
-    """
     try:
         from problema import ProblemaGAPropio
+        from loader import procesar_datos_instancia # <--- IMPORTANTE
         import numpy as np
         
-        # Inicializamos el problema con los datos recibidos
-        problema = ProblemaGAPropio(**solicitud.datos_problema)
+        # 1. Transformamos los datos crudos del JSON al formato que entiende la lógica
+        datos_procesados = procesar_datos_instancia(solicitud.datos_problema)
+        
+        # 2. Ahora sí inicializamos con los datos correctos
+        problema = ProblemaGAPropio(**datos_procesados)
         vector_np = np.array(solicitud.vector)
         
-        # Llamamos al método que creamos antes
         reporte = problema.evaluar_detallado(vector_np)
-        
         return reporte
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error en evaluación: {str(e)}")

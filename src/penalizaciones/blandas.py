@@ -9,42 +9,25 @@ class PenalizacionesBlandasMixin:
 
     
 
-    def _calcular_score_equidad(self, horas_trabajadas_por_prof, tolerancia):
-        """
-        Calcula la penalización de equidad basada en la
-        función triangular difusa.
-        
-        Recibe un array de horas (general o difíciles) y 
-        devuelve la penalización (0.0 = mejor, 1.0 = peor).
-
-        """
-        
-        # Si no hay profesionales, no hay penalización
+    def _calcular_score_equidad(self, horas_trabajadas_por_prof, tolerancia, detallar=False):
         if self.num_profesionales == 0:
-            return 0.0
+            return (0.0, [], 0, 0, 0) if detallar else 0.0
 
-        # 1. Calcular H_avg, H_min, H_max
         h_avg = np.mean(horas_trabajadas_por_prof)
         h_min = h_avg - tolerancia
         h_max = h_avg + tolerancia
 
-        # Si H_avg es 0, la equidad es perfecta
         if h_avg == 0:
-            return 0.0
+            return (0.0, [1.0]*self.num_profesionales, 0, 0, 0) if detallar else 0.0
 
-        # 2. Definir los puntos de la función triangular
-        # (x_points = horas, y_points = score)
         x_points = [h_min, h_avg, h_max]
         y_points = [0.0,   1.0,   0.0]
 
-        # 3. Calcular el score(h_p) para cada profesional
-        # Los valores fuera de [h_min, h_max] se clipean a 0.0.
         scores = np.interp(horas_trabajadas_por_prof, x_points, y_points)
-
-        # 4. Calcular la penalización final
-        # Pen_eq = 1 - (promedio de scores)
         penalizacion_equidad = 1.0 - np.mean(scores)
         
+        if detallar:
+            return penalizacion_equidad, scores, h_avg, h_min, h_max
         return penalizacion_equidad
 
     
