@@ -40,6 +40,31 @@ El proyecto implementa una arquitectura por capas para garantizar la separación
 └── README.md
 ```
 
+## Despliegue y Desarrollo con Docker (Recomendado)
+
+El proyecto cuenta con una arquitectura dockerizada que facilita el despliegue y asegura la consistencia del entorno de ejecución.
+
+**Requisitos:** 1. Tener instalado [Docker Desktop](https://www.docker.com/products/docker-desktop/) (o Docker Engine + Compose).
+2. **Importante:** Asegurarse de que Docker Desktop esté **abierto y corriendo** (icono de la ballena visible) antes de ejecutar los comandos.
+
+### Iniciar la aplicación
+Para levantar el entorno completo (API + Dependencias) con un solo comando:
+
+```bash
+docker-compose up --build
+```
+* **API URL:** `http://localhost:8000`
+* **Documentación Interactiva (Swagger):** `http://localhost:8000/docs`
+
+### Características del entorno Docker
+* **Hot-Reload Activo:** El contenedor está configurado para detectar cambios en el código fuente (`src/`) y reiniciar el servidor automáticamente. Puedes desarrollar localmente mientras la app corre en Docker.
+* **Volúmenes:** La carpeta de trabajo se sincroniza en tiempo real, por lo que no es necesario reconstruir la imagen ante cambios de código (solo ante cambios en `requirements.txt`).
+
+Para detener la aplicación y limpiar los recursos:
+```bash
+docker-compose down
+```
+
 ## Instalación y Configuración
 
 1.  **Clonar el repositorio:**
