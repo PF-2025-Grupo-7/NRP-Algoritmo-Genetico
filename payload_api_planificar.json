@@ -1,0 +1,62 @@
+{
+  "config": {
+    "pop_size": 100,
+    "generaciones": 250,
+    "pc": 0.85,
+    "pm": 0.20,
+    "elitismo": true,
+    "seed": 1111
+  },
+  "datos_problema": {
+    "num_profesionales": 18,
+    "num_dias": 30,
+    "max_turno_val": 3,
+    "turnos_a_cubrir": [1, 2, 3],
+    "skills_a_cubrir": ["junior", "senior"],
+    "turnos_noche": [3],
+    "secuencias_prohibidas": [[3, 1], [3, 2], [2, 1]],
+    
+    "pesos_fitness": { 
+        "eq": 1.0, 
+        "dif": 1.5, 
+        "pdl": 2.0, 
+        "pte": 0.5, 
+        "alpha_pte": 0.5 
+    },
+    "tolerancia_equidad_general": 8,
+    "tolerancia_equidad_dificil": 4,
+    "duracion_turnos": {"1": 8, "2": 8, "3": 8},
+
+    "reglas_cobertura": {
+        "dias_pico": [0, 4], 
+        "demanda_pico":   {"1": {"junior": 2, "senior": 2}, "2": {"junior": 2, "senior": 1}, "3": {"junior": 1, "senior": 1}},
+        "demanda_finde":  {"1": {"junior": 1, "senior": 1}, "2": {"junior": 1, "senior": 1}, "3": {"junior": 1, "senior": 1}},
+        "demanda_normal": {"1": {"junior": 2, "senior": 1}, "2": {"junior": 1, "senior": 1}, "3": {"junior": 1, "senior": 1}}
+    },
+
+    "info_profesionales_base": {
+        "total": 18,
+        "senior_count": 10,
+        "t_min": 12,
+        "t_max": 16
+    },
+
+    "excepciones_disponibilidad": [
+        {"prof_index": 0,  "dias_range": [0, 7], "disponible": false},
+        {"prof_index": 6,  "dias_range": [5, 11], "disponible": false},
+        {"prof_index": 11, "dias_range": [25, 30], "disponible": false},
+        {"prof_index": 3,  "tipo": "fines_de_semana", "disponible": false}
+    ],
+
+    "excepciones_preferencias": [
+        {"prof_indices": [0, 1, 2], "dia": 15, "valor": -1},
+        {"prof_indices": [8, 9],    "dia": 20, "valor": 1},
+        {"prof_indices": [5],       "dias": [5, 6, 7], "valor": 3}
+    ]
+  },
+  "estrategias": {
+    "sel": "torneo_deterministico",
+    "cross": "bloques_verticales",
+    "mut": "hibrida_adaptativa"
+  }
+}
