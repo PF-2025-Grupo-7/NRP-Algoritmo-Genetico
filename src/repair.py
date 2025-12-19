@@ -4,9 +4,10 @@ import numpy as np
 def reparar_cromosoma(matriz, problem):
     matriz_reparada = matriz.copy()
 
-    # ================================
-    #       ETAPA 1: LIMPIEZA
-    # ================================
+    # =========================================================
+    #       ETAPA 1: LIMPIEZA (Restricciones Duras Absolutas)
+    # =========================================================
+    # Elimina asignaciones que violan disponibilidad, skill o secuencias.
 
     for p in range(problem.num_profesionales):
         skill = problem.info_profesionales[p]['skill']
@@ -34,9 +35,9 @@ def reparar_cromosoma(matriz, problem):
                 matriz_reparada[p, d+1] = 0
 
     # ==========================================
-    #   ETAPA 2: PODADO DE SOBRE-ASIGNACIÓN 
+    #   ETAPA 2: PODADO DE SOBREASIGNACIÓN 
     # ==========================================
-    # Si hay más gente de la necesaria en un turno, se eliminan los sobrantes al azar.
+    # Si hay exceso de personal en un turno, se elimina aleatoriamente.
     for d in range(problem.num_dias):
         for turno in problem.turnos_a_cubrir:
             for skill in problem.skills_a_cubrir:
@@ -55,10 +56,10 @@ def reparar_cromosoma(matriz, problem):
                         p_elim = asignados.pop()
                         matriz_reparada[p_elim, d] = 0
 
-    # ========================================
-    #       ETAPA 3: CÁLCULO DE ESTADO 
-    # ========================================
-    # Contamos cuántas horas lleva c/u para saber a quién quitarle o a quién ponerle.
+    # =======================================================
+    #    --- ACTUALIZACIÓN DE ESTADO (Cálculo Auxiliar) ---
+    # =======================================================
+    # Recalculamos horas y cobertura real antes de las etapas constructivas.
     
     assigned_counts = {}
     prof_counts = [0] * problem.num_profesionales
@@ -86,10 +87,10 @@ def reparar_cromosoma(matriz, problem):
                 if es_finde or es_noche:
                     dificiles_counts[p] += 1
 
-    # =============================================
-    #       ETAPA 4: RECORTE POR LÍMITE MÁXIMO 
-    # =============================================
-    # Si alguien supera sus horas contrato, se le borran turnos.
+    # =========================================================
+    #       ETAPA 4: COBERTURA INTELIGENTE DE DÉFICIT 
+    # =========================================================
+    # Rellenamos huecos con el mejor candidato (Heurística: Preferencias + Equidad).
     for p in range(problem.num_profesionales):
         t_max = problem.info_profesionales[p]['t_max']
         skill = problem.info_profesionales[p]['skill']
@@ -114,11 +115,10 @@ def reparar_cromosoma(matriz, problem):
             prof_counts[p] -= 1
             eliminar -= 1
 
-    # =========================================================
-    #       ETAPA 5: COBERTURA INTELIGENTE DE DÉFICIT 
-    # =========================================================
-    # Se rellenan los huecos con el "mejor candidato" basado en un puntaje de equidad y preferencias.
-    
+   # =================================================
+    #    ETAPA 5: RELLENO POR LÍMITE MÍNIMO (T_MIN)
+    # =================================================
+    # Garantiza horas mínimas contractuales.
     for d in range(problem.num_dias):
         for turno in problem.turnos_a_cubrir:
             # definición de turno difícil
