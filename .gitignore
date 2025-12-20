@@ -27,6 +27,7 @@ MANIFEST
 # ENTORNOS VIRTUALES 
 # ====================
 .venv/
+.vscode/
 .venv311/
 env/
 venv/
@@ -34,6 +35,7 @@ ENV/
 env.bak/
 venv.bak/
 Scripts/
+.pytest_cache
 
 # ==========================
 # IDEs & SISTEMA OPERATIVO
