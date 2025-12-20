@@ -1,0 +1,82 @@
+# ==========================
+# GESTIÓN GLOBAL (Python)
+# ==========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ====================
+# ENTORNOS VIRTUALES 
+# ====================
+.venv/
+.venv311/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+Scripts/
+
+# ==========================
+# IDEs & SISTEMA OPERATIVO
+# ==========================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# ==========================
+# PROYECTO DJANGO (Web App)
+# ==========================
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+
+# ======================
+# PROYECTO OPTIMIZACIÓN 
+# ======================
+# Notebooks
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+# Datos y Logs específicos
+logs/
+data/
+*.csv  # Opcional: Descomentar si no quieren subir CSVs de prueba
+*.xlsx # Opcional: Descomentar si no quieren subir Excels
+
+# Compilados / Ejecutables
+*.spec
+
+# ==========================
+# DOCKER & SEGURIDAD
+# ==========================
+.env
+.env.local
+.env.*
+Dockerfile.local
