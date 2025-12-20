@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+venv
+.venv
+pip-log.txt
+pip-delete-this-directory
+
+# Django
+db.sqlite3
+media
+staticfiles
+
+# IDEs
+.vscode
+.idea
+
+# Docker
+Dockerfile
+docker-compose.yml

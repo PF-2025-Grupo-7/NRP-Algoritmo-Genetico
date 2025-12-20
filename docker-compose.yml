@@ -1,12 +1,47 @@
 services:
-  api-nrp:
-    build: .
-    container_name: nrp_api_grupo7
-    ports:
-      - "8000:8000"  # Mapea el puerto 8000 de tu PC al 8000 del contenedor
-    volumes:
-      - ./:/app      # <--- ESTA ES LA CLAVE: Tu código local se ve dentro del contenedor en tiempo real
+  # 1. BASE DE DATOS
+  db:
+    image: postgres:15
+    container_name: hospital_db
     environment:
-      - WATCHFILES_FORCE_POLLING=true # A veces necesario en Windows para detectar cambios
-    # Sobrescribimos el comando para activar el modo --reload
-    command: uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload
+      - POSTGRES_DB=bd_hospital
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"  # Útil para ver la BD desde DBeaver/PgAdmin 
+
+  # 2. API DE OPTIMIZACIÓN
+  optimizer:
+    build: ./optimization_engine
+    container_name: hospital_optimizer
+    command: uvicorn src.api:app --host 0.0.0.0 --port 8000 # Ajustá esto según cómo corra tu API hoy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./optimization_engine:/app
+    depends_on:
+      - db
+
+  # 3. LA APP WEB (Django - Próximamente)
+  web:
+    build: ./web_app
+    container_name: hospital_web
+    command: python manage.py runserver 0.0.0.0:8080
+    volumes:
+      - ./web_app:/code
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - optimizer
+    environment:
+    - DB_HOST=db
+    - DB_NAME=bd_hospital     
+    - DB_USER=admin            
+    - DB_PASS=admin          
+    - API_OPTIMIZER_URL=http://optimizer:8000
+
+volumes:
+  postgres_data:
