@@ -1,4 +1,5 @@
 from django.db import models
+from datetime import datetime, date, timedelta
 
 class Empleado(models.Model):
     class TipoEspecialidad(models.TextChoices):
@@ -24,7 +25,23 @@ class TipoTurno(models.Model):
     abreviatura = models.CharField(max_length=5) 
     hora_inicio = models.TimeField()
     hora_fin = models.TimeField()
-    duracion_horas = models.DecimalField(max_digits=4, decimal_places=2)
+    duracion_horas = models.DecimalField(max_digits=4, decimal_places=2,blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        # 1. Crear fechas dummy para poder restar las horas
+        dummy_date = date(2000, 1, 1)
+        dt_inicio = datetime.combine(dummy_date, self.hora_inicio)
+        dt_fin = datetime.combine(dummy_date, self.hora_fin)
+
+        # 2. Si el fin es menor al inicio, significa que cruza la medianoche (ej: 22:00 a 06:00)
+        if dt_fin < dt_inicio:
+            dt_fin += timedelta(days=1)
+
+        # 3. Calcular diferencia en horas
+        diferencia = dt_fin - dt_inicio
+        self.duracion_horas = diferencia.total_seconds() / 3600  # Guardar en horas
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.nombre
