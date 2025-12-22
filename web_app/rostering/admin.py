@@ -1,9 +1,20 @@
 from django.contrib import admin
-from .models import Empleado, NoDisponibilidad, TipoTurno, RequerimientoTurno, Preferencia, Cronograma, Asignacion
+from .models import (
+    Empleado, 
+    TipoTurno, 
+    Preferencia, 
+    Cronograma, 
+    Asignacion, 
+    NoDisponibilidad,
+    PlantillaDemanda, 
+    ReglaDemandaSemanal, 
+    ExcepcionDemanda
+)
+from .models import ConfiguracionAlgoritmo, SecuenciaProhibida
 
 @admin.register(Empleado)
 class EmpleadoAdmin(admin.ModelAdmin):
-    list_display = ('legajo', 'nombre_completo', 'especialidad', 'experiencia')
+    list_display = ('legajo', 'nombre_completo', 'especialidad', 'experiencia', 'min_horas_mensuales', 'max_horas_mensuales')
     list_filter = ('especialidad', 'experiencia')
     search_fields = ('nombre_completo', 'legajo')
 
@@ -11,10 +22,27 @@ class EmpleadoAdmin(admin.ModelAdmin):
 class TipoTurnoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'abreviatura', 'hora_inicio', 'hora_fin', 'duracion_horas')
 
-@admin.register(RequerimientoTurno)
-class RequerimientoTurnoAdmin(admin.ModelAdmin):
-    list_display = ('dia_semana', 'tipo_turno', 'cantidad_minima_senior', 'cantidad_minima_junior')
-    list_filter = ('dia_semana', 'tipo_turno')
+
+class ReglaSemanalInline(admin.TabularInline):
+    model = ReglaDemandaSemanal
+    extra = 0
+    min_num = 1
+    ordering = ('dia', 'turno')
+    # Esto asegura que se vean las columnas en orden
+    fields = ('dia', 'turno', 'cantidad_senior', 'cantidad_junior')
+
+@admin.register(ExcepcionDemanda)
+class ExcepcionDemandaAdmin(admin.ModelAdmin):
+    # Agregamos las columnas nuevas a la lista
+    list_display = ('fecha', 'turno', 'cantidad_senior', 'cantidad_junior', 'motivo')
+    list_filter = ('turno', 'fecha')
+    date_hierarchy = 'fecha'
+
+@admin.register(PlantillaDemanda)
+class PlantillaDemandaAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'descripcion')
+    inlines = [ReglaSemanalInline]  # <--- Esto conecta la tabla de días con la plantilla
+
 
 @admin.register(NoDisponibilidad)
 class NoDisponibilidadAdmin(admin.ModelAdmin):
@@ -29,10 +57,49 @@ class PreferenciaAdmin(admin.ModelAdmin):
 
 @admin.register(Cronograma)
 class CronogramaAdmin(admin.ModelAdmin):
-    list_display = ('especialidad', 'mes', 'anio', 'estado', 'fecha_creacion')
+    list_display = ('especialidad', 'mes', 'anio', 'estado', 'plantilla_demanda','fecha_creacion')
     list_filter = ('especialidad', 'estado', 'anio')
 
 @admin.register(Asignacion)
 class AsignacionAdmin(admin.ModelAdmin):
     list_display = ('cronograma', 'empleado', 'fecha', 'tipo_turno')
     list_filter = ('fecha', 'tipo_turno', 'cronograma')
+
+@admin.register(ConfiguracionAlgoritmo)
+class ConfiguracionAlgoritmoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'activa', 'peso_equidad_general', 'tolerancia_general')
+    list_filter = ('activa',)
+    
+    # Organizamos los campos en secciones para mayor claridad
+    fieldsets = (
+        ('Información General', {
+            'fields': ('nombre', 'activa')
+        }),
+        ('Ponderación de Objetivos (Fitness Weights)', {
+            'description': 'Ajuste la importancia relativa de cada restricción blanda.',
+            'fields': (
+                ('peso_equidad_general', 'peso_equidad_dificil'),
+                ('peso_preferencia_dias_libres', 'peso_preferencia_turno'),
+                'factor_alpha_pte'
+            ),
+        }),
+        ('Umbrales de Tolerancia', {
+            'description': 'Márgenes permitidos antes de considerar una distribución como injusta.',
+            'fields': (
+                ('tolerancia_general', 'tolerancia_dificil'),
+            ),
+        }),
+    )
+
+    def has_add_permission(self, request):
+        # Opcional: Si ya existe una config, no dejar crear otra para forzar Singleton
+        # Esto depende de si quieren permitir múltiples perfiles de configuración o no.
+        if self.model.objects.exists():
+             return False
+        return super().has_add_permission(request)
+
+@admin.register(SecuenciaProhibida)
+class SecuenciaProhibidaAdmin(admin.ModelAdmin):
+    list_display = ('especialidad', 'turno_previo', 'turno_siguiente')
+    list_filter = ('especialidad',)
+    ordering = ('especialidad', 'turno_previo')
