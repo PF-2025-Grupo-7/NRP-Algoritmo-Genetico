@@ -24,15 +24,22 @@ class ConfigGA(BaseModel):
     elitismo: bool = True
     seed: Optional[int] = None
 
+class DatosProfesional(BaseModel):
+    id_db: int = Field(..., description="ID del profesional en la base de datos.")
+    nombre: str = Field(..., description="Nombre del profesional.")
+    skill: str = Field(..., description="'senior', 'junior', etc.")
+    t_min: int = Field(..., description="Mínimo de horas/guardias por contrato.")
+    t_max: int = Field(..., description="Máximo de horas/guardias por contrato.")
+
 class DatosProblema(BaseModel):
-    num_profesionales: int = Field(..., gt=0)
+    # num_profesionales: Eliminado (se calcula según el largo de la lista)
+    
     num_dias: int = Field(..., gt=0)
     max_turno_val: int = Field(..., description="Valor máximo del turno (ej: 3)") 
     skills_a_cubrir: List[str] = Field(..., description="Lista de skills (senior, junior, etc)") 
     turnos_a_cubrir: List[int] = Field(default=[1, 2, 3])
     turnos_noche: List[int] = Field(default=[3])
     
-    # Pydantic V2 usa json_schema_extra en lugar de example
     duracion_turnos: Dict[str, int] = Field(
         ..., 
         json_schema_extra={"example": {"1": 8, "2": 8, "3": 8}}
@@ -42,7 +49,14 @@ class DatosProblema(BaseModel):
         default={"eq": 1.0, "dif": 1.5, "pdl": 2.0, "pte": 0.5, "alpha_pte": 0.5}
     )
     
-    info_profesionales_base: Dict[str, Any]
+    # info_profesionales_base: Eliminado
+    
+    # NUEVO CAMPO: Lista detallada
+    lista_profesionales: List[DatosProfesional] = Field(
+        ..., 
+        description="Lista detallada de la nómina de profesionales."
+    )
+
     reglas_cobertura: Dict[str, Any]
     secuencias_prohibidas: List[List[int]] = []
     excepciones_disponibilidad: List[Dict[str, Any]] = []
@@ -70,7 +84,6 @@ class EstrategiasConfig(BaseModel):
 class SolicitudPlanificacion(BaseModel):
     config: ConfigGA
     datos_problema: DatosProblema
-    # Ahora usamos la clase estricta en lugar de Dict genérico
     estrategias: EstrategiasConfig = Field(default_factory=EstrategiasConfig)
 
 class SolicitudEvaluacion(BaseModel):
@@ -96,7 +109,6 @@ async def evaluar_solucion_especifica(solicitud: SolicitudEvaluacion):
         
         return problema.evaluar_detallado(vector_np)
     except Exception as e:
-        # El detalle ahora incluirá el error real para facilitar el debugging
         raise HTTPException(status_code=400, detail=f"Error en evaluación: {str(e)}")
 
 @app.post("/planificar", response_model=RespuestaCreacion, tags=["Planificación"])
@@ -108,8 +120,6 @@ async def iniciar_planificacion(solicitud: SolicitudPlanificacion, background_ta
         "submitted_at": str(uuid.uuid1().time)
     }
     
-    # IMPORTANTE: Convertimos config, datos y estrategias a dicts puros
-    # para que services.wrapper_trabajo los pueda procesar sin problemas de tipos
     background_tasks.add_task(
         services.wrapper_trabajo, 
         job_id, 

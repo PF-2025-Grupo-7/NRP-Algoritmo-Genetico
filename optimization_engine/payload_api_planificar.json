@@ -8,34 +8,57 @@
     "seed": 1111
   },
   "datos_problema": {
-    "num_profesionales": 18,
     "num_dias": 30,
     "max_turno_val": 3,
     "turnos_a_cubrir": [1, 2, 3],
     "skills_a_cubrir": ["junior", "senior"],
     "turnos_noche": [3],
-    "secuencias_prohibidas": [[3, 1], [3, 2], [2, 1]],
+    "duracion_turnos": {"1": 8, "2": 8, "3": 8},
+    
     "pesos_fitness": { 
         "eq": 1.0, "dif": 1.5, "pdl": 2.0, "pte": 0.5, "alpha_pte": 0.5 
     },
+    
     "tolerancia_equidad_general": 8,
     "tolerancia_equidad_dificil": 4,
-    "duracion_turnos": {"1": 8, "2": 8, "3": 8},
+
+    "lista_profesionales": [
+        {"id_db": 101, "nombre": "Dr. Senior 1", "skill": "senior", "t_min": 12, "t_max": 16},
+        {"id_db": 102, "nombre": "Dr. Senior 2", "skill": "senior", "t_min": 12, "t_max": 16},
+        {"id_db": 103, "nombre": "Dr. Senior 3", "skill": "senior", "t_min": 12, "t_max": 16},
+        {"id_db": 104, "nombre": "Dr. Senior 4", "skill": "senior", "t_min": 12, "t_max": 16},
+        {"id_db": 105, "nombre": "Dr. Senior 5", "skill": "senior", "t_min": 12, "t_max": 16},
+        {"id_db": 106, "nombre": "Dr. Senior 6", "skill": "senior", "t_min": 12, "t_max": 16},
+        {"id_db": 107, "nombre": "Dr. Senior 7", "skill": "senior", "t_min": 12, "t_max": 16},
+        {"id_db": 108, "nombre": "Dr. Senior 8", "skill": "senior", "t_min": 12, "t_max": 16},
+        {"id_db": 109, "nombre": "Dr. Senior 9", "skill": "senior", "t_min": 12, "t_max": 16},
+        {"id_db": 110, "nombre": "Dr. Senior 10", "skill": "senior", "t_min": 12, "t_max": 16},
+        {"id_db": 201, "nombre": "Dr. Junior 1", "skill": "junior", "t_min": 12, "t_max": 16},
+        {"id_db": 202, "nombre": "Dr. Junior 2", "skill": "junior", "t_min": 12, "t_max": 16},
+        {"id_db": 203, "nombre": "Dr. Junior 3", "skill": "junior", "t_min": 12, "t_max": 16},
+        {"id_db": 204, "nombre": "Dr. Junior 4", "skill": "junior", "t_min": 12, "t_max": 16},
+        {"id_db": 205, "nombre": "Dr. Junior 5", "skill": "junior", "t_min": 12, "t_max": 16},
+        {"id_db": 206, "nombre": "Dr. Junior 6", "skill": "junior", "t_min": 12, "t_max": 16},
+        {"id_db": 207, "nombre": "Dr. Junior 7", "skill": "junior", "t_min": 12, "t_max": 16},
+        {"id_db": 208, "nombre": "Dr. Junior 8", "skill": "junior", "t_min": 12, "t_max": 16}
+    ],
+
     "reglas_cobertura": {
         "dias_pico": [0, 4], 
         "demanda_pico":   {"1": {"junior": 2, "senior": 2}, "2": {"junior": 2, "senior": 1}, "3": {"junior": 1, "senior": 1}},
         "demanda_finde":  {"1": {"junior": 1, "senior": 1}, "2": {"junior": 1, "senior": 1}, "3": {"junior": 1, "senior": 1}},
         "demanda_normal": {"1": {"junior": 2, "senior": 1}, "2": {"junior": 1, "senior": 1}, "3": {"junior": 1, "senior": 1}}
     },
-    "info_profesionales_base": {
-        "total": 18, "senior_count": 10, "t_min": 12, "t_max": 16
-    },
+
+    "secuencias_prohibidas": [[3, 1], [3, 2], [2, 1]],
+
     "excepciones_disponibilidad": [
         {"prof_index": 0,  "dias_range": [0, 7], "disponible": false},
         {"prof_index": 6,  "dias_range": [5, 11], "disponible": false},
         {"prof_index": 11, "dias_range": [25, 30], "disponible": false},
         {"prof_index": 3,  "tipo": "fines_de_semana", "disponible": false}
     ],
+
     "excepciones_preferencias": [
         {"prof_indices": [0, 1, 2], "dia": 15, "valor": -1},
         {"prof_indices": [8, 9],    "dia": 20, "valor": 1},
