@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Literal
 import uuid
 import numpy as np
 
@@ -27,8 +27,8 @@ class ConfigGA(BaseModel):
 class DatosProblema(BaseModel):
     num_profesionales: int = Field(..., gt=0)
     num_dias: int = Field(..., gt=0)
-    max_turno_val: int = Field(..., description="Valor máximo del turno (ej: 3)") # AGREGADO
-    skills_a_cubrir: List[str] = Field(..., description="Lista de skills (senior, junior, etc)") # AGREGADO
+    max_turno_val: int = Field(..., description="Valor máximo del turno (ej: 3)") 
+    skills_a_cubrir: List[str] = Field(..., description="Lista de skills (senior, junior, etc)") 
     turnos_a_cubrir: List[int] = Field(default=[1, 2, 3])
     turnos_noche: List[int] = Field(default=[3])
     
@@ -50,16 +50,28 @@ class DatosProblema(BaseModel):
     tolerancia_equidad_general: int = 8
     tolerancia_equidad_dificil: int = 4
 
+# --- NUEVO MODELO DE ESTRATEGIAS (Validación Estricta) ---
+class EstrategiasConfig(BaseModel):
+    sel: Literal["torneo_deterministico", "ranking_lineal"] = Field(
+        default="torneo_deterministico",
+        description="Operador de Selección"
+    )
+    cross: Literal["bloques_verticales", "bloques_horizontales", "dos_puntos"] = Field(
+        default="bloques_verticales",
+        description="Operador de Cruzamiento"
+    )
+    mut: Literal["hibrida_adaptativa", "reasignar_turno", "intercambio_dia", "flip_simple"] = Field(
+        default="hibrida_adaptativa",
+        description="Operador de Mutación"
+    )
+
 # --- MODELOS DE ENTRADA ---
 
 class SolicitudPlanificacion(BaseModel):
     config: ConfigGA
     datos_problema: DatosProblema
-    estrategias: Optional[Dict[str, str]] = {
-        "sel": "torneo_deterministico", 
-        "cross": "bloques_verticales", 
-        "mut": "hibrida_adaptativa"
-    }
+    # Ahora usamos la clase estricta en lugar de Dict genérico
+    estrategias: EstrategiasConfig = Field(default_factory=EstrategiasConfig)
 
 class SolicitudEvaluacion(BaseModel):
     vector: List[int]
@@ -96,12 +108,14 @@ async def iniciar_planificacion(solicitud: SolicitudPlanificacion, background_ta
         "submitted_at": str(uuid.uuid1().time)
     }
     
+    # IMPORTANTE: Convertimos config, datos y estrategias a dicts puros
+    # para que services.wrapper_trabajo los pueda procesar sin problemas de tipos
     background_tasks.add_task(
         services.wrapper_trabajo, 
         job_id, 
         solicitud.config.model_dump(), 
         solicitud.datos_problema.model_dump(), 
-        solicitud.estrategias
+        solicitud.estrategias.model_dump() 
     )
     
     return {
@@ -131,7 +145,6 @@ async def consultar_estado(job_id: str):
         else:
             respuesta["progreso"] = "Iniciando..."
     
-    # CORRECCIÓN: Si falló, devolver el error en el status para que el test lo vea
     elif status_general == "failed":
         respuesta["error"] = job_local.get("error")
 
