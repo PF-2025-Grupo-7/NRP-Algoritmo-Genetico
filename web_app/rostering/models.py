@@ -306,12 +306,10 @@ class ConfiguracionAlgoritmo(models.Model):
         help_text="Dejar vacío para aleatorio. Usar número fijo para reproducibilidad."
     )
 
-    # Estrategias (Strings fijos que espera la API)
     class EstrategiaSeleccion(models.TextChoices):
         TORNEO = 'torneo_deterministico', 'Torneo Determinístico'
-        RANKING = 'ranking', 'Ranking'
-        RULETA = 'ruleta', 'Ruleta'
-
+        RANKING = 'ranking_lineal', 'Ranking Lineal'
+        
     estrategia_seleccion = models.CharField(
         max_length=50, 
         choices=EstrategiaSeleccion.choices, 
@@ -319,22 +317,21 @@ class ConfiguracionAlgoritmo(models.Model):
     )
 
     class EstrategiaCruce(models.TextChoices):
-        UN_PUNTO = 'un_punto', 'Un Punto'
+        BLOQUES_VERTICALES = 'bloques_verticales', 'Bloques Verticales'
+        BLOQUES_HORIZONTALES = 'bloques_horizontales', 'Bloques Horizontales'
         DOS_PUNTOS = 'dos_puntos', 'Dos Puntos'
-        UNIFORME = 'uniforme', 'Uniforme'
-        BLOQUES = 'bloques_verticales', 'Bloques Verticales (Recomendado)'
 
     estrategia_cruce = models.CharField(
         max_length=50,
         choices=EstrategiaCruce.choices,
-        default=EstrategiaCruce.BLOQUES
+        default=EstrategiaCruce.BLOQUES_VERTICALES
     )
 
     class EstrategiaMutacion(models.TextChoices):
-        FLIP = 'flip', 'Flip'
-        INTERCAMBIO = 'intercambio', 'Intercambio'
-        INVERSION = 'inversion', 'Inversión'
-        HIBRIDA = 'hibrida_adaptativa', 'Híbrida (Recomendado)'
+        HIBRIDA = 'hibrida_adaptativa', 'Híbrida'
+        REASIGNAR = 'reasignar_turno', 'Reasignar Turno'
+        INTERCAMBIO = 'intercambio_dia', 'Intercambio de Día'
+        FLIP = 'flip_simple', 'Flip Simple'
 
     estrategia_mutacion = models.CharField(
         max_length=50,
