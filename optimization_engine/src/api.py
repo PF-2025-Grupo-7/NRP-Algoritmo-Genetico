@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware  # <--- IMPORTANTE
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, List, Literal
 import uuid
@@ -8,10 +9,30 @@ import numpy as np
 from .loader import procesar_datos_instancia
 from .problema import ProblemaGAPropio
 from . import services 
+# Importamos los diccionarios reales para el endpoint de metadatos
+from .operadores import SELECTION_OPS, CROSSOVER_OPS, MUTATION_OPS 
 
 app = FastAPI(
     title="API Planificación Guardias - Grupo 7",
     description="Motor de Algoritmo Genético optimizado para hospitales."
+)
+
+# --- CONFIGURACIÓN CORS (SEGURIDAD) ---
+# Esto permite que tu Frontend (en otro puerto/dominio) pueda hablar con la API
+origins = [
+    "http://localhost:8000",  # Tu propia API
+    "http://localhost:8080",  # Puerto común de Django/Frontend
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8080",
+    "*", # PERMITIR TODO (Úsalo solo en desarrollo para evitar dolores de cabeza hoy)
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- MODELOS DE SOPORTE (Pydantic V2 Ready) ---
@@ -32,8 +53,6 @@ class DatosProfesional(BaseModel):
     t_max: int = Field(..., description="Máximo de horas/guardias por contrato.")
 
 class DatosProblema(BaseModel):
-    # num_profesionales: Eliminado (se calcula según el largo de la lista)
-    
     num_dias: int = Field(..., gt=0)
     max_turno_val: int = Field(..., description="Valor máximo del turno (ej: 3)") 
     skills_a_cubrir: List[str] = Field(..., description="Lista de skills (senior, junior, etc)") 
@@ -49,9 +68,6 @@ class DatosProblema(BaseModel):
         default={"eq": 1.0, "dif": 1.5, "pdl": 2.0, "pte": 0.5, "alpha_pte": 0.5}
     )
     
-    # info_profesionales_base: Eliminado
-    
-    # NUEVO CAMPO: Lista detallada
     lista_profesionales: List[DatosProfesional] = Field(
         ..., 
         description="Lista detallada de la nómina de profesionales."
@@ -97,10 +113,20 @@ class RespuestaCreacion(BaseModel):
 
 # --- ENDPOINTS ---
 
+@app.get("/info/opciones", tags=["Metadatos"])
+async def obtener_opciones_disponibles():
+    """
+    Devuelve las estrategias disponibles dinámicamente para poblar el Frontend.
+    """
+    return {
+        "seleccion": list(SELECTION_OPS.keys()),
+        "cruce": list(CROSSOVER_OPS.keys()),
+        "mutacion": list(MUTATION_OPS.keys())
+    }
+
 @app.post("/soluciones/evaluar", tags=["Auditoría"])
 async def evaluar_solucion_especifica(solicitud: SolicitudEvaluacion):
     try:
-        # Pydantic V2: model_dump() reemplaza a dict()
         datos_dict = solicitud.datos_problema.model_dump()
         datos_procesados = procesar_datos_instancia(datos_dict)
         
