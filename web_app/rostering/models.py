@@ -1,5 +1,6 @@
 from django.db import models
 from datetime import datetime, date, timedelta
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 class Empleado(models.Model):
@@ -18,6 +19,8 @@ class Empleado(models.Model):
     especialidad = models.CharField(max_length=20, choices=TipoEspecialidad.choices)
     experiencia = models.CharField(max_length=20, choices=TipoExperiencia.choices)
 
+    activo = models.BooleanField(default=True, verbose_name="Activo en planificaciones")
+
     min_horas_mensuales = models.IntegerField(
         default=120, 
         verbose_name="Mínimo Horas/Mes",
@@ -30,11 +33,26 @@ class Empleado(models.Model):
     )
 
     def __str__(self):
-        return f"{self.nombre_completo} ({self.legajo})"
+        estado = "" if self.activo else "(INACTIVO)"
+        return f"{self.nombre_completo} - {self.get_especialidad_display()} {estado}"
 
 class TipoTurno(models.Model):
     nombre = models.CharField(max_length=50) 
     abreviatura = models.CharField(max_length=5) 
+
+    especialidad = models.CharField(
+        max_length=20, 
+        choices=Empleado.TipoEspecialidad.choices,
+        default=Empleado.TipoEspecialidad.MEDICO,
+        verbose_name="Especialidad asociada"
+    )
+    
+    es_nocturno = models.BooleanField(
+        default=False, 
+        verbose_name="Es turno nocturno",
+        help_text="Marcar si este turno implica penalización de descanso o secuencias prohibidas específicas."
+    )
+
     hora_inicio = models.TimeField()
     hora_fin = models.TimeField()
     duracion_horas = models.DecimalField(max_digits=4, decimal_places=2,blank=True, null=True)
@@ -54,14 +72,22 @@ class TipoTurno(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return self.nombre
+        return f"{self.nombre} ({self.get_especialidad_display()})"
 
 class PlantillaDemanda(models.Model):
     nombre = models.CharField(max_length=50, unique=True, help_text="Ej: Demanda Estándar 2025, Demanda Verano")
+    
+    especialidad = models.CharField(
+        max_length=20, 
+        choices=Empleado.TipoEspecialidad.choices,
+        default=Empleado.TipoEspecialidad.MEDICO
+    )
+    descripcion = models.TextField(blank=True)
+    
     descripcion = models.TextField(blank=True)
 
     def __str__(self):
-        return self.nombre
+        return f"{self.nombre} ({self.get_especialidad_display()})"
 
 class DiaSemana(models.IntegerChoices):
     LUNES = 0, 'Lunes'
@@ -73,7 +99,6 @@ class DiaSemana(models.IntegerChoices):
     DOMINGO = 6, 'Domingo'
 
 class ReglaDemandaSemanal(models.Model):
-    """ Define cuántos enfermeros de cada tipo se necesitan """
     plantilla = models.ForeignKey(PlantillaDemanda, on_delete=models.CASCADE, related_name='reglas')
     dia = models.IntegerField(choices=DiaSemana.choices)
     turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
@@ -86,13 +111,28 @@ class ReglaDemandaSemanal(models.Model):
         verbose_name = "Regla de Demanda Semanal"
         verbose_name_plural = "Reglas de Demanda Semanal"
 
+    def clean(self):
+        super().clean()
+        # Validar que el turno sea de la misma especialidad que la plantilla
+        if self.plantilla and self.turno:
+            if self.plantilla.especialidad != self.turno.especialidad:
+                raise ValidationError({
+                    'turno': f"El turno '{self.turno}' ({self.turno.get_especialidad_display()}) "
+                             f"no corresponde a la especialidad de la plantilla ({self.plantilla.get_especialidad_display()})."
+                })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"{self.get_dia_display()} {self.turno}: S={self.cantidad_senior}/J={self.cantidad_junior}"
+        return f"{self.get_dia_display()} {self.turno.abreviatura}: S={self.cantidad_senior}/J={self.cantidad_junior}"
 
 class ExcepcionDemanda(models.Model):
     """
-    Permite sobreescribir la regla semanal para una fecha específica
+    Permite sobreescribir la regla semanal para una fecha específica (Ej: Navidad, Año Nuevo)
     """
+    plantilla = models.ForeignKey(PlantillaDemanda, on_delete=models.CASCADE, related_name='excepciones', null=True)
     fecha = models.DateField()
     turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
     
@@ -102,10 +142,23 @@ class ExcepcionDemanda(models.Model):
     motivo = models.CharField(max_length=100, blank=True)
 
     class Meta:
-        unique_together = ('fecha', 'turno')
-        verbose_name = "Excepción de Demanda"
+        unique_together = ('plantilla', 'fecha', 'turno')
+        verbose_name = "Excepción de Demanda (Feriados/Picos)"
         verbose_name_plural = "Excepciones de Demanda"
 
+    def clean(self):
+        super().clean()
+        # Validar solo si la excepción está vinculada a una plantilla
+        if self.plantilla and self.turno:
+            if self.plantilla.especialidad != self.turno.especialidad:
+                raise ValidationError({
+                    'turno': f"El turno '{self.turno}' ({self.turno.get_especialidad_display()}) "
+                             f"no corresponde a la especialidad de la plantilla ({self.plantilla.get_especialidad_display()})."
+                })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 class NoDisponibilidad(models.Model):
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='no_disponibilidades')
@@ -113,42 +166,99 @@ class NoDisponibilidad(models.Model):
     fecha_fin = models.DateField()
     tipo_turno = models.ForeignKey(
         TipoTurno, on_delete=models.CASCADE, 
-        null=True, blank=True,verbose_name="Turno (Dejar vacío para todo el día)")
-    motivo = models.CharField(max_length=255)
-
+        null=True, blank=True, verbose_name="Turno (Dejar vacío para todo el día)"
+    )
     motivo = models.CharField(max_length=100)
+
+    def clean(self):
+        super().clean()
+        # Si especifica un turno puntual (no es día completo), validar especialidad
+        if self.empleado and self.tipo_turno:
+            if self.empleado.especialidad != self.tipo_turno.especialidad:
+                raise ValidationError({
+                    'tipo_turno': f"El turno '{self.tipo_turno}' ({self.tipo_turno.get_especialidad_display()}) "
+                                  f"no coincide con la especialidad del empleado ({self.empleado.get_especialidad_display()})."
+                })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         turno_str = self.tipo_turno.nombre if self.tipo_turno else "TODO EL DÍA"
-        return f"{self.empleado} ({self.fecha_inicio} al {self.fecha_fin}): {turno_str}"
+        return f"{self.empleado.legajo} ({self.fecha_inicio} - {self.fecha_fin}): {turno_str}"
 
     class Meta:
         verbose_name_plural = "No Disponibilidades"
 
 class Preferencia(models.Model):
     class Deseo(models.TextChoices):
+        # CAMBIO 1: Texto amigable para el usuario final
         TRABAJAR = 'TRABAJAR', 'Desea trabajar'
         DESCANSAR = 'DESCANSAR', 'Desea descansar'
 
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE)
     fecha = models.DateField()
-    tipo_turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
+    tipo_turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE, null=True, blank=True)
     deseo = models.CharField(max_length=20, choices=Deseo.choices)
+    
+    comentario = models.CharField(max_length=100, blank=True, null=True)
+
+    # CAMBIO 2: Validación de Especialidad
+    def clean(self):
+        super().clean()
+        
+        # Solo validamos si hay un turno seleccionado. 
+        # Si tipo_turno es None (quiere el día libre completo), no importa la especialidad.
+        if self.tipo_turno and self.empleado:
+            if self.tipo_turno.especialidad != self.empleado.especialidad:
+                raise ValidationError({
+                    'tipo_turno': f"El turno '{self.tipo_turno}' ({self.tipo_turno.get_especialidad_display()}) "
+                                  f"no coincide con la especialidad del empleado ({self.empleado.get_especialidad_display()})."
+                })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        turno_str = self.tipo_turno.nombre if self.tipo_turno else "DÍA COMPLETO"
+        return f"{self.empleado}: {self.get_deseo_display()} en {self.fecha} ({turno_str})"
 
 class Cronograma(models.Model):
     class Estado(models.TextChoices):
         BORRADOR = 'BORRADOR', 'Borrador'
+        OPTIMIZANDO = 'OPTIMIZANDO', 'En Proceso de Optimización'
         PUBLICADO = 'PUBLICADO', 'Publicado'
 
     especialidad = models.CharField(max_length=20, choices=Empleado.TipoEspecialidad.choices)
-    mes = models.PositiveIntegerField()
-    anio = models.PositiveIntegerField()
+    
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField()
+    
     estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.BORRADOR)
     plantilla_demanda = models.ForeignKey(PlantillaDemanda, on_delete=models.PROTECT, null=True, blank=True)
+    
+    configuracion_usada = models.ForeignKey('ConfiguracionAlgoritmo', on_delete=models.SET_NULL, null=True, blank=True)
+    
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
+    def clean(self):
+        super().clean()
+        # Validar que la plantilla coincida con la especialidad del cronograma
+        if self.plantilla_demanda:
+            if self.especialidad != self.plantilla_demanda.especialidad:
+                raise ValidationError({
+                    'plantilla_demanda': f"La plantilla '{self.plantilla_demanda}' es de {self.plantilla_demanda.get_especialidad_display()}, "
+                                         f"pero estás creando un cronograma de {self.get_especialidad_display()}."
+                })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"Planificación {self.mes}/{self.anio} ({self.estado})"
+        return f"Plan {self.get_especialidad_display()} ({self.fecha_inicio} al {self.fecha_fin}) - {self.estado}"
 
 class Asignacion(models.Model):
     cronograma = models.ForeignKey(Cronograma, on_delete=models.CASCADE, related_name='asignaciones')
@@ -157,92 +267,149 @@ class Asignacion(models.Model):
     tipo_turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
 
     class Meta:
-        verbose_name_plural = "Asignaciones"
+        verbose_name_plural = "Asignaciones (Resultado)"
+        unique_together = ('cronograma', 'empleado', 'fecha') # Un empleado no puede tener 2 turnos el mismo día en el mismo plan
 
 class ConfiguracionAlgoritmo(models.Model):
     """
-    Modelo para gestionar los parámetros dinámicos del Algoritmo Genético.
-    Se recomienda usar un patrón Singleton (solo una instancia activa).
+    Modelo único para parámetros técnicos del AG y parámetros de negocio (pesos).
     """
-    nombre = models.CharField(max_length=50, default="Configuración Principal")
-    activa = models.BooleanField(default=True)
+    nombre = models.CharField(max_length=50, default="Configuración Estándar")
+    activa = models.BooleanField(default=True, help_text="Solo debe haber una activa por defecto")
 
-    peso_equidad_general = models.FloatField(
-        default=1.0,
-        validators=[MinValueValidator(0.0)],
-        verbose_name="Peso Equidad General (eq)",
-        help_text="Penalización por varianza en la carga total de guardias entre médicos."
+    # --- SECCIÓN 1: Parámetros Técnicos del Algoritmo Genético ---
+    tamano_poblacion = models.IntegerField(
+        default=100, 
+        verbose_name="Tamaño Población (pop_size)",
+        validators=[MinValueValidator(10)]
     )
-
-    peso_equidad_dificil = models.FloatField(
-        default=1.5,
-        validators=[MinValueValidator(0.0)],
-        verbose_name="Peso Equidad Difícil (dif)",
-        help_text="Penalización por desbalance en guardias de fin de semana o nocturnas."
+    generaciones = models.IntegerField(
+        default=250, 
+        verbose_name="Generaciones",
+        validators=[MinValueValidator(10)]
     )
-
-    peso_preferencia_dias_libres = models.FloatField(
-        default=2.0,
-        validators=[MinValueValidator(0.0)],
-        verbose_name="Peso Días Libres (pdl)",
-        help_text="Importancia de respetar los días que el médico pidió NO trabajar."
+    prob_cruce = models.FloatField(
+        default=0.85, 
+        verbose_name="Probabilidad de Cruce (pc)",
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)]
     )
-
-    peso_preferencia_turno = models.FloatField(
-        default=0.5,
-        validators=[MinValueValidator(0.0)],
-        verbose_name="Peso Turno Específico (pte)",
-        help_text="Importancia de asignar exactamente el turno solicitado (Mañana/Tarde/Noche)."
+    prob_mutacion = models.FloatField(
+        default=0.20, 
+        verbose_name="Probabilidad de Mutación (pm)",
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)]
     )
-
-    factor_alpha_pte = models.FloatField(
-        default=0.5,
-        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
-        verbose_name="Factor Alpha (α)",
-        help_text="Coeficiente de penalización parcial cuando se asigna descanso en lugar del turno pedido (0 < α <= 1)."
-    )
-
+    elitismo = models.BooleanField(default=True, verbose_name="Usar Elitismo")
     
-    tolerancia_general = models.IntegerField(
-        default=8,
-        validators=[MinValueValidator(0)],
-        verbose_name="Tolerancia Equidad General",
-        help_text="Diferencia máxima de horas/turnos permitida antes de aplicar penalización severa."
+    semilla = models.IntegerField(
+        null=True, blank=True, 
+        verbose_name="Semilla (Seed)",
+        help_text="Dejar vacío para aleatorio. Usar número fijo para reproducibilidad."
     )
 
-    tolerancia_dificil = models.IntegerField(
-        default=4,
-        validators=[MinValueValidator(0)],
-        verbose_name="Tolerancia Equidad Difícil",
-        help_text="Diferencia máxima de guardias difíciles permitida antes de penalizar."
+    # Estrategias (Strings fijos que espera la API)
+    class EstrategiaSeleccion(models.TextChoices):
+        TORNEO = 'torneo_deterministico', 'Torneo Determinístico'
+        RANKING = 'ranking', 'Ranking'
+        RULETA = 'ruleta', 'Ruleta'
+
+    estrategia_seleccion = models.CharField(
+        max_length=50, 
+        choices=EstrategiaSeleccion.choices, 
+        default=EstrategiaSeleccion.TORNEO
     )
+
+    class EstrategiaCruce(models.TextChoices):
+        UN_PUNTO = 'un_punto', 'Un Punto'
+        DOS_PUNTOS = 'dos_puntos', 'Dos Puntos'
+        UNIFORME = 'uniforme', 'Uniforme'
+        BLOQUES = 'bloques_verticales', 'Bloques Verticales (Recomendado)'
+
+    estrategia_cruce = models.CharField(
+        max_length=50,
+        choices=EstrategiaCruce.choices,
+        default=EstrategiaCruce.BLOQUES
+    )
+
+    class EstrategiaMutacion(models.TextChoices):
+        FLIP = 'flip', 'Flip'
+        INTERCAMBIO = 'intercambio', 'Intercambio'
+        INVERSION = 'inversion', 'Inversión'
+        HIBRIDA = 'hibrida_adaptativa', 'Híbrida (Recomendado)'
+
+    estrategia_mutacion = models.CharField(
+        max_length=50,
+        choices=EstrategiaMutacion.choices,
+        default=EstrategiaMutacion.HIBRIDA
+    )
+
+    # --- SECCIÓN 2: Pesos y Preferencias de Negocio ---
+    peso_equidad_general = models.FloatField(default=1.0, validators=[MinValueValidator(0.0)])
+    peso_equidad_dificil = models.FloatField(default=1.5, validators=[MinValueValidator(0.0)])
+    peso_preferencia_dias_libres = models.FloatField(default=2.0, validators=[MinValueValidator(0.0)])
+    peso_preferencia_turno = models.FloatField(default=0.5, validators=[MinValueValidator(0.0)])
+    
+    factor_alpha_pte = models.FloatField(
+        default=0.5, 
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Penalización parcial si se descansa en vez de trabajar el turno pedido (0-1)"
+    )
+    
+    tolerancia_general = models.IntegerField(default=8, verbose_name="Tolerancia Horas General")
+    tolerancia_dificil = models.IntegerField(default=4, verbose_name="Tolerancia Turnos Difíciles")
 
     class Meta:
-        verbose_name = "Configuración del Algoritmo"
-        verbose_name_plural = "Configuraciones del Algoritmo"
+        verbose_name = "Configuración Global del Algoritmo"
+        verbose_name_plural = "Configuraciones Globales"
 
     def __str__(self):
-        return f"{self.nombre} ({'Activa' if self.activa else 'Inactiva'})"
+        return f"{self.nombre} (Pop:{self.tamano_poblacion}, Gen:{self.generaciones})"
+
+    def save(self, *args, **kwargs):
+        if self.activa:
+            ConfiguracionAlgoritmo.objects.filter(activa=True).exclude(pk=self.pk).update(activa=False)
+        super().save(*args, **kwargs)
 
 class SecuenciaProhibida(models.Model):
     """
     Define pares de turnos incompatibles según la especialidad.
-    Ej: Enfermeros no pueden hacer Noche (3) -> Mañana (1).
     """
-    class Especialidad(models.TextChoices):
-        MEDICO = 'MEDICO', 'Médico'
-        ENFERMERO = 'ENFERMERO', 'Enfermero'
-        TODOS = 'TODOS', 'Cualquiera'
+    especialidad = models.CharField(
+        max_length=20, 
+        choices=Empleado.TipoEspecialidad.choices, 
+        default=Empleado.TipoEspecialidad.ENFERMERO
+    )
+    
+    turno_previo = models.ForeignKey(TipoTurno, on_delete=models.CASCADE, related_name='prohibido_origen')
+    turno_siguiente = models.ForeignKey(TipoTurno, on_delete=models.CASCADE, related_name='prohibido_destino')
+    
+    def clean(self):
+        """
+        Valida que los turnos seleccionados pertenezcan a la especialidad declarada.
+        """
+        super().clean()
+        
+        # Validar Turno Previo
+        if self.turno_previo_id: # Usamos _id para evitar query extra si no hace falta
+            if self.turno_previo.especialidad != self.especialidad:
+                raise ValidationError({
+                    'turno_previo': f"El turno '{self.turno_previo}' no corresponde a la especialidad {self.get_especialidad_display()}."
+                })
 
-    especialidad = models.CharField(max_length=20, choices=Especialidad.choices, default=Especialidad.ENFERMERO)
-    
-    turno_previo = models.ForeignKey(TipoTurno, on_delete=models.CASCADE, related_name='prohibido_origen', verbose_name="Si trabaja en...")
-    turno_siguiente = models.ForeignKey(TipoTurno, on_delete=models.CASCADE, related_name='prohibido_destino', verbose_name="No puede trabajar después en...")
-    
+        # Validar Turno Siguiente
+        if self.turno_siguiente_id:
+            if self.turno_siguiente.especialidad != self.especialidad:
+                raise ValidationError({
+                    'turno_siguiente': f"El turno '{self.turno_siguiente}' no corresponde a la especialidad {self.get_especialidad_display()}."
+                })
+
+    def save(self, *args, **kwargs):
+        self.full_clean() # Forzar validación antes de guardar
+        super().save(*args, **kwargs)
+
     class Meta:
         verbose_name = "Secuencia Prohibida"
         verbose_name_plural = "Secuencias Prohibidas"
         unique_together = ('especialidad', 'turno_previo', 'turno_siguiente')
 
     def __str__(self):
-        return f"[{self.especialidad}] Prohibido: {self.turno_previo.abreviatura} -> {self.turno_siguiente.abreviatura}"
+        return f"[{self.get_especialidad_display()}] NO HACER: {self.turno_previo.abreviatura} -> {self.turno_siguiente.abreviatura}"
