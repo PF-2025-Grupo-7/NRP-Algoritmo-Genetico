@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware  # <--- IMPORTANTE
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, List, Literal
 import uuid
@@ -9,7 +9,6 @@ import numpy as np
 from .loader import procesar_datos_instancia
 from .problema import ProblemaGAPropio
 from . import services 
-# Importamos los diccionarios reales para el endpoint de metadatos
 from .operadores import SELECTION_OPS, CROSSOVER_OPS, MUTATION_OPS 
 
 app = FastAPI(
@@ -17,14 +16,13 @@ app = FastAPI(
     description="Motor de Algoritmo Genético optimizado para hospitales."
 )
 
-# --- CONFIGURACIÓN CORS (SEGURIDAD) ---
-# Esto permite que tu Frontend (en otro puerto/dominio) pueda hablar con la API
+# --- CONFIGURACIÓN CORS ---
 origins = [
-    "http://localhost:8000",  # Tu propia API
-    "http://localhost:8080",  # Puerto común de Django/Frontend
+    "http://localhost:8000",
+    "http://localhost:8080",
     "http://127.0.0.1:8000",
     "http://127.0.0.1:8080",
-    "*", # PERMITIR TODO (Úsalo solo en desarrollo para evitar dolores de cabeza hoy)
+    "*", 
 ]
 
 app.add_middleware(
@@ -35,7 +33,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- MODELOS DE SOPORTE (Pydantic V2 Ready) ---
+# --- MODELOS DE SOPORTE ---
 
 class ConfigGA(BaseModel):
     pop_size: int = Field(100, gt=0)
@@ -80,31 +78,80 @@ class DatosProblema(BaseModel):
     tolerancia_equidad_general: int = 8
     tolerancia_equidad_dificil: int = 4
 
-# --- NUEVO MODELO DE ESTRATEGIAS (Validación Estricta) ---
 class EstrategiasConfig(BaseModel):
     sel: Literal["torneo_deterministico", "ranking_lineal"] = Field(
-        default="torneo_deterministico",
-        description="Operador de Selección"
+        default="torneo_deterministico"
     )
     cross: Literal["bloques_verticales", "bloques_horizontales", "dos_puntos"] = Field(
-        default="bloques_verticales",
-        description="Operador de Cruzamiento"
+        default="bloques_verticales"
     )
     mut: Literal["hibrida_adaptativa", "reasignar_turno", "intercambio_dia", "flip_simple"] = Field(
-        default="hibrida_adaptativa",
-        description="Operador de Mutación"
+        default="hibrida_adaptativa"
     )
 
 # --- MODELOS DE ENTRADA ---
+
+# En src/api.py
 
 class SolicitudPlanificacion(BaseModel):
     config: ConfigGA
     datos_problema: DatosProblema
     estrategias: EstrategiasConfig = Field(default_factory=EstrategiasConfig)
 
-class SolicitudEvaluacion(BaseModel):
-    vector: List[int]
-    datos_problema: DatosProblema
+    # --- AGREGAR ESTO AL FINAL DE LA CLASE ---
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "config": {
+                        "pop_size": 100,
+                        "generaciones": 15,
+                        "pc": 0.85,
+                        "pm": 0.20,
+                        "elitismo": True,
+                        "seed": 1111
+                    },
+                    "datos_problema": {
+                        "num_dias": 30,
+                        "max_turno_val": 3,
+                        "turnos_a_cubrir": [1, 2, 3],
+                        "skills_a_cubrir": ["junior", "senior"],
+                        "turnos_noche": [3],
+                        "duracion_turnos": {"1": 8, "2": 8, "3": 8},
+                        "pesos_fitness": {
+                            "eq": 1.0, "dif": 1.5, "pdl": 2.0, "pte": 0.5, "alpha_pte": 0.5
+                        },
+                        "tolerancia_equidad_general": 8,
+                        "tolerancia_equidad_dificil": 4,
+                        "lista_profesionales": [
+                            {"id_db": 101, "nombre": "Dr. Senior 1", "skill": "senior", "t_min": 12, "t_max": 16},
+                            {"id_db": 102, "nombre": "Dr. Senior 2", "skill": "senior", "t_min": 12, "t_max": 16},
+                            # ... (puedes poner solo 2 o 3 para que no sea tan largo en la doc) ...
+                            {"id_db": 201, "nombre": "Dr. Junior 1", "skill": "junior", "t_min": 12, "t_max": 16}
+                        ],
+                        "reglas_cobertura": {
+                            "dias_pico": [0, 4],
+                            "demanda_pico": {"1": {"junior": 2, "senior": 2}, "2": {"junior": 2, "senior": 1}, "3": {"junior": 1, "senior": 1}},
+                            "demanda_finde": {"1": {"junior": 1, "senior": 1}, "2": {"junior": 1, "senior": 1}, "3": {"junior": 1, "senior": 1}},
+                            "demanda_normal": {"1": {"junior": 2, "senior": 1}, "2": {"junior": 1, "senior": 1}, "3": {"junior": 1, "senior": 1}}
+                        },
+                        "secuencias_prohibidas": [[3, 1], [3, 2], [2, 1]],
+                        "excepciones_disponibilidad": [
+                            {"prof_index": 0, "dias_range": [0, 7], "disponible": False}
+                        ],
+                        "excepciones_preferencias": [
+                            {"prof_indices": [0], "dia": 15, "valor": -1}
+                        ]
+                    },
+                    "estrategias": {
+                        "sel": "torneo_deterministico",
+                        "cross": "bloques_horizontales",
+                        "mut": "hibrida_adaptativa"
+                    }
+                }
+            ]
+        }
+    }
 
 class RespuestaCreacion(BaseModel):
     job_id: str
@@ -115,27 +162,12 @@ class RespuestaCreacion(BaseModel):
 
 @app.get("/info/opciones", tags=["Metadatos"])
 async def obtener_opciones_disponibles():
-    """
-    Devuelve las estrategias disponibles dinámicamente para poblar el Frontend.
-    """
+    """Endpoint para que el Frontend sepa qué estrategias mostrar en los Selects."""
     return {
         "seleccion": list(SELECTION_OPS.keys()),
         "cruce": list(CROSSOVER_OPS.keys()),
         "mutacion": list(MUTATION_OPS.keys())
     }
-
-@app.post("/soluciones/evaluar", tags=["Auditoría"])
-async def evaluar_solucion_especifica(solicitud: SolicitudEvaluacion):
-    try:
-        datos_dict = solicitud.datos_problema.model_dump()
-        datos_procesados = procesar_datos_instancia(datos_dict)
-        
-        problema = ProblemaGAPropio(**datos_procesados)
-        vector_np = np.array(solicitud.vector)
-        
-        return problema.evaluar_detallado(vector_np)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error en evaluación: {str(e)}")
 
 @app.post("/planificar", response_model=RespuestaCreacion, tags=["Planificación"])
 async def iniciar_planificacion(solicitud: SolicitudPlanificacion, background_tasks: BackgroundTasks):
@@ -186,7 +218,7 @@ async def consultar_estado(job_id: str):
 
     return respuesta
 
-@app.get("/result/{job_id}", tags=["Estado"])
+@app.get("/result/{job_id}", tags=["Resultados"])
 async def obtener_resultado(job_id: str):
     if job_id not in services.TRABAJOS:
         raise HTTPException(status_code=404, detail="Trabajo no encontrado")
