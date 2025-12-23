@@ -28,7 +28,6 @@ class ReglaSemanalInline(admin.TabularInline):
     extra = 0
     min_num = 1
     ordering = ('dia', 'turno')
-    # Esto asegura que se vean las columnas en orden
     fields = ('dia', 'turno', 'cantidad_senior', 'cantidad_junior')
 
 @admin.register(ExcepcionDemanda)
@@ -52,8 +51,8 @@ class NoDisponibilidadAdmin(admin.ModelAdmin):
 
 @admin.register(Preferencia)
 class PreferenciaAdmin(admin.ModelAdmin):
-    list_display = ('empleado', 'fecha', 'tipo_turno', 'nivel')
-    list_filter = ('tipo_turno', 'nivel', 'fecha')
+    list_display = ('empleado', 'fecha', 'tipo_turno', 'deseo')
+    list_filter = ('tipo_turno', 'deseo', 'fecha')
 
 @admin.register(Cronograma)
 class CronogramaAdmin(admin.ModelAdmin):
@@ -70,7 +69,6 @@ class ConfiguracionAlgoritmoAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'activa', 'peso_equidad_general', 'tolerancia_general')
     list_filter = ('activa',)
     
-    # Organizamos los campos en secciones para mayor claridad
     fieldsets = (
         ('Información General', {
             'fields': ('nombre', 'activa')
@@ -92,8 +90,6 @@ class ConfiguracionAlgoritmoAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
-        # Opcional: Si ya existe una config, no dejar crear otra para forzar Singleton
-        # Esto depende de si quieren permitir múltiples perfiles de configuración o no.
         if self.model.objects.exists():
              return False
         return super().has_add_permission(request)

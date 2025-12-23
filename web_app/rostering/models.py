@@ -28,7 +28,7 @@ class Empleado(models.Model):
         verbose_name="Máximo Horas/Mes",
         help_text="Límite superior del contrato antes de contar horas extra o prohibir"
     )
-    
+
     def __str__(self):
         return f"{self.nombre_completo} ({self.legajo})"
 
@@ -40,16 +40,14 @@ class TipoTurno(models.Model):
     duracion_horas = models.DecimalField(max_digits=4, decimal_places=2,blank=True, null=True)
 
     def save(self, *args, **kwargs):
-        # 1. Crear fechas dummy para poder restar las horas
+
         dummy_date = date(2000, 1, 1)
         dt_inicio = datetime.combine(dummy_date, self.hora_inicio)
         dt_fin = datetime.combine(dummy_date, self.hora_fin)
 
-        # 2. Si el fin es menor al inicio, significa que cruza la medianoche (ej: 22:00 a 06:00)
         if dt_fin < dt_inicio:
             dt_fin += timedelta(days=1)
 
-        # 3. Calcular diferencia en horas
         diferencia = dt_fin - dt_inicio
         self.duracion_horas = diferencia.total_seconds() / 3600  # Guardar en horas
 
@@ -74,15 +72,12 @@ class DiaSemana(models.IntegerChoices):
     SABADO = 5, 'Sábado'
     DOMINGO = 6, 'Domingo'
 
-# ... imports ...
-
 class ReglaDemandaSemanal(models.Model):
     """ Define cuántos enfermeros de cada tipo se necesitan """
     plantilla = models.ForeignKey(PlantillaDemanda, on_delete=models.CASCADE, related_name='reglas')
     dia = models.IntegerField(choices=DiaSemana.choices)
     turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
     
-    # CAMBIO: Desdoblamos la cantidad
     cantidad_senior = models.IntegerField(default=1, verbose_name="Min. Senior")
     cantidad_junior = models.IntegerField(default=2, verbose_name="Min. Junior")
     
@@ -101,7 +96,6 @@ class ExcepcionDemanda(models.Model):
     fecha = models.DateField()
     turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
     
-    # CAMBIO: Aquí también desdoblamos
     cantidad_senior = models.IntegerField(default=0, verbose_name="Req. Senior")
     cantidad_junior = models.IntegerField(default=0, verbose_name="Req. Junior")
     
@@ -117,8 +111,6 @@ class NoDisponibilidad(models.Model):
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, related_name='no_disponibilidades')
     fecha_inicio = models.DateField()
     fecha_fin = models.DateField()
-    # Si es NULL, significa "Todo el día" (o todos los días del rango).
-    # Si tiene valor, afecta solo a ese turno específico.
     tipo_turno = models.ForeignKey(
         TipoTurno, on_delete=models.CASCADE, 
         null=True, blank=True,verbose_name="Turno (Dejar vacío para todo el día)")
@@ -134,14 +126,14 @@ class NoDisponibilidad(models.Model):
         verbose_name_plural = "No Disponibilidades"
 
 class Preferencia(models.Model):
-    class Nivel(models.TextChoices):
+    class Deseo(models.TextChoices):
         TRABAJAR = 'TRABAJAR', 'Desea trabajar'
         DESCANSAR = 'DESCANSAR', 'Desea descansar'
 
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE)
     fecha = models.DateField()
     tipo_turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
-    nivel = models.CharField(max_length=20, choices=Nivel.choices)
+    deseo = models.CharField(max_length=20, choices=Deseo.choices)
 
 class Cronograma(models.Model):
     class Estado(models.TextChoices):
@@ -175,9 +167,6 @@ class ConfiguracionAlgoritmo(models.Model):
     nombre = models.CharField(max_length=50, default="Configuración Principal")
     activa = models.BooleanField(default=True)
 
-    # --- SECCIÓN 1: PESOS DE LA FUNCIÓN DE FITNESS (Soft Constraints) ---
-    # Nota: Se eliminó el peso de 'Carga Horaria' ya que ahora es una restricción dura.
-    
     peso_equidad_general = models.FloatField(
         default=1.0,
         validators=[MinValueValidator(0.0)],
@@ -213,7 +202,6 @@ class ConfiguracionAlgoritmo(models.Model):
         help_text="Coeficiente de penalización parcial cuando se asigna descanso en lugar del turno pedido (0 < α <= 1)."
     )
 
-    # --- SECCIÓN 2: TOLERANCIAS (Nuevos campos solicitados) ---
     
     tolerancia_general = models.IntegerField(
         default=8,
@@ -253,7 +241,7 @@ class SecuenciaProhibida(models.Model):
     
     class Meta:
         verbose_name = "Secuencia Prohibida"
-        verbose_name_plural = "Secuencias Prohibidas (Reglas de Oro)"
+        verbose_name_plural = "Secuencias Prohibidas"
         unique_together = ('especialidad', 'turno_previo', 'turno_siguiente')
 
     def __str__(self):
