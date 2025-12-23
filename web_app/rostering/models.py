@@ -284,7 +284,7 @@ class ConfiguracionAlgoritmo(models.Model):
         validators=[MinValueValidator(10)]
     )
     generaciones = models.IntegerField(
-        default=250, 
+        default=15, 
         verbose_name="Generaciones",
         validators=[MinValueValidator(10)]
     )
