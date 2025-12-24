@@ -291,3 +291,89 @@ def consultar_resultado_ag(job_id):
     except requests.exceptions.RequestException as e:
         print(f"Error consultando estado: {e}")
         return None
+
+from datetime import timedelta
+from django.db import transaction
+from .models import Cronograma, Asignacion, Empleado, TipoTurno, ConfiguracionAlgoritmo, PlantillaDemanda
+
+def guardar_cronograma_resuelto(json_payload, matriz_solucion, fitness):
+    """
+    Convierte la matriz numérica de la API en registros de Base de Datos.
+    
+    Args:
+        json_payload: El JSON que enviamos originalmente (para saber el orden de empleados).
+        matriz_solucion: La lista de listas [[t1, t2...], [t1, t2...]] devuelta por la API.
+        fitness: El puntaje obtenido.
+    """
+    
+    # 1. Extraer datos de contexto del payload original
+    datos = json_payload['datos_problema']
+    lista_profs = datos['lista_profesionales'] # Lista de dicts con 'id_db'
+    
+    # Recalculamos fechas
+    # OJO: En el payload no va la fecha explicita, hay que pasarla o deducirla.
+    # Por simplicidad, asumiremos que quien llama a esta función pasa las fechas correctas
+    # o las extraemos de algún lado. Para este script, las pasaremos como argumento extra
+    # pero para mantener la firma limpia, vamos a inferir que 'num_dias' coincide.
+    pass 
+
+# Versión mejorada con argumentos explícitos
+def guardar_solucion_db(inicio, fin, especialidad, json_payload, matriz_solucion, fitness):
+    
+    # 1. Crear el Encabezado (Cronograma)
+    config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
+    
+    # Buscamos si hay plantilla usada (opcional, por ahora None)
+    plantilla = PlantillaDemanda.objects.filter(especialidad=especialidad).first()
+
+    with transaction.atomic():
+        cronograma = Cronograma.objects.create(
+            especialidad=especialidad,
+            fecha_inicio=inicio,
+            fecha_fin=fin,
+            estado=Cronograma.Estado.BORRADOR, # Se guarda como borrador para revisión
+            plantilla_demanda=plantilla,
+            configuracion_usada=config_activa
+        )
+        
+        # 2. Preparar Mapeos para velocidad (Cache en RAM)
+        # Traemos todos los turnos a un diccionario: {id_turno: ObjetoTipoTurno}
+        turnos_db = {t.id: t for t in TipoTurno.objects.filter(especialidad=especialidad)}
+        
+        lista_empleados_payload = json_payload['datos_problema']['lista_profesionales']
+        # Mapa: Indice de fila (0, 1, 2) -> ID de Empleado en BD
+        mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
+        
+        nuevas_asignaciones = []
+        
+        # 3. Recorrer la Matriz
+        # i = índice de empleado (fila)
+        # j = índice de día (columna)
+        for i, fila_turnos in enumerate(matriz_solucion):
+            
+            empleado_id = mapa_idx_a_empleado_id.get(i)
+            if not empleado_id:
+                continue # Seguridad
+            
+            for j, turno_id_api in enumerate(fila_turnos):
+                
+                # Si el turno_id es 0 (o no existe en nuestros turnos), asumimos FRANCO/LIBRE
+                # y NO creamos registro en Asignacion.
+                if turno_id_api in turnos_db:
+                    
+                    fecha_turno = inicio + timedelta(days=j)
+                    turno_obj = turnos_db[turno_id_api]
+                    
+                    asignacion = Asignacion(
+                        cronograma=cronograma,
+                        empleado_id=empleado_id, # Usamos _id para no hacer query extra
+                        fecha=fecha_turno,
+                        tipo_turno=turno_obj
+                    )
+                    nuevas_asignaciones.append(asignacion)
+        
+        # 4. Guardado Masivo (Bulk Create)
+        if nuevas_asignaciones:
+            Asignacion.objects.bulk_create(nuevas_asignaciones)
+            
+        return cronograma

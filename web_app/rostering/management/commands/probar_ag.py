@@ -83,3 +83,87 @@ class Command(BaseCommand):
 
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'\n❌ Error crítico en script: {e}'))
+
+import time
+from django.core.management.base import BaseCommand
+from datetime import date
+import json
+# Importamos la nueva función guardar_solucion_db
+from rostering.services import generar_payload_ag, invocar_api_planificacion, consultar_resultado_ag, guardar_solucion_db
+from rostering.models import Empleado
+
+class Command(BaseCommand):
+    help = 'Genera, Optimiza y GUARDA el cronograma en BD'
+
+    def handle(self, *args, **kwargs):
+        self.stdout.write("--- Iniciando Ciclo Completo ---")
+
+        inicio = date(2025, 11, 1)
+        fin = date(2025, 11, 30)
+        especialidad = Empleado.TipoEspecialidad.MEDICO 
+
+        try:
+            # 1. Generar Payload
+            self.stdout.write(f"Generando datos...")
+            json_resultado = generar_payload_ag(inicio, fin, especialidad)
+            
+            # 2. Iniciar Trabajo
+            self.stdout.write("Enviando a la API...")
+            respuesta_inicial = invocar_api_planificacion(json_resultado)
+            
+            if not respuesta_inicial or 'job_id' not in respuesta_inicial:
+                self.stdout.write(self.style.ERROR("❌ Error al iniciar."))
+                return
+
+            job_id = respuesta_inicial['job_id']
+            self.stdout.write(self.style.SUCCESS(f"✅ Job ID: {job_id}"))
+
+            # 3. Polling
+            intentos = 0
+            while intentos < 300: # 10 min
+                time.sleep(2)
+                resultado = consultar_resultado_ag(job_id)
+                
+                if resultado:
+                    # Chequeamos si terminó (por fitness o status)
+                    if 'fitness' in resultado or resultado.get('status') == 'completed':
+                        
+                        self.stdout.write(self.style.SUCCESS("\n🏆 Optimización Terminada. Guardando..."))
+                        
+                        # --- AQUÍ LA MAGIA: GUARDAR EN BD ---
+                        
+                        # Extraemos la matriz. La API puede devolverla como 'solution' o 'matriz_solucion'
+                        matriz = resultado.get('solution') or resultado.get('matriz_solucion')
+                        fitness = resultado.get('fitness')
+                        
+                        if matriz:
+                            cronograma_creado = guardar_solucion_db(
+                                inicio, 
+                                fin, 
+                                especialidad, 
+                                json_resultado, # Pasamos el JSON original para mapear empleados
+                                matriz, 
+                                fitness
+                            )
+                            
+                            self.stdout.write(self.style.SUCCESS(
+                                f"💾 ¡Guardado exitoso! Cronograma ID: {cronograma_creado.id}\n"
+                                f"   Total Asignaciones: {cronograma_creado.asignaciones.count()}"
+                            ))
+                        else:
+                            self.stdout.write(self.style.ERROR("❌ La API dijo OK pero no trajo matriz solución."))
+                            
+                        break
+                    
+                    elif 'error' in resultado:
+                        self.stdout.write(self.style.ERROR(f"\n❌ Error API: {resultado['error']}"))
+                        break
+                    
+                    else:
+                        self.stdout.write(".", ending="")
+                        self.stdout.flush()
+                
+                intentos += 1
+
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f'\n❌ Error: {e}'))
