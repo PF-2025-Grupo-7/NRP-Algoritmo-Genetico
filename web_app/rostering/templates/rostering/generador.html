@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Guardias con IA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; padding-top: 50px; }
+        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        #panel-progreso { display: none; }
+        .spinner-border { width: 3rem; height: 3rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            
+            <div class="card" id="panel-formulario">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">🤖 Generador de Planificación Inteligente</h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Seleccione el período y la especialidad. El algoritmo genético optimizará los turnos automáticamente.</p>
+                    
+                    <form id="form-generador">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha Inicio</label>
+                                <input type="date" id="fecha_inicio" class="form-control" required value="2025-11-01">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Fecha Fin</label>
+                                <input type="date" id="fecha_fin" class="form-control" required value="2025-11-30">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Especialidad</label>
+                            <select id="especialidad" class="form-select">
+                                <option value="MEDICO">Médicos</option>
+                                <option value="ENFERMERO">Enfermeros</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 btn-lg">
+                            🚀 Iniciar Optimización
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card text-center py-5" id="panel-progreso">
+                <div class="card-body">
+                    <div class="spinner-border text-primary mb-3" role="status"></div>
+                    <h3 class="card-title">Optimizando Cronograma...</h3>
+                    <p class="card-text text-muted">Esto puede tomar entre 15 y 40 segundos.</p>
+                    <p class="small text-secondary">Estado: <span id="estado-texto">Iniciando motor...</span></p>
+                </div>
+            </div>
+
+            <div class="alert alert-danger mt-3 d-none" id="mensaje-error"></div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('form-generador').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        // 1. Obtener datos
+        const data = {
+            fecha_inicio: document.getElementById('fecha_inicio').value,
+            fecha_fin: document.getElementById('fecha_fin').value,
+            especialidad: document.getElementById('especialidad').value
+        };
+
+        // UI: Cambiar a modo carga
+        document.getElementById('panel-formulario').style.display = 'none';
+        document.getElementById('panel-progreso').style.display = 'block';
+        document.getElementById('mensaje-error').classList.add('d-none');
+
+        try {
+            // 2. Llamada API: INICIAR
+            const response = await fetch('/api/planificar/iniciar/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) throw new Error(result.error || 'Error al iniciar');
+
+            const jobId = result.job_id;
+            console.log("Job iniciado:", jobId);
+
+            // 3. Polling (Consultar cada 2 segundos)
+            iniciarPolling(jobId);
+
+        } catch (error) {
+            mostrarError(error.message);
+        }
+    });
+
+    function iniciarPolling(jobId) {
+        const intervalo = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/planificar/estado/${jobId}/`);
+                const estado = await res.json();
+
+                console.log("Estado:", estado);
+
+                if (estado.status === 'completed') {
+                    clearInterval(intervalo);
+                    // REDIRECCIÓN AL ÉXITO (Por ahora al Admin)
+                    // Truco: Redirigimos al admin filtrado por este nuevo ID
+                    window.location.href = `/admin/rostering/cronograma/${estado.cronograma_id}/change/`;
+                } 
+                else if (estado.status === 'failed' || estado.error) {
+                    clearInterval(intervalo);
+                    mostrarError(estado.error || "Falló el algoritmo");
+                }
+                else {
+                    // Sigue corriendo
+                    document.getElementById('estado-texto').innerText = "Calculando generaciones... (Running)";
+                }
+
+            } catch (err) {
+                console.error("Error de red en polling", err);
+            }
+        }, 2000); // 2 segundos
+    }
+
+    function mostrarError(msg) {
+        document.getElementById('panel-progreso').style.display = 'none';
+        document.getElementById('panel-formulario').style.display = 'block';
+        const divError = document.getElementById('mensaje-error');
+        divError.innerText = "Error: " + msg;
+        divError.classList.remove('d-none');
+    }
+</script>
+
+</body>
+</html>

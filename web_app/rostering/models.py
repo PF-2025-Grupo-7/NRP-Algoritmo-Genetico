@@ -243,6 +243,22 @@ class Cronograma(models.Model):
     
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
+    fitness = models.FloatField(
+        null=True, blank=True, 
+        help_text="Puntaje de calidad (Menor/Mayor según tu función, generalmente Mayor es mejor o Menor es penalización)"
+    )
+    tiempo_ejecucion = models.FloatField(
+        null=True, blank=True, 
+        verbose_name="Tiempo de Ejecución (s)"
+    )
+    
+    # Aquí guardamos TODO el objeto "explicabilidad" del JSON
+    reporte_analisis = models.JSONField(
+        null=True, blank=True, 
+        verbose_name="Detalle de Explicabilidad (JSON)",
+        help_text="Guarda violaciones blandas, métricas de equidad, etc."
+    )
+
     def clean(self):
         super().clean()
         # Validar que la plantilla coincida con la especialidad del cronograma
@@ -410,3 +426,22 @@ class SecuenciaProhibida(models.Model):
 
     def __str__(self):
         return f"[{self.get_especialidad_display()}] NO HACER: {self.turno_previo.abreviatura} -> {self.turno_siguiente.abreviatura}"
+    
+    # ... (otros modelos)
+
+class TrabajoPlanificacion(models.Model):
+    """
+    Tabla temporal para persistir el contexto de una optimización en curso.
+    Reemplaza el uso de sesiones para mayor robustez.
+    """
+    job_id = models.UUIDField(primary_key=True, editable=False)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    
+    # Datos necesarios para reconstruir el cronograma al terminar
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField()
+    especialidad = models.CharField(max_length=20)
+    payload_original = models.JSONField(help_text="Copia del JSON enviado al optimizador")
+
+    def __str__(self):
+        return f"Job {self.job_id} ({self.especialidad})"

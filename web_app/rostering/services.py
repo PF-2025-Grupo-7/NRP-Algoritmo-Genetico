@@ -70,17 +70,13 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         
         # Skill: Convertimos 'SENIOR' -> 'senior'
         skill = emp.experiencia.lower()
-        
-        # Horas ajustadas
-        t_min_ajustado = int(emp.min_horas_mensuales * factor_tiempo)
-        t_max_ajustado = int(emp.max_horas_mensuales * factor_tiempo)
 
         lista_profesionales.append({
             "id_db": emp.id,
             "nombre": emp.nombre_completo,
             "skill": skill,
-            "t_min": t_min_ajustado,
-            "t_max": t_max_ajustado
+            "t_min": emp.min_horas_mensuales,  # <--- DIRECTO DE LA BD
+            "t_max": emp.max_horas_mensuales   # <--- DIRECTO DE LA BD
         })
 
     # ---------------------------------------------------------
@@ -249,21 +245,33 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     }
 
 import requests
+import json
+import os # <--- Nuevo import
 
 def invocar_api_planificacion(payload):
     """
     Envía el JSON a la API de optimización y devuelve la respuesta.
     """
-    # URL del servicio de optimización dentro de la red de Docker
-    # El nombre del host suele ser el nombre del servicio en docker-compose.yml
-    # Si tu servicio de API se llama 'optimization_engine' o 'api', úsalo aquí.
-    # Por defecto en tu repo suele ser: http://optimization_engine:5000/planificar
-    
-    url = "http://optimizer:8000/planificar"
+    url = "http://optimizer:8000/planificar" 
     
     try:
-        response = requests.post(url, json=payload, timeout=300) # 5 min timeout por si el AG tarda
-        response.raise_for_status() # Lanza error si no es 200 OK
+        # --- DEBUG PRO: GUARDAR EN ARCHIVO ---
+        # Esto creará 'debug_payload.json' en la misma carpeta donde está manage.py
+        # Podrás abrirlo en tu VS Code/Editor inmediatamente.
+        archivo_debug = 'debug_payload.json'
+        
+        print(f"💾 Guardando JSON de debug en {archivo_debug}...", flush=True)
+        
+        with open(archivo_debug, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, indent=2, default=str)
+            
+        # También forzamos la salida a stderr (que suele verse en rojo o sin buffer en docker)
+        import sys
+        sys.stderr.write(f"\n[DEBUG] JSON guardado exitosamente en {archivo_debug}\n")
+        # -------------------------------------
+
+        response = requests.post(url, json=payload, timeout=300) 
+        response.raise_for_status() 
         return response.json()
         
     except requests.exceptions.RequestException as e:
@@ -318,12 +326,20 @@ def guardar_cronograma_resuelto(json_payload, matriz_solucion, fitness):
     pass 
 
 # Versión mejorada con argumentos explícitos
-def guardar_solucion_db(inicio, fin, especialidad, json_payload, matriz_solucion, fitness):
+def guardar_solucion_db(inicio, fin, especialidad, json_payload, api_response):
+    """
+    Guarda el cronograma, sus asignaciones y las métricas de análisis.
+    """
+    # Extraemos datos de la respuesta de la API
+    matriz_solucion = api_response.get('matriz_solucion') or api_response.get('solution')
+    fitness = api_response.get('fitness')
+    tiempo = api_response.get('tiempo_ejecucion')
     
+    # El bloque entero de explicabilidad (violaciones, equidad, etc.)
+    explicabilidad = api_response.get('explicabilidad', {})
+
     # 1. Crear el Encabezado (Cronograma)
     config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
-    
-    # Buscamos si hay plantilla usada (opcional, por ahora None)
     plantilla = PlantillaDemanda.objects.filter(especialidad=especialidad).first()
 
     with transaction.atomic():
@@ -331,9 +347,14 @@ def guardar_solucion_db(inicio, fin, especialidad, json_payload, matriz_solucion
             especialidad=especialidad,
             fecha_inicio=inicio,
             fecha_fin=fin,
-            estado=Cronograma.Estado.BORRADOR, # Se guarda como borrador para revisión
+            estado=Cronograma.Estado.BORRADOR,
             plantilla_demanda=plantilla,
-            configuracion_usada=config_activa
+            configuracion_usada=config_activa,
+            
+            # NUEVOS CAMPOS
+            fitness=fitness,
+            tiempo_ejecucion=tiempo,
+            reporte_analisis=explicabilidad 
         )
         
         # 2. Preparar Mapeos para velocidad (Cache en RAM)

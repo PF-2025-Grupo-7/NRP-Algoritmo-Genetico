@@ -141,9 +141,8 @@ class Command(BaseCommand):
                                 inicio, 
                                 fin, 
                                 especialidad, 
-                                json_resultado, # Pasamos el JSON original para mapear empleados
-                                matriz, 
-                                fitness
+                                json_resultado, 
+                                resultado # <--- Pasamos todo el objeto respuesta
                             )
                             
                             self.stdout.write(self.style.SUCCESS(

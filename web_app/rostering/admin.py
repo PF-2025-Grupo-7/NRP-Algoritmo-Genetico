@@ -64,9 +64,12 @@ class AsignacionInline(admin.TabularInline):
     # Paginación dentro del inline (Django 4.0+)
     show_change_link = True # Permite ir a editar la asignación en detalle
 
+import json
+from django.utils.html import format_html
+
 @admin.register(Cronograma)
 class CronogramaAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'especialidad', 'estado', 'fecha_creacion', 'ver_asignaciones_link')
+    list_display = ('__str__', 'especialidad', 'fitness', 'tiempo_ejecucion', 'ver_asignaciones_link')
     list_filter = ('estado', 'especialidad', 'fecha_inicio')
     inlines = [AsignacionInline]
     search_fields = ('id', 'especialidad', 'estado')
@@ -76,15 +79,17 @@ class CronogramaAdmin(admin.ModelAdmin):
         ('Gestión', {
             'fields': ('estado', 'ver_asignaciones_link_readonly')
         }),
-        ('Metadatos (Inmutables tras creación)', {
+        ('Resultados del Algoritmo', {
+            'fields': ('fitness', 'tiempo_ejecucion', 'ver_reporte_equidad_html', 'reporte_analisis'),
+            'classes': ('collapse',),
+        }),
+        ('Metadatos', {
             'fields': ('especialidad', 'fecha_inicio', 'fecha_fin', 'plantilla_demanda', 'configuracion_usada'),
-            'classes': ('collapse',), # Opcional: permite colapsar esta sección
-            'description': 'Estos parámetros definieron la optimización y no deben cambiarse a posteriori.'
+            'classes': ('collapse',),
         }),
     )
 
-    # Creamos un campo de solo lectura para mostrar el link dentro del formulario también
-    readonly_fields = ('ver_asignaciones_link_readonly', 'fecha_creacion')
+    readonly_fields = ('ver_asignaciones_link_readonly', 'fecha_creacion', 'ver_reporte_equidad_html')
 
     def ver_asignaciones_link(self, obj):
         # Este es para la LISTA (columnas)
@@ -105,6 +110,57 @@ class CronogramaAdmin(admin.ModelAdmin):
         return "-"
     ver_asignaciones_link_readonly.short_description = "Detalle de Asignaciones"
 
+    def ver_reporte_equidad_html(self, obj):
+        """
+        Renderiza una tabla HTML bonita a partir del JSON de reporte.
+        """
+        if not obj.reporte_analisis:
+            return "-"
+        
+        try:
+            violaciones = obj.reporte_analisis.get('violaciones_blandas', {})
+            desbalance = violaciones.get('desbalance_equidad', [])
+            
+            if not desbalance:
+                return "Sin violaciones de equidad detectadas."
+
+            # Construimos tabla HTML con estilos explícitos de color
+            # style="color: #000000;" asegura que la letra sea negra siempre
+            html = """
+            <table style="width:100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; color: #000000;">
+                <thead>
+                    <tr style="background-color: #e0e0e0; color: #000000; text-align: left;">
+                        <th style="padding: 8px; border: 1px solid #999;">Prof. ID</th>
+                        <th style="padding: 8px; border: 1px solid #999;">Horas</th>
+                        <th style="padding: 8px; border: 1px solid #999;">Estado</th>
+                        <th style="padding: 8px; border: 1px solid #999;">Desviación</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+            
+            for item in desbalance:
+                # Color rojo suave si hay problema grave (>10), blanco si es leve
+                # Pero SIEMPRE forzamos letras negras
+                bg_color = "#ffe6e6" if item['puntos_fuera_del_ideal'] > 10 else "#ffffff"
+                
+                html += f"""
+                <tr style="background-color: {bg_color}; color: #000000;">
+                    <td style="padding: 6px; border: 1px solid #ccc;">{item.get('profesional_id')}</td>
+                    <td style="padding: 6px; border: 1px solid #ccc;">{item.get('horas')}</td>
+                    <td style="padding: 6px; border: 1px solid #ccc;">{item.get('estado')}</td>
+                    <td style="padding: 6px; border: 1px solid #ccc;">{item.get('puntos_fuera_del_ideal')}</td>
+                </tr>
+                """
+            
+            html += "</tbody></table>"
+            return format_html(html)
+            
+        except Exception as e:
+            return f"Error renderizando reporte: {e}"
+
+    ver_reporte_equidad_html.short_description = "Reporte de Equidad (Visual)"
+    
     # --- LÓGICA DE PROTECCIÓN DE DATOS ---
     def get_readonly_fields(self, request, obj=None):
         """
