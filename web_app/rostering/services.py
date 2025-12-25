@@ -108,11 +108,14 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     # ---------------------------------------------------------
     # 5. DATOS DEL PROBLEMA - TURNOS
     # ---------------------------------------------------------
-    # Arrays de IDs
+    turnos_qs = TipoTurno.objects.filter(especialidad=especialidad)
+    
     turnos_a_cubrir = [t.id for t in turnos_qs]
     turnos_noche = [t.id for t in turnos_qs if t.es_nocturno]
     
-    # NOTA: Ya no enviamos "duracion_turnos" porque el AG asume costo unitario por slot.
+    # CORRECCIÓN: Volvemos a enviar esto porque la API lo valida (422 si falta),
+    # aunque lógicamente no lo use para contar slots.
+    duracion_turnos = {str(t.id): float(t.duracion_horas) for t in turnos_qs}
     
     max_turno_val = max(turnos_a_cubrir) if turnos_a_cubrir else 0
 
@@ -221,7 +224,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         "turnos_a_cubrir": turnos_a_cubrir,
         "skills_a_cubrir": ["junior", "senior"],
         "turnos_noche": turnos_noche,
-        # "duracion_turnos": REMOVIDO. El AG asume 1 slot = 1 unidad de fatiga.
+        "duracion_turnos": duracion_turnos,
         "pesos_fitness": {
             "eq": config.peso_equidad_general,
             "dif": config.peso_equidad_dificil,

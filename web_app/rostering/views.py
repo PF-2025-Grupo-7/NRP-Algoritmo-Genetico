@@ -6,8 +6,9 @@ from django.views.decorators.http import require_POST, require_GET
 from django.contrib.auth.decorators import login_required
 from django.utils.dateparse import parse_date
 from django.views.decorators.csrf import csrf_exempt 
+from django.core.exceptions import ValidationError # <--- IMPORTAR ESTO
 
-# Importamos modelos (incluyendo la tabla temporal TrabajoPlanificacion)
+# Importamos modelos
 from .models import Empleado, Cronograma, TrabajoPlanificacion
 from .services import (
     generar_payload_ag, 
@@ -22,8 +23,11 @@ from .services import (
 @require_POST
 def iniciar_planificacion(request):
     try:
-        # 1. Leer datos del cuerpo del request (JSON)
-        data = json.loads(request.body)
+        # 1. Leer datos
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON inválido en el cuerpo de la petición.'}, status=400)
         
         fecha_inicio_str = data.get('fecha_inicio')
         fecha_fin_str = data.get('fecha_fin')
@@ -31,26 +35,30 @@ def iniciar_planificacion(request):
 
         # Validaciones básicas
         if not all([fecha_inicio_str, fecha_fin_str, especialidad]):
-            return JsonResponse({'error': 'Faltan parámetros obligatorios.'}, status=400)
+            return JsonResponse({'error': 'Faltan parámetros obligatorios (fecha_inicio, fecha_fin, especialidad).'}, status=400)
 
-        # Convertir strings a objetos date
         inicio = parse_date(fecha_inicio_str)
         fin = parse_date(fecha_fin_str)
+        
+        if not inicio or not fin:
+            return JsonResponse({'error': 'Formato de fecha inválido. Usar YYYY-MM-DD.'}, status=400)
 
-        # 2. Generar el Payload usando tu servicio
+        # 2. Generar el Payload (Aquí salta el ValidationError si los turnos no son uniformes)
         payload = generar_payload_ag(inicio, fin, especialidad)
 
-        # 3. Invocar a la API de Optimización (Docker)
+        # 3. Invocar a la API
         respuesta_api = invocar_api_planificacion(payload)
 
         if not respuesta_api or 'job_id' not in respuesta_api:
-            return JsonResponse({'error': 'No se pudo iniciar el trabajo en el motor de IA.'}, status=503)
+            # Si la API devuelve un mensaje de error específico, intentamos mostrarlo
+            msg = 'No se pudo iniciar el trabajo en el motor de IA.'
+            if respuesta_api and 'detail' in respuesta_api:
+                msg += f" Detalle: {respuesta_api['detail']}"
+            return JsonResponse({'error': msg}, status=503)
 
         job_id = respuesta_api['job_id']
 
-        # 4. GUARDAR CONTEXTO EN BASE DE DATOS (CRÍTICO)
-        # Usamos la tabla TrabajoPlanificacion para persistir los datos 
-        # independientemente de si el usuario tiene cookies o no.
+        # 4. Guardar contexto
         TrabajoPlanificacion.objects.create(
             job_id=job_id,
             fecha_inicio=inicio,
@@ -62,11 +70,18 @@ def iniciar_planificacion(request):
         return JsonResponse({
             'status': 'started',
             'job_id': job_id,
-            'mensaje': 'Optimización iniciada. Contexto guardado en BD.'
+            'mensaje': 'Optimización iniciada correctamente.'
         })
 
+    # MANEJO DE ERRORES DE LÓGICA (Validaciones de services.py)
+    except ValidationError as ve:
+        return JsonResponse({'error': f"Error de validación: {ve.message}"}, status=400)
+    except ValueError as ve:
+        return JsonResponse({'error': str(ve)}, status=400)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        # Loguear error real en consola del servidor para debug
+        print(f"Error 500 en iniciar_planificacion: {e}")
+        return JsonResponse({'error': f"Error interno del servidor: {str(e)}"}, status=500)
 
 
 # --- VISTA 2: POLLING (CONSULTAR ESTADO) ---
@@ -75,7 +90,7 @@ def iniciar_planificacion(request):
 @require_GET
 def verificar_estado_planificacion(request, job_id):
     try:
-        # 1. Recuperar contexto de la BD (Si no existe, es un error)
+        # 1. Recuperar contexto
         try:
             trabajo = TrabajoPlanificacion.objects.get(job_id=job_id)
         except TrabajoPlanificacion.DoesNotExist:
@@ -87,29 +102,21 @@ def verificar_estado_planificacion(request, job_id):
         if not resultado:
             return JsonResponse({'status': 'error', 'mensaje': 'Error de conexión con la API'}, status=503)
 
-        # 3. Verificar si hay error en el algoritmo
-        if 'error' in resultado:
-            return JsonResponse({'status': 'failed', 'error': resultado['error']})
+        if 'status' in resultado and resultado['status'] == 'error':
+             return JsonResponse({'status': 'failed', 'error': resultado.get('error', 'Error desconocido en el motor.')})
 
-        # 4. Verificar si terminó (Buscamos 'fitness' o si el status es completed)
+        # 3. Verificar si terminó
         if 'fitness' in resultado or resultado.get('status') == 'completed':
-            
-            # --- ÉXITO: GUARDAR EN BD ---
-            
-            # Recuperamos los datos desde el objeto 'trabajo' (BD)
-            # Ya no dependemos de request.session
-            
             try:
-                # Llamamos a tu servicio de guardado
                 cronograma = guardar_solucion_db(
                     trabajo.fecha_inicio, 
                     trabajo.fecha_fin, 
                     trabajo.especialidad, 
                     trabajo.payload_original, 
-                    resultado # Respuesta completa de la API
+                    resultado
                 )
                 
-                # IMPORTANTE: Borrar el trabajo temporal para no acumular basura
+                # Limpieza
                 trabajo.delete()
 
                 return JsonResponse({
@@ -120,16 +127,15 @@ def verificar_estado_planificacion(request, job_id):
                 })
                 
             except Exception as save_error:
+                print(f"Error guardando DB: {save_error}")
                 return JsonResponse({'error': f"Error guardando cronograma: {str(save_error)}"}, status=500)
 
-        # 5. Si no terminó, sigue corriendo
+        # 4. Sigue corriendo
         return JsonResponse({'status': 'running'})
 
     except Exception as e:
+        print(f"Error polling: {e}")
         return JsonResponse({'error': str(e)}, status=500)
     
 def pagina_generador(request):
-    """
-    Renderiza la pantalla HTML donde el usuario elige fechas y dispara el proceso.
-    """
-    return render(request, 'rostering/generador.html')
+    return render(request, 'rostering/generador.html') # Asegurate que sea .html

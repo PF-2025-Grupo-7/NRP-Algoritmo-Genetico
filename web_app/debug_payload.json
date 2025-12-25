@@ -34,8 +34,8 @@
       "pte": 0.5,
       "alpha_pte": 0.5
     },
-    "tolerancia_equidad_general": 8,
-    "tolerancia_equidad_dificil": 4,
+    "tolerancia_equidad_general": 10,
+    "tolerancia_equidad_dificil": 5,
     "lista_profesionales": [
       {
         "id_db": 2,
