@@ -1,28 +1,45 @@
 import json
+import requests
+import os
 from datetime import timedelta, date
 from django.db.models import Q
+from django.core.exceptions import ValidationError  # <--- Agregado para validación
+from django.db import transaction
 from .models import (
     Empleado, TipoTurno, PlantillaDemanda, ReglaDemandaSemanal,
     ExcepcionDemanda, NoDisponibilidad, Preferencia, 
-    ConfiguracionAlgoritmo, SecuenciaProhibida, DiaSemana
+    ConfiguracionAlgoritmo, SecuenciaProhibida, DiaSemana,
+    Cronograma, Asignacion
 )
 
 def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None):
     """
     Construye el diccionario JSON exacto que espera la API de optimización.
+    Refactorizado para lógica basada en CANTIDAD DE TURNOS (Slots).
     """
     # 1. Validaciones y Setup Inicial
     num_dias = (fecha_fin - fecha_inicio).days + 1
     if num_dias < 1:
         raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio.")
 
+    # VALIDACIÓN CRÍTICA: Uniformidad de Turnos
+    # Como el AG cuenta slots (1 turno = 1 fatiga), todos deben durar lo mismo.
+    turnos_qs = TipoTurno.objects.filter(especialidad=especialidad)
+    duraciones = set(t.duracion_horas for t in turnos_qs)
+    
+    if len(duraciones) > 1:
+        raise ValidationError(
+            f"Error de Uniformidad: Tienes turnos de distintas duraciones ({duraciones} hs). "
+            "El algoritmo actual requiere que todos los turnos de la especialidad tengan la misma duración "
+            "(ej: todos de 12hs o todos de 24hs) para calcular correctamente la carga laboral."
+        )
+
     # Cargar configuración activa
     config = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
     if not config:
-        # Fallback si no hay config creada (útil para tests)
-        config = ConfiguracionAlgoritmo() 
+        config = ConfiguracionAlgoritmo() # Fallback por defecto
 
-    # Cargar Plantilla (Si no se pasa ID, busca la primera de esa especialidad)
+    # Cargar Plantilla
     if plantilla_id:
         plantilla = PlantillaDemanda.objects.get(pk=plantilla_id)
     else:
@@ -39,7 +56,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         "pc": config.prob_cruce,
         "pm": config.prob_mutacion,
         "elitismo": config.elitismo,
-        "seed": config.semilla or 42 # Semilla por defecto si es None
+        "seed": config.semilla or 42
     }
 
     # ---------------------------------------------------------
@@ -55,56 +72,55 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     # 4. DATOS DEL PROBLEMA - PROFESIONALES
     # ---------------------------------------------------------
     
-    # Calcular factor de proporción para horas (Ej: Si planificas 15 días, las horas contrato son la mitad)
-    # Asumimos que min_horas_mensuales está pensado para un mes de 30 días.
+    # Calcular factor de proporción. 
+    # Si 'min_turnos_mensuales' es para 30 días, y planificamos 15, el objetivo debe ser la mitad.
     factor_tiempo = num_dias / 30.0
     
     empleados_qs = Empleado.objects.filter(especialidad=especialidad, activo=True)
     lista_profesionales = []
     
-    # Mapa auxiliar para saber el índice (0, 1, 2...) de cada ID de empleado
+    # Mapa auxiliar: ID base de datos -> Índice en la matriz (0, 1, 2...)
     mapa_id_a_indice = {} 
 
     for idx, emp in enumerate(empleados_qs):
         mapa_id_a_indice[emp.id] = idx
         
-        # Skill: Convertimos 'SENIOR' -> 'senior'
-        skill = emp.experiencia.lower()
+        skill = emp.experiencia.lower() # 'senior' / 'junior'
+
+        # CÁLCULO DE LÍMITES DE TURNOS (SLOTS)
+        # Convertimos a int porque el AG trabaja con números enteros de slots.
+        # Ej: 20 turnos mes * (15/30 dias) = 10 turnos objetivo.
+        t_min_periodo = int(emp.min_turnos_mensuales * factor_tiempo)
+        t_max_periodo = int(emp.max_turnos_mensuales * factor_tiempo)
+
+        # Ajuste de seguridad: t_max nunca menos que t_min
+        if t_max_periodo < t_min_periodo:
+            t_max_periodo = t_min_periodo
 
         lista_profesionales.append({
             "id_db": emp.id,
             "nombre": emp.nombre_completo,
             "skill": skill,
-            "t_min": emp.min_turnos_mensuales,  # Antes: emp.min_horas_mensuales
-            "t_max": emp.max_turnos_mensuales,  # Antes: emp.max_horas_mensuales
+            "t_min": t_min_periodo,  # Lógica corregida: Cantidad de turnos
+            "t_max": t_max_periodo,  # Lógica corregida: Cantidad de turnos
         })
 
     # ---------------------------------------------------------
     # 5. DATOS DEL PROBLEMA - TURNOS
     # ---------------------------------------------------------
-    turnos_qs = TipoTurno.objects.filter(especialidad=especialidad)
-    
     # Arrays de IDs
     turnos_a_cubrir = [t.id for t in turnos_qs]
     turnos_noche = [t.id for t in turnos_qs if t.es_nocturno]
     
-    # Diccionario duraciones: "1": 12, "2": 24... (La API espera keys como strings)
-    duracion_turnos = {str(t.id): float(t.duracion_horas) for t in turnos_qs}
+    # NOTA: Ya no enviamos "duracion_turnos" porque el AG asume costo unitario por slot.
     
-    # Max value es simplemente el ID más alto o la cantidad? 
-    # OJO: La API suele usar enteros para la matriz. Si tus IDs son 1, 5, 9... la API puede confundirse
-    # si espera un rango contiguo [1..N].
-    # *POR AHORA*: Asumimos que la API maneja los IDs que le mandamos en `turnos_a_cubrir`.
-    # Si la API necesita índices 1..N estrictos, habría que hacer un mapeo extra aquí.
     max_turno_val = max(turnos_a_cubrir) if turnos_a_cubrir else 0
 
     # ---------------------------------------------------------
     # 6. REGLAS DE COBERTURA (Demandas)
     # ---------------------------------------------------------
     
-    # Helpers para extraer demanda de un objeto Regla o Excepcion
     def extraer_demanda(regla_qs):
-        # Devuelve dict: {"1": {"junior": X, "senior": Y}, ...}
         resultado = {}
         for r in regla_qs:
             t_str = str(r.turno.id)
@@ -115,12 +131,10 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         return resultado
 
     # 6.1. Demanda Normal (Lunes a Viernes)
-    # Buscamos la regla del LUNES (0) como representativa
     reglas_normal = ReglaDemandaSemanal.objects.filter(plantilla=plantilla, dia=DiaSemana.LUNES)
     dict_demanda_normal = extraer_demanda(reglas_normal)
 
     # 6.2. Demanda Finde (Sábado/Domingo)
-    # Buscamos la regla del SÁBADO (5)
     reglas_finde = ReglaDemandaSemanal.objects.filter(plantilla=plantilla, dia=DiaSemana.SABADO)
     dict_demanda_finde = extraer_demanda(reglas_finde)
 
@@ -128,16 +142,13 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     dias_pico_indices = []
     dict_demanda_pico = {}
     
-    # Iteramos todos los días del rango para ver si caen en una excepción
-    # Y de paso construimos el mapa de fechas -> índices
     fecha_iter = fecha_inicio
     for i in range(num_dias):
-        # Buscamos excepción para esta fecha específica
         excepcion = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter)
         
         if excepcion.exists():
             dias_pico_indices.append(i)
-            # Tomamos la definición de demanda de la primera ocurrencia (asumiendo consistencia)
+            # Tomamos la definición de la primera ocurrencia encontrada
             if not dict_demanda_pico:
                 dict_demanda_pico = extraer_demanda(excepcion)
         
@@ -145,7 +156,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
 
     reglas_cobertura = {
         "dias_pico": dias_pico_indices,
-        "demanda_pico": dict_demanda_pico if dict_demanda_pico else dict_demanda_normal, # Fallback
+        "demanda_pico": dict_demanda_pico if dict_demanda_pico else dict_demanda_normal,
         "demanda_finde": dict_demanda_finde,
         "demanda_normal": dict_demanda_normal
     }
@@ -156,7 +167,6 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     
     # 7.1 Disponibilidad
     excepciones_disponibilidad = []
-    # Buscamos ausencias que solapen con el rango
     no_disp_qs = NoDisponibilidad.objects.filter(
         empleado__in=empleados_qs,
         fecha_inicio__lte=fecha_fin,
@@ -164,19 +174,17 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     )
 
     for nd in no_disp_qs:
-        # Calcular índices relativos
         inicio_rel = (nd.fecha_inicio - fecha_inicio).days
         fin_rel = (nd.fecha_fin - fecha_inicio).days
         
-        # Recortar al rango actual (clamp)
         start_idx = max(0, inicio_rel)
-        end_idx = min(num_dias, fin_rel + 1) # +1 para range de python exclusivo
+        end_idx = min(num_dias, fin_rel + 1)
 
-        if start_idx < end_idx: # Solo si hay solapamiento real
+        if start_idx < end_idx:
             prof_idx = mapa_id_a_indice[nd.empleado.id]
             excepciones_disponibilidad.append({
                 "prof_index": prof_idx,
-                "dias_range": [start_idx, end_idx], # API espera [start, end_exclusive]
+                "dias_range": [start_idx, end_idx],
                 "disponible": False
             })
 
@@ -187,22 +195,15 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         fecha__range=[fecha_inicio, fecha_fin]
     )
     
-    # Agrupar preferencias por (dia, tipo_turno, deseo) podría ser complejo
-    # La API actual recibe: {"prof_indices": [0, 1], "dia": 5, "valor": -1}
-    # Por simplicidad, mandaremos una entrada por cada preferencia individual
-    # (La API debería bancarse esto, o si no agrupamos)
-    
     for pref in prefs_qs:
         dia_idx = (pref.fecha - fecha_inicio).days
         prof_idx = mapa_id_a_indice[pref.empleado.id]
         
-        # Valor: Trabajar (+) / Descansar (-)
-        # Peso base de la configuración * signo
         peso_base = config.peso_preferencia_turno if pref.tipo_turno else config.peso_preferencia_dias_libres
         valor = peso_base if pref.deseo == 'TRABAJAR' else -peso_base
         
         excepciones_preferencias.append({
-            "prof_indices": [prof_idx], # Lista de 1 elemento
+            "prof_indices": [prof_idx],
             "dia": dia_idx,
             "valor": valor
         })
@@ -211,7 +212,6 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     # 8. CONSTRUCCIÓN FINAL
     # ---------------------------------------------------------
     
-    # Secuencias prohibidas
     seq_qs = SecuenciaProhibida.objects.filter(especialidad=especialidad)
     secuencias = [[s.turno_previo.id, s.turno_siguiente.id] for s in seq_qs]
 
@@ -219,9 +219,9 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         "num_dias": num_dias,
         "max_turno_val": max_turno_val,
         "turnos_a_cubrir": turnos_a_cubrir,
-        "skills_a_cubrir": ["junior", "senior"], # Hardcodeado según tu modelo
+        "skills_a_cubrir": ["junior", "senior"],
         "turnos_noche": turnos_noche,
-        "duracion_turnos": duracion_turnos,
+        # "duracion_turnos": REMOVIDO. El AG asume 1 slot = 1 unidad de fatiga.
         "pesos_fitness": {
             "eq": config.peso_equidad_general,
             "dif": config.peso_equidad_dificil,
@@ -244,31 +244,19 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         "estrategias": payload_estrategias
     }
 
-import requests
-import json
-import os # <--- Nuevo import
 
 def invocar_api_planificacion(payload):
     """
     Envía el JSON a la API de optimización y devuelve la respuesta.
     """
+    # En entorno Docker, el host suele ser el nombre del servicio
     url = "http://optimizer:8000/planificar" 
     
     try:
-        # --- DEBUG PRO: GUARDAR EN ARCHIVO ---
-        # Esto creará 'debug_payload.json' en la misma carpeta donde está manage.py
-        # Podrás abrirlo en tu VS Code/Editor inmediatamente.
-        archivo_debug = 'debug_payload.json'
-        
-        print(f"💾 Guardando JSON de debug en {archivo_debug}...", flush=True)
-        
-        with open(archivo_debug, 'w', encoding='utf-8') as f:
-            json.dump(payload, f, indent=2, default=str)
-            
-        # También forzamos la salida a stderr (que suele verse en rojo o sin buffer en docker)
-        import sys
-        sys.stderr.write(f"\n[DEBUG] JSON guardado exitosamente en {archivo_debug}\n")
-        # -------------------------------------
+        # DEBUG: Guardar payload localmente para inspección si algo falla
+        if os.getenv('DEBUG_PAYLOAD', 'False') == 'True':
+            with open('debug_payload.json', 'w', encoding='utf-8') as f:
+                json.dump(payload, f, indent=2, default=str)
 
         response = requests.post(url, json=payload, timeout=300) 
         response.raise_for_status() 
@@ -281,61 +269,28 @@ def invocar_api_planificacion(payload):
 
 def consultar_resultado_ag(job_id):
     """
-    Consulta el endpoint de resultados de la API para ver si el trabajo terminó.
+    Consulta el endpoint de resultados de la API.
     """
-    # IMPORTANTE: Usamos el nombre del servicio Docker 'optimizer'
     url = f"http://optimizer:8000/result/{job_id}"
-    
     try:
         response = requests.get(url, timeout=10)
-        # Si la API devuelve 202 (Processing) o 200 (OK)
         if response.status_code == 200:
             return response.json()
         elif response.status_code == 202:
             return {"status": "running", "mensaje": "El algoritmo sigue ejecutando..."}
         else:
             return {"status": "error", "error": f"API Error: {response.status_code}"}
-            
     except requests.exceptions.RequestException as e:
-        print(f"Error consultando estado: {e}")
-        return None
+        return {"status": "error", "error": str(e)}
 
-from datetime import timedelta
-from django.db import transaction
-from .models import Cronograma, Asignacion, Empleado, TipoTurno, ConfiguracionAlgoritmo, PlantillaDemanda
 
-def guardar_cronograma_resuelto(json_payload, matriz_solucion, fitness):
-    """
-    Convierte la matriz numérica de la API en registros de Base de Datos.
-    
-    Args:
-        json_payload: El JSON que enviamos originalmente (para saber el orden de empleados).
-        matriz_solucion: La lista de listas [[t1, t2...], [t1, t2...]] devuelta por la API.
-        fitness: El puntaje obtenido.
-    """
-    
-    # 1. Extraer datos de contexto del payload original
-    datos = json_payload['datos_problema']
-    lista_profs = datos['lista_profesionales'] # Lista de dicts con 'id_db'
-    
-    # Recalculamos fechas
-    # OJO: En el payload no va la fecha explicita, hay que pasarla o deducirla.
-    # Por simplicidad, asumiremos que quien llama a esta función pasa las fechas correctas
-    # o las extraemos de algún lado. Para este script, las pasaremos como argumento extra
-    # pero para mantener la firma limpia, vamos a inferir que 'num_dias' coincide.
-    pass 
-
-# Versión mejorada con argumentos explícitos
 def guardar_solucion_db(inicio, fin, especialidad, json_payload, api_response):
     """
     Guarda el cronograma, sus asignaciones y las métricas de análisis.
     """
-    # Extraemos datos de la respuesta de la API
     matriz_solucion = api_response.get('matriz_solucion') or api_response.get('solution')
     fitness = api_response.get('fitness')
     tiempo = api_response.get('tiempo_ejecucion')
-    
-    # El bloque entero de explicabilidad (violaciones, equidad, etc.)
     explicabilidad = api_response.get('explicabilidad', {})
 
     # 1. Crear el Encabezado (Cronograma)
@@ -350,50 +305,38 @@ def guardar_solucion_db(inicio, fin, especialidad, json_payload, api_response):
             estado=Cronograma.Estado.BORRADOR,
             plantilla_demanda=plantilla,
             configuracion_usada=config_activa,
-            
-            # NUEVOS CAMPOS
             fitness=fitness,
             tiempo_ejecucion=tiempo,
             reporte_analisis=explicabilidad 
         )
         
-        # 2. Preparar Mapeos para velocidad (Cache en RAM)
-        # Traemos todos los turnos a un diccionario: {id_turno: ObjetoTipoTurno}
+        # 2. Preparar Mapeos
         turnos_db = {t.id: t for t in TipoTurno.objects.filter(especialidad=especialidad)}
-        
         lista_empleados_payload = json_payload['datos_problema']['lista_profesionales']
-        # Mapa: Indice de fila (0, 1, 2) -> ID de Empleado en BD
         mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
         
         nuevas_asignaciones = []
         
         # 3. Recorrer la Matriz
-        # i = índice de empleado (fila)
-        # j = índice de día (columna)
         for i, fila_turnos in enumerate(matriz_solucion):
-            
             empleado_id = mapa_idx_a_empleado_id.get(i)
             if not empleado_id:
-                continue # Seguridad
+                continue 
             
             for j, turno_id_api in enumerate(fila_turnos):
-                
-                # Si el turno_id es 0 (o no existe en nuestros turnos), asumimos FRANCO/LIBRE
-                # y NO creamos registro en Asignacion.
+                # 0 o -1 suele significar libre en el algoritmo, o IDs que no están en DB
                 if turno_id_api in turnos_db:
-                    
                     fecha_turno = inicio + timedelta(days=j)
                     turno_obj = turnos_db[turno_id_api]
                     
                     asignacion = Asignacion(
                         cronograma=cronograma,
-                        empleado_id=empleado_id, # Usamos _id para no hacer query extra
+                        empleado_id=empleado_id,
                         fecha=fecha_turno,
                         tipo_turno=turno_obj
                     )
                     nuevas_asignaciones.append(asignacion)
         
-        # 4. Guardado Masivo (Bulk Create)
         if nuevas_asignaciones:
             Asignacion.objects.bulk_create(nuevas_asignaciones)
             

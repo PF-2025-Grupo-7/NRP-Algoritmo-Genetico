@@ -22,14 +22,16 @@ class Empleado(models.Model):
     activo = models.BooleanField(default=True, verbose_name="Activo en planificaciones")
 
     min_turnos_mensuales = models.IntegerField(
-        default=15, 
+        default=10,
+        validators=[MinValueValidator(0)],
         verbose_name="Mínimo de turnos/mes",
-        help_text="Cantidad mínima de turnos a asignar (Ej: Para 120hs de enfermería (8hs), poner 15)."
+        help_text="Cantidad mínima de turnos a asignar en el periodo (Ej: 10 turnos de 12hs = 120hs)."
     )
     max_turnos_mensuales = models.IntegerField(
-        default=20, 
+        default=20,
+        validators=[MinValueValidator(0)],
         verbose_name="Máximo de turnos/mes",
-        help_text="Límite superior de turnos mensuales."
+        help_text="Límite máximo de turnos a asignar en el periodo."
     )
     
     def __str__(self):
