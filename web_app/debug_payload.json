@@ -41,127 +41,127 @@
         "id_db": 2,
         "nombre": "Aaron Ramsey",
         "skill": "senior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 3,
         "nombre": "Paul Gascoigne",
         "skill": "senior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 4,
         "nombre": "George Best",
         "skill": "senior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 5,
         "nombre": "Paul Scholes",
         "skill": "senior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 6,
         "nombre": "John Deacon",
         "skill": "senior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 7,
         "nombre": "Kate Moss",
         "skill": "senior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 8,
         "nombre": "Margot Robbie",
         "skill": "senior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 9,
         "nombre": "Diana Ross",
         "skill": "senior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 10,
         "nombre": "Sam Smith",
         "skill": "senior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 11,
         "nombre": "Lindsey Lohan",
         "skill": "senior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 12,
         "nombre": "Neymar Jr.",
         "skill": "junior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 13,
         "nombre": "Marthin Luther King Jr.",
         "skill": "junior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 14,
         "nombre": "Vinicius Jr.",
         "skill": "junior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 15,
         "nombre": "Ronaldinho",
         "skill": "junior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 16,
         "nombre": "Romarinho",
         "skill": "junior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 17,
         "nombre": "Venezuela",
         "skill": "junior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 18,
         "nombre": "Thiago Messi",
         "skill": "junior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       },
       {
         "id_db": 19,
         "nombre": "CR7 Jr.",
         "skill": "junior",
-        "t_min": 120,
-        "t_max": 160
+        "t_min": 15,
+        "t_max": 20
       }
     ],
     "reglas_cobertura": {
@@ -170,7 +170,20 @@
       "demanda_finde": {},
       "demanda_normal": {}
     },
-    "secuencias_prohibidas": [],
+    "secuencias_prohibidas": [
+      [
+        7,
+        6
+      ],
+      [
+        8,
+        7
+      ],
+      [
+        8,
+        6
+      ]
+    ],
     "excepciones_disponibilidad": [],
     "excepciones_preferencias": [
       {

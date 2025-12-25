@@ -21,17 +21,17 @@ class Empleado(models.Model):
 
     activo = models.BooleanField(default=True, verbose_name="Activo en planificaciones")
 
-    min_horas_mensuales = models.IntegerField(
-        default=120, 
-        verbose_name="Mínimo Horas/Mes",
-        help_text="Límite inferior del contrato (ej. 120 para part-time)"
+    min_turnos_mensuales = models.IntegerField(
+        default=15, 
+        verbose_name="Mínimo de turnos/mes",
+        help_text="Cantidad mínima de turnos a asignar (Ej: Para 120hs de enfermería (8hs), poner 15)."
     )
-    max_horas_mensuales = models.IntegerField(
-        default=160, 
-        verbose_name="Máximo Horas/Mes",
-        help_text="Límite superior del contrato antes de contar horas extra o prohibir"
+    max_turnos_mensuales = models.IntegerField(
+        default=20, 
+        verbose_name="Máximo de turnos/mes",
+        help_text="Límite superior de turnos mensuales."
     )
-
+    
     def __str__(self):
         estado = "" if self.activo else "(INACTIVO)"
         return f"{self.nombre_completo} - {self.get_especialidad_display()} {estado}"

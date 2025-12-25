@@ -75,8 +75,8 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
             "id_db": emp.id,
             "nombre": emp.nombre_completo,
             "skill": skill,
-            "t_min": emp.min_horas_mensuales,  # <--- DIRECTO DE LA BD
-            "t_max": emp.max_horas_mensuales   # <--- DIRECTO DE LA BD
+            "t_min": emp.min_turnos_mensuales,  # Antes: emp.min_horas_mensuales
+            "t_max": emp.max_turnos_mensuales,  # Antes: emp.max_horas_mensuales
         })
 
     # ---------------------------------------------------------
