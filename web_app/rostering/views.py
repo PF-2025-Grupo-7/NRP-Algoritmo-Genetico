@@ -240,3 +240,37 @@ def ver_cronograma(request, cronograma_id):
         'rango_fechas': rango_fechas,
         'filas_tabla': filas_tabla,
     })
+
+# rostering/views.py
+
+def ver_cronograma_diario(request, cronograma_id):
+    cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
+    
+    # Obtenemos todas las asignaciones ordenadas por fecha y hora de turno
+    asignaciones = Asignacion.objects.filter(cronograma=cronograma).select_related(
+        'empleado', 'tipo_turno'
+    ).order_by('fecha', 'tipo_turno__hora_inicio')
+
+    # Estructura: agenda[fecha_date] = { 'Turno Mañana': [Emp1, Emp2], 'Turno Tarde': [...] }
+    agenda = {}
+    
+    # Tipos de turno para ordenar la visualización (Mañana primero, Noche al final)
+    tipos_turno = list(asignaciones.values_list('tipo_turno__nombre', flat=True).distinct())
+    # Opcional: Ordenar tipos_turno manualmente si querés un orden específico
+    
+    for asig in asignaciones:
+        fecha = asig.fecha
+        turno_nombre = asig.tipo_turno.nombre
+        
+        if fecha not in agenda:
+            agenda[fecha] = {}
+        
+        if turno_nombre not in agenda[fecha]:
+            agenda[fecha][turno_nombre] = []
+            
+        agenda[fecha][turno_nombre].append(asig.empleado)
+
+    return render(request, 'rostering/cronograma_diario.html', {
+        'cronograma': cronograma,
+        'agenda': agenda,
+    })

@@ -11,6 +11,8 @@ urlpatterns = [
 
     # NUEVA RUTA: Ver el resultado visual
     path('cronograma/<int:cronograma_id>/', views.ver_cronograma, name='ver_cronograma'),
+    path('cronograma/<int:cronograma_id>/diario/', views.ver_cronograma_diario, name='ver_cronograma_diario'),
+
 
     # APIs (Endpoints JSON)
     path('api/planificar/iniciar/', views.iniciar_planificacion, name='api_iniciar_planificacion'),
