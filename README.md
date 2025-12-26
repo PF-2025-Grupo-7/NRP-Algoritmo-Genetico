@@ -66,5 +66,12 @@ Si querés conectarte a la BD desde tu PC (externamente a Docker):
     ```
 * **Ver logs en tiempo real:** `docker-compose logs -f`.
 
+* **Luego de hacer cambios, migrar para actualizar BD:**
+    ```bash
+    docker-compose exec web python manage.py makemigrations
+
+    docker-compose exec web python manage.py migrate
+    ```
+
 ---
 **Desarrollado por:** Grupo 7 - Ingeniería en Sistemas de Información.

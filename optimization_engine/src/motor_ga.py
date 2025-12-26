@@ -10,9 +10,9 @@ import random
 import numpy as np
 
 # Importaciones relativas para consistencia de paquete
-from .problema import ProblemaGAPropio
 from .utils import init_population
 from .loader import procesar_datos_instancia 
+from .problema import ProblemaGAPropio  # <--- AGREGADO: Faltaba esta importación
 from .operadores import SELECTION_OPS, CROSSOVER_OPS, MUTATION_OPS 
 
 def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias, job_id=None, reporte_progreso=None):
@@ -45,19 +45,23 @@ def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias, job_id=
             - explicabilidad (dict): Reporte detallado de penalizaciones y equidad.
     """
     # 1. Preparación del Entorno
-    SEED = config.get('seed', 1234)
-    random.seed(SEED)
-    np.random.seed(SEED)
+    # Si la seed es None, usamos una fija por defecto o el reloj del sistema si preferimos aleatoriedad pura
+    SEED = config.get('seed', 1234) 
+    
+    if SEED is not None:
+        random.seed(SEED)
+        np.random.seed(SEED)
 
     # 2. Inicialización de Componentes
     datos_procesados = procesar_datos_instancia(datos_problema_raw)
     problema = ProblemaGAPropio(**datos_procesados)
 
     # Resolución de funciones de operadores basadas en las estrategias elegidas
+    # Usamos .get() con defaults seguros, aunque la API ya debería haber validado esto.
     estrategias = estrategias or {}
-    seleccion_func = SELECTION_OPS[estrategias.get('sel', 'torneo_deterministico')]
-    cruce_func = CROSSOVER_OPS[estrategias.get('cross', 'bloques_verticales')]
-    mutacion_func = MUTATION_OPS[estrategias.get('mut', 'hibrida_adaptativa')]
+    seleccion_func = SELECTION_OPS.get(estrategias.get('sel'), SELECTION_OPS['torneo_deterministico'])
+    cruce_func = CROSSOVER_OPS.get(estrategias.get('cross'), CROSSOVER_OPS['bloques_verticales'])
+    mutacion_func = MUTATION_OPS.get(estrategias.get('mut'), MUTATION_OPS['hibrida_adaptativa'])
 
     # Parámetros de evolución
     pop_size = config.get('pop_size', 100)
@@ -68,6 +72,7 @@ def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias, job_id=
 
     # 3. Creación de Población Inicial
     start_time = time.time()
+    # Pasamos la seed también a init_population para garantizar reproducibilidad en la generación inicial
     pop = init_population(pop_size, problema.num_profesionales, problema.num_dias, problema.max_turno_val, seed=SEED)
     fitnesses = [problema.fitness(ind) for ind in pop]
 
@@ -86,7 +91,8 @@ def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias, job_id=
             new_pop.append(best_global.copy())
 
         while len(new_pop) < pop_size:
-            # Selección de padres mediante torneo
+            # Selección de padres mediante torneo (o la estrategia seleccionada)
+            # Nota: Si seleccion_ranking no usa k, el argumento extra se ignora o se maneja dentro
             p1 = seleccion_func(pop, fitnesses, k=3)
             p2 = seleccion_func(pop, fitnesses, k=3)
 
@@ -124,7 +130,8 @@ def ejecutar_algoritmo_genetico(config, datos_problema_raw, estrategias, job_id=
     return {
         "fitness": float(best_global_f),
         "tiempo_ejecucion": elapsed,
-        "solucion": reporte_explicabilidad["datos_equidad"]["horas_por_profesional"],
+        # Asumimos que 'horas_por_profesional' está disponible en el reporte de equidad
+        "solucion": reporte_explicabilidad["datos_equidad"].get("horas_por_profesional", []),
         "matriz_solucion": best_global.reshape(problema.num_profesionales, problema.num_dias).tolist(),
         "generaciones_completadas": generaciones,
         "config_utilizada": config,

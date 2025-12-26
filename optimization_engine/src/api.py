@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Literal
 import uuid
 import numpy as np
 
@@ -8,13 +9,31 @@ import numpy as np
 from .loader import procesar_datos_instancia
 from .problema import ProblemaGAPropio
 from . import services 
+from .operadores import SELECTION_OPS, CROSSOVER_OPS, MUTATION_OPS 
 
 app = FastAPI(
     title="API Planificación Guardias - Grupo 7",
     description="Motor de Algoritmo Genético optimizado para hospitales."
 )
 
-# --- MODELOS DE SOPORTE (Pydantic V2 Ready) ---
+# --- CONFIGURACIÓN CORS ---
+origins = [
+    "http://localhost:8000",
+    "http://localhost:8080",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8080",
+    "*", 
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- MODELOS DE SOPORTE ---
 
 class ConfigGA(BaseModel):
     pop_size: int = Field(100, gt=0)
@@ -24,15 +43,20 @@ class ConfigGA(BaseModel):
     elitismo: bool = True
     seed: Optional[int] = None
 
+class DatosProfesional(BaseModel):
+    id_db: int = Field(..., description="ID del profesional en la base de datos.")
+    nombre: str = Field(..., description="Nombre del profesional.")
+    skill: str = Field(..., description="'senior', 'junior', etc.")
+    t_min: int = Field(..., description="Mínimo de horas/guardias por contrato.")
+    t_max: int = Field(..., description="Máximo de horas/guardias por contrato.")
+
 class DatosProblema(BaseModel):
-    num_profesionales: int = Field(..., gt=0)
     num_dias: int = Field(..., gt=0)
-    max_turno_val: int = Field(..., description="Valor máximo del turno (ej: 3)") # AGREGADO
-    skills_a_cubrir: List[str] = Field(..., description="Lista de skills (senior, junior, etc)") # AGREGADO
+    max_turno_val: int = Field(..., description="Valor máximo del turno (ej: 3)") 
+    skills_a_cubrir: List[str] = Field(..., description="Lista de skills (senior, junior, etc)") 
     turnos_a_cubrir: List[int] = Field(default=[1, 2, 3])
     turnos_noche: List[int] = Field(default=[3])
     
-    # Pydantic V2 usa json_schema_extra en lugar de example
     duracion_turnos: Dict[str, int] = Field(
         ..., 
         json_schema_extra={"example": {"1": 8, "2": 8, "3": 8}}
@@ -42,7 +66,11 @@ class DatosProblema(BaseModel):
         default={"eq": 1.0, "dif": 1.5, "pdl": 2.0, "pte": 0.5, "alpha_pte": 0.5}
     )
     
-    info_profesionales_base: Dict[str, Any]
+    lista_profesionales: List[DatosProfesional] = Field(
+        ..., 
+        description="Lista detallada de la nómina de profesionales."
+    )
+
     reglas_cobertura: Dict[str, Any]
     secuencias_prohibidas: List[List[int]] = []
     excepciones_disponibilidad: List[Dict[str, Any]] = []
@@ -50,20 +78,80 @@ class DatosProblema(BaseModel):
     tolerancia_equidad_general: int = 8
     tolerancia_equidad_dificil: int = 4
 
+class EstrategiasConfig(BaseModel):
+    sel: Literal["torneo_deterministico", "ranking_lineal"] = Field(
+        default="torneo_deterministico"
+    )
+    cross: Literal["bloques_verticales", "bloques_horizontales", "dos_puntos"] = Field(
+        default="bloques_verticales"
+    )
+    mut: Literal["hibrida_adaptativa", "reasignar_turno", "intercambio_dia", "flip_simple"] = Field(
+        default="hibrida_adaptativa"
+    )
+
 # --- MODELOS DE ENTRADA ---
+
+# En src/api.py
 
 class SolicitudPlanificacion(BaseModel):
     config: ConfigGA
     datos_problema: DatosProblema
-    estrategias: Optional[Dict[str, str]] = {
-        "sel": "torneo_deterministico", 
-        "cross": "bloques_verticales", 
-        "mut": "hibrida_adaptativa"
-    }
+    estrategias: EstrategiasConfig = Field(default_factory=EstrategiasConfig)
 
-class SolicitudEvaluacion(BaseModel):
-    vector: List[int]
-    datos_problema: DatosProblema
+    # --- AGREGAR ESTO AL FINAL DE LA CLASE ---
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "config": {
+                        "pop_size": 100,
+                        "generaciones": 15,
+                        "pc": 0.85,
+                        "pm": 0.20,
+                        "elitismo": True,
+                        "seed": 1111
+                    },
+                    "datos_problema": {
+                        "num_dias": 30,
+                        "max_turno_val": 3,
+                        "turnos_a_cubrir": [1, 2, 3],
+                        "skills_a_cubrir": ["junior", "senior"],
+                        "turnos_noche": [3],
+                        "duracion_turnos": {"1": 8, "2": 8, "3": 8},
+                        "pesos_fitness": {
+                            "eq": 1.0, "dif": 1.5, "pdl": 2.0, "pte": 0.5, "alpha_pte": 0.5
+                        },
+                        "tolerancia_equidad_general": 8,
+                        "tolerancia_equidad_dificil": 4,
+                        "lista_profesionales": [
+                            {"id_db": 101, "nombre": "Dr. Senior 1", "skill": "senior", "t_min": 12, "t_max": 16},
+                            {"id_db": 102, "nombre": "Dr. Senior 2", "skill": "senior", "t_min": 12, "t_max": 16},
+                            # ... (puedes poner solo 2 o 3 para que no sea tan largo en la doc) ...
+                            {"id_db": 201, "nombre": "Dr. Junior 1", "skill": "junior", "t_min": 12, "t_max": 16}
+                        ],
+                        "reglas_cobertura": {
+                            "dias_pico": [0, 4],
+                            "demanda_pico": {"1": {"junior": 2, "senior": 2}, "2": {"junior": 2, "senior": 1}, "3": {"junior": 1, "senior": 1}},
+                            "demanda_finde": {"1": {"junior": 1, "senior": 1}, "2": {"junior": 1, "senior": 1}, "3": {"junior": 1, "senior": 1}},
+                            "demanda_normal": {"1": {"junior": 2, "senior": 1}, "2": {"junior": 1, "senior": 1}, "3": {"junior": 1, "senior": 1}}
+                        },
+                        "secuencias_prohibidas": [[3, 1], [3, 2], [2, 1]],
+                        "excepciones_disponibilidad": [
+                            {"prof_index": 0, "dias_range": [0, 7], "disponible": False}
+                        ],
+                        "excepciones_preferencias": [
+                            {"prof_indices": [0], "dia": 15, "valor": -1}
+                        ]
+                    },
+                    "estrategias": {
+                        "sel": "torneo_deterministico",
+                        "cross": "bloques_horizontales",
+                        "mut": "hibrida_adaptativa"
+                    }
+                }
+            ]
+        }
+    }
 
 class RespuestaCreacion(BaseModel):
     job_id: str
@@ -72,20 +160,14 @@ class RespuestaCreacion(BaseModel):
 
 # --- ENDPOINTS ---
 
-@app.post("/soluciones/evaluar", tags=["Auditoría"])
-async def evaluar_solucion_especifica(solicitud: SolicitudEvaluacion):
-    try:
-        # Pydantic V2: model_dump() reemplaza a dict()
-        datos_dict = solicitud.datos_problema.model_dump()
-        datos_procesados = procesar_datos_instancia(datos_dict)
-        
-        problema = ProblemaGAPropio(**datos_procesados)
-        vector_np = np.array(solicitud.vector)
-        
-        return problema.evaluar_detallado(vector_np)
-    except Exception as e:
-        # El detalle ahora incluirá el error real para facilitar el debugging
-        raise HTTPException(status_code=400, detail=f"Error en evaluación: {str(e)}")
+@app.get("/info/opciones", tags=["Metadatos"])
+async def obtener_opciones_disponibles():
+    """Endpoint para que el Frontend sepa qué estrategias mostrar en los Selects."""
+    return {
+        "seleccion": list(SELECTION_OPS.keys()),
+        "cruce": list(CROSSOVER_OPS.keys()),
+        "mutacion": list(MUTATION_OPS.keys())
+    }
 
 @app.post("/planificar", response_model=RespuestaCreacion, tags=["Planificación"])
 async def iniciar_planificacion(solicitud: SolicitudPlanificacion, background_tasks: BackgroundTasks):
@@ -101,7 +183,7 @@ async def iniciar_planificacion(solicitud: SolicitudPlanificacion, background_ta
         job_id, 
         solicitud.config.model_dump(), 
         solicitud.datos_problema.model_dump(), 
-        solicitud.estrategias
+        solicitud.estrategias.model_dump() 
     )
     
     return {
@@ -131,13 +213,12 @@ async def consultar_estado(job_id: str):
         else:
             respuesta["progreso"] = "Iniciando..."
     
-    # CORRECCIÓN: Si falló, devolver el error en el status para que el test lo vea
     elif status_general == "failed":
         respuesta["error"] = job_local.get("error")
 
     return respuesta
 
-@app.get("/result/{job_id}", tags=["Estado"])
+@app.get("/result/{job_id}", tags=["Resultados"])
 async def obtener_resultado(job_id: str):
     if job_id not in services.TRABAJOS:
         raise HTTPException(status_code=404, detail="Trabajo no encontrado")

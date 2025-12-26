@@ -28,7 +28,10 @@ services:
   web:
     build: ./web_app
     container_name: hospital_web
-    command: python manage.py runserver 0.0.0.0:8080
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py loaddata datos_iniciales.json &&
+             python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./web_app:/code
     ports:
@@ -42,6 +45,7 @@ services:
     - DB_USER=admin            
     - DB_PASS=admin          
     - API_OPTIMIZER_URL=http://optimizer:8000
+    
 
 volumes:
   postgres_data:
