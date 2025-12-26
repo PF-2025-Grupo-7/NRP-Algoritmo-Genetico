@@ -7,6 +7,10 @@ from django.contrib.auth.decorators import login_required
 from django.utils.dateparse import parse_date
 from django.views.decorators.csrf import csrf_exempt 
 from django.core.exceptions import ValidationError # <--- IMPORTAR ESTO
+from django.shortcuts import render, redirect # Asegurate de tener redirect
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import login
+from django.contrib import messages
 
 # Importamos modelos
 from .models import Empleado, Cronograma, TrabajoPlanificacion
@@ -141,3 +145,20 @@ def verificar_estado_planificacion(request, job_id):
 @login_required
 def pagina_generador(request):
     return render(request, 'rostering/generador.html') # Asegurate que sea .html
+
+
+def registrar_usuario(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            # Loguear al usuario inmediatamente después de registrarse
+            login(request, user)
+            messages.success(request, "¡Registro exitoso! Bienvenido.")
+            return redirect('vista_generador') # Redirige al home
+        else:
+            messages.error(request, "Por favor corrige los errores abajo.")
+    else:
+        form = UserCreationForm()
+        
+    return render(request, 'registration/register.html', {'form': form})

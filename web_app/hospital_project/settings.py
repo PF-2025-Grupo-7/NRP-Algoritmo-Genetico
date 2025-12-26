@@ -147,8 +147,8 @@ LOGGING = {
 # Redirección tras login exitoso (iremos al generador o al dashboard)
 LOGIN_REDIRECT_URL = '/'
 
-# Redirección tras logout (volvemos al login)
-LOGOUT_REDIRECT_URL = 'login'
+# A dónde ir después de desloguearse (vuelve al login)
+LOGOUT_REDIRECT_URL = '/accounts/login/' 
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8080',
