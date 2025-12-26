@@ -20,6 +20,7 @@ from .services import (
 # --- VISTA 1: INICIAR EL PROCESO ---
 
 @csrf_exempt 
+@login_required
 @require_POST
 def iniciar_planificacion(request):
     try:
@@ -137,5 +138,6 @@ def verificar_estado_planificacion(request, job_id):
         print(f"Error polling: {e}")
         return JsonResponse({'error': str(e)}, status=500)
     
+@login_required
 def pagina_generador(request):
     return render(request, 'rostering/generador.html') # Asegurate que sea .html
