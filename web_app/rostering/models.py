@@ -239,7 +239,7 @@ class Cronograma(models.Model):
     fecha_fin = models.DateField()
     
     estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.BORRADOR)
-    plantilla_demanda = models.ForeignKey(PlantillaDemanda, on_delete=models.PROTECT, null=True, blank=True)
+    plantilla_demanda = models.ForeignKey(PlantillaDemanda, on_delete=models.SET_NULL, null=True, blank=True)
     
     configuracion_usada = models.ForeignKey('ConfiguracionAlgoritmo', on_delete=models.SET_NULL, null=True, blank=True)
     
