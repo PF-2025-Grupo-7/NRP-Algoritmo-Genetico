@@ -11,6 +11,10 @@ from django.shortcuts import render, redirect # Asegurate de tener redirect
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
 from django.contrib import messages
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from datetime import timedelta
+from .models import Cronograma, Asignacion, Empleado
 
 # Importamos modelos
 from .models import Empleado, Cronograma, TrabajoPlanificacion
@@ -162,3 +166,77 @@ def registrar_usuario(request):
         form = UserCreationForm()
         
     return render(request, 'registration/register.html', {'form': form})
+
+
+@login_required
+def ver_cronograma(request, cronograma_id):
+    # 1. Obtener el cronograma
+    cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
+    
+    # 2. Generar el rango de fechas (encabezados de columnas)
+    rango_fechas = []
+    fecha_iter = cronograma.fecha_inicio
+    while fecha_iter <= cronograma.fecha_fin:
+        rango_fechas.append(fecha_iter)
+        fecha_iter += timedelta(days=1)
+        
+    # 3. Obtener todas las asignaciones de golpe (Optimización DB)
+    asignaciones = Asignacion.objects.filter(
+        cronograma=cronograma
+    ).select_related('empleado', 'tipo_turno')
+    
+    # 4. Construir la Matriz:  dict[empleado_id][fecha_str] = turno
+    # Esto facilita buscar en el template: "¿Qué hace el Empleado X el día Y?"
+    matriz_asignaciones = {}
+    
+    for asig in asignaciones:
+        emp_id = asig.empleado.id
+        fecha_str = asig.fecha.strftime("%Y-%m-%d")
+        
+        if emp_id not in matriz_asignaciones:
+            matriz_asignaciones[emp_id] = {}
+        
+        matriz_asignaciones[emp_id][fecha_str] = asig.tipo_turno
+
+    # 5. Obtener lista de empleados ordenada (Filas)
+    # Filtramos solo los que tienen asignaciones o pertenecen a la especialidad
+    empleados = Empleado.objects.filter(
+        especialidad=cronograma.especialidad, 
+        activo=True
+    ).order_by('experiencia', 'legajo') # Seniors primero, luego Juniors
+
+    # 6. Preparar estructura final para el template
+    # Lista de filas, donde cada fila tiene el empleado y sus celdas ordenadas
+    filas_tabla = []
+    
+    for emp in empleados:
+        celdas = []
+        horas_totales = 0
+        turnos_totales = 0
+        
+        for fecha in rango_fechas:
+            fecha_key = fecha.strftime("%Y-%m-%d")
+            # Buscamos si hay turno ese día para este empleado
+            turno = matriz_asignaciones.get(emp.id, {}).get(fecha_key)
+            
+            celdas.append({
+                'fecha': fecha,
+                'turno': turno, # Puede ser None (Franco)
+            })
+            
+            if turno:
+                # Sumamos para estadísticas rápidas
+                horas_totales += turno.duracion_horas
+                turnos_totales += 1
+                
+        filas_tabla.append({
+            'empleado': emp,
+            'celdas': celdas,
+            'stats': {'horas': horas_totales, 'turnos': turnos_totales}
+        })
+
+    return render(request, 'rostering/cronograma_detail.html', {
+        'cronograma': cronograma,
+        'rango_fechas': rango_fechas,
+        'filas_tabla': filas_tabla,
+    })

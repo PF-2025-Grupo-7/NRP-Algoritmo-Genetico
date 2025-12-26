@@ -127,7 +127,12 @@
                 badge.innerText = '¡Terminado!';
                 msg.innerHTML = `<strong>Fitness:</strong> ${data.fitness} <br> Cronograma guardado ID: ${data.cronograma_id}`;
                 btn.disabled = false;
-                btn.innerText = "🚀 Ejecutar de Nuevo";
+                btn.innerHTML = "👁 Ver Resultado"; // Cambiamos el texto
+                btn.className = "btn btn-success btn-lg"; // Lo ponemos verde
+                btn.onclick = function() {
+                    // Redirigir a la nueva vista
+                    window.location.href = `/cronograma/${data.cronograma_id}/`;
+                };;
                 
                 // Opcional: Redirigir a la vista de detalle
                 // window.location.href = `/cronograma/${data.cronograma_id}/`;

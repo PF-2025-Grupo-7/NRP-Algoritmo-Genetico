@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Cronograma Detallado{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-0">📅 Cronograma {{ cronograma.get_especialidad_display }}</h2>
+        <p class="text-muted small mb-0">
+            Del {{ cronograma.fecha_inicio|date:"d M" }} al {{ cronograma.fecha_fin|date:"d M Y" }} 
+            | Fitness: <strong>{{ cronograma.fitness }}</strong>
+        </p>
+    </div>
+    <div>
+        <a href="{% url 'vista_generador' %}" class="btn btn-outline-secondary btn-sm">⬅ Volver</a>
+        <button class="btn btn-success btn-sm" onclick="window.print()">🖨 Imprimir</button>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive" style="max-height: 80vh;">
+            <table class="table table-bordered table-hover mb-0 text-center align-middle" style="font-size: 0.85rem;">
+                <thead class="table-light sticky-top" style="z-index: 2;">
+                    <tr>
+                        <th class="sticky-col-start bg-light" style="min-width: 200px;">Profesional</th>
+                        <th style="min-width: 60px;">Total</th>
+                        {% for fecha in rango_fechas %}
+                            <th style="min-width: 45px;" class="{% if fecha.weekday >= 5 %}bg-warning-subtle{% endif %}">
+                                <div class="small fw-bold">{{ fecha|date:"D"|upper|slice:":2" }}</div>
+                                <div>{{ fecha|date:"d" }}</div>
+                            </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for fila in filas_tabla %}
+                    <tr>
+                        <td class="text-start sticky-col-start bg-white fw-bold text-truncate" style="max-width: 200px;">
+                            {{ fila.empleado.nombre_completo }}
+                            <span class="badge rounded-pill text-bg-light border ms-1" style="font-size: 0.6em;">
+                                {{ fila.empleado.experiencia|slice:":1" }}
+                            </span>
+                        </td>
+                        
+                        <td class="bg-light">
+                            <strong>{{ fila.stats.turnos }}</strong> <small class="text-muted">t</small>
+                        </td>
+
+                        {% for celda in fila.celdas %}
+                            <td class="p-1 {% if not celda.turno %}bg-light text-muted{% endif %}">
+                                {% if celda.turno %}
+                                    <div class="badge w-100 py-2 shadow-sm
+                                        {% if celda.turno.es_nocturno %}bg-dark text-white
+                                        {% elif celda.turno.hora_inicio.hour < 12 %}bg-warning text-dark
+                                        {% else %}bg-primary text-white{% endif %}"
+                                        title="{{ celda.turno.nombre }} ({{ celda.turno.duracion_horas }}hs)">
+                                        {{ celda.turno.abreviatura }}
+                                    </div>
+                                {% else %}
+                                    <span class="small text-black-50">-</span>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* CSS Mágico para fijar la primera columna */
+    .sticky-col-start {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        border-right: 2px solid #dee2e6 !important;
+    }
+    thead .sticky-col-start {
+        z-index: 3 !important; /* Esquina superior izquierda siempre arriba */
+    }
+</style>
+{% endblock %}
