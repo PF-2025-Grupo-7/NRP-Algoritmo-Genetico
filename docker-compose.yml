@@ -35,7 +35,7 @@ services:
     volumes:
       - ./web_app:/code
     ports:
-      - "8080:8080"
+      - "8080:8000"
     depends_on:
       - db
       - optimizer

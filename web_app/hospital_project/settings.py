@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-%30@o0dw!t@b)_s47lcrko*=m&399+d8eycb39p20w4^$v#aj+
 DEBUG = True
 
 # Esto permite que entres desde localhost y que los contenedores se hablen entre sí
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'web', '[::1]']
 
 
 # Application definition
@@ -56,7 +56,7 @@ ROOT_URLCONF = 'hospital_project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -143,3 +143,14 @@ LOGGING = {
         'level': 'INFO', # O 'DEBUG' si quieres ver TODO (incluido SQL)
     },
 }
+
+# Redirección tras login exitoso (iremos al generador o al dashboard)
+LOGIN_REDIRECT_URL = '/'
+
+# A dónde ir después de desloguearse (vuelve al login)
+LOGOUT_REDIRECT_URL = '/accounts/login/' 
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
+]
