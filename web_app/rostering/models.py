@@ -1,7 +1,7 @@
-from django.db import models
+from django.db import models # type: ignore
 from datetime import datetime, date, timedelta
-from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError # type: ignore
+from django.core.validators import MinValueValidator, MaxValueValidator # type: ignore
 
 class Empleado(models.Model):
     class TipoEspecialidad(models.TextChoices):
@@ -73,6 +73,17 @@ class TipoTurno(models.Model):
 
         super().save(*args, **kwargs)
 
+    def clean(self):
+        super().clean()
+
+        if self.hora_inicio and self.hora_fin:
+            if (self.hora_fin < self.hora_inicio and not self.es_nocturno):
+                raise ValidationError({
+                    "es_nocturno": (
+                        "El turno cambia de dia y debe marcarse como nocturno."
+                    )
+                })
+
     def __str__(self):
         return f"{self.nombre} ({self.get_especialidad_display()})"
 
@@ -84,7 +95,6 @@ class PlantillaDemanda(models.Model):
         choices=Empleado.TipoEspecialidad.choices,
         default=Empleado.TipoEspecialidad.MEDICO
     )
-    descripcion = models.TextField(blank=True)
     
     descripcion = models.TextField(blank=True)
 
@@ -105,8 +115,8 @@ class ReglaDemandaSemanal(models.Model):
     dia = models.IntegerField(choices=DiaSemana.choices)
     turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
     
-    cantidad_senior = models.IntegerField(default=1, verbose_name="Min. Senior")
-    cantidad_junior = models.IntegerField(default=2, verbose_name="Min. Junior")
+    cantidad_senior = models.IntegerField(default=1, verbose_name="Min. Senior", validators=[MinValueValidator(0)])
+    cantidad_junior = models.IntegerField(default=2, verbose_name="Min. Junior", validators=[MinValueValidator(0)])
     
     class Meta:
         unique_together = ('plantilla', 'dia', 'turno')
@@ -137,12 +147,12 @@ class ExcepcionDemanda(models.Model):
     """
     Permite sobreescribir la regla semanal para una fecha específica (Ej: Navidad, Año Nuevo)
     """
-    plantilla = models.ForeignKey(PlantillaDemanda, on_delete=models.CASCADE, related_name='excepciones', null=True)
+    plantilla = models.ForeignKey(PlantillaDemanda, on_delete=models.CASCADE, related_name='excepciones', null=True, blank=True)
     fecha = models.DateField()
     turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
     
-    cantidad_senior = models.IntegerField(default=0, verbose_name="Req. Senior")
-    cantidad_junior = models.IntegerField(default=0, verbose_name="Req. Junior")
+    cantidad_senior = models.IntegerField(default=0, verbose_name="Req. Senior", validators=[MinValueValidator(0)])
+    cantidad_junior = models.IntegerField(default=0, verbose_name="Req. Junior", validators=[MinValueValidator(0)])
     
     motivo = models.CharField(max_length=100, blank=True)
 
@@ -154,7 +164,7 @@ class ExcepcionDemanda(models.Model):
     def clean(self):
         super().clean()
         # Validar solo si la excepción está vinculada a una plantilla
-        if self.plantilla and self.turno:
+        if self.plantilla_id and self.turno_id:
             if self.plantilla.especialidad != self.turno.especialidad:
                 raise ValidationError({
                     'turno': f"El turno '{self.turno}' ({self.turno.get_especialidad_display()}) "
@@ -177,8 +187,15 @@ class NoDisponibilidad(models.Model):
 
     def clean(self):
         super().clean()
+        # Validar rango de fechas
+        if self.fecha_inicio and self.fecha_fin:
+            if self.fecha_fin < self.fecha_inicio:
+                raise ValidationError({
+                    'fecha_fin': 'La fecha de fin no puede ser anterior a la fecha de inicio.'
+                })
+
         # Si especifica un turno puntual (no es día completo), validar especialidad
-        if self.empleado and self.tipo_turno:
+        if self.empleado_id and self.tipo_turno_id:
             if self.empleado.especialidad != self.tipo_turno.especialidad:
                 raise ValidationError({
                     'tipo_turno': f"El turno '{self.tipo_turno}' ({self.tipo_turno.get_especialidad_display()}) "
@@ -266,6 +283,13 @@ class Cronograma(models.Model):
 
     def clean(self):
         super().clean()
+        # Validar rango de fechas
+        if self.fecha_inicio and self.fecha_fin:
+            if self.fecha_fin < self.fecha_inicio:
+                raise ValidationError({
+                    'fecha_fin': 'La fecha de fin no puede ser anterior a la fecha de inicio.'
+                })
+
         # Validar que la plantilla coincida con la especialidad del cronograma
         if self.plantilla_demanda:
             if self.especialidad != self.plantilla_demanda.especialidad:
