@@ -1,6 +1,6 @@
 import django_filters
 from django import forms
-from .models import Empleado, TipoTurno  # <--- SIN 'Servicio'
+from .models import Empleado
 
 class EmpleadoFilter(django_filters.FilterSet):
     search = django_filters.CharFilter(
@@ -9,16 +9,19 @@ class EmpleadoFilter(django_filters.FilterSet):
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nombre o Legajo'})
     )
     
-    # Asumiendo que 'tipo' es un choice field en tu modelo
-    tipo = django_filters.ChoiceFilter(
-        choices=Empleado.TipoEspecialidad.choices, # Ajusta esto si tu campo se llama diferente
+    # Campo correcto: especialidad (antes era 'tipo')
+    especialidad = django_filters.ChoiceFilter(
+        choices=Empleado.TipoEspecialidad.choices,
         empty_label="Todas las Especialidades",
         widget=forms.Select(attrs={'class': 'form-select'})
     )
 
-    # Si 'experiencia' es un campo choice en tu modelo Empleado:
-    # experiencia = django_filters.ChoiceFilter( ... ) 
-    # Si no estás seguro de que existe 'experiencia', comentalo por ahora.
+    # Campo correcto: experiencia
+    experiencia = django_filters.ChoiceFilter(
+        choices=Empleado.TipoExperiencia.choices,
+        empty_label="Cualquier Experiencia",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
 
     activo = django_filters.BooleanFilter(
         widget=forms.Select(attrs={'class': 'form-select'}, choices=[(None, 'Todos'), (True, 'Activo'), (False, 'Inactivo')])
@@ -26,7 +29,8 @@ class EmpleadoFilter(django_filters.FilterSet):
 
     class Meta:
         model = Empleado
-        fields = ['tipo', 'activo'] # Agrega 'experiencia' aquí solo si existe
+        fields = ['especialidad', 'experiencia', 'activo']
 
     def filter_search(self, queryset, name, value):
-        return queryset.filter(nombre__icontains=value) | queryset.filter(legajo__icontains=value)
+        # CORREGIDO: nombre_completo en vez de nombre
+        return queryset.filter(nombre_completo__icontains=value) | queryset.filter(legajo__icontains=value)

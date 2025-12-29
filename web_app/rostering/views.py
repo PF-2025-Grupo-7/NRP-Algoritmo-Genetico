@@ -292,15 +292,13 @@ class EmpleadoListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # 1. Aplicar Filtros
         self.filterset = EmpleadoFilter(self.request.GET, queryset=queryset)
         queryset = self.filterset.qs
 
-        # 2. Aplicar Ordenamiento
         ordering = self.request.GET.get('order_by')
         if ordering:
-            # Lista de campos seguros para ordenar (NUNCA incluir campos que no existen en el modelo)
-            valid_fields = ['legajo', 'nombre', 'tipo', 'experiencia', 'min_turnos_mensuales', 'max_turnos_mensuales', 'activo']
+            # CORREGIDO: Campos reales del modelo
+            valid_fields = ['legajo', 'nombre_completo', 'especialidad', 'experiencia', 'min_turnos_mensuales', 'max_turnos_mensuales', 'activo']
             check_field = ordering[1:] if ordering.startswith('-') else ordering
             if check_field in valid_fields:
                 queryset = queryset.order_by(ordering)
@@ -309,9 +307,7 @@ class EmpleadoListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Pasamos el form del filtro al template
         context['filter_form'] = self.filterset.form
-        # Pasamos el orden actual para mantener las flechitas en la UI
         context['current_order'] = self.request.GET.get('order_by', '')
         return context
 
