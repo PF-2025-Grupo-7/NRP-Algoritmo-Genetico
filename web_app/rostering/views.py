@@ -15,6 +15,11 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from datetime import timedelta
 from .models import Cronograma, Asignacion, Empleado
+from django.urls import reverse_lazy
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+from .forms import EmpleadoForm
+from .filters import EmpleadoFilter
 
 # Importamos modelos
 from .models import Empleado, Cronograma, TrabajoPlanificacion
@@ -274,3 +279,57 @@ def ver_cronograma_diario(request, cronograma_id):
         'cronograma': cronograma,
         'agenda': agenda,
     })
+
+
+# --- ABM DE EMPLEADOS ---
+
+class EmpleadoListView(LoginRequiredMixin, ListView):
+    model = Empleado
+    template_name = 'rostering/empleado_list.html'
+    context_object_name = 'empleados'
+    paginate_by = 15 
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        
+        # 1. Aplicar Filtros
+        self.filterset = EmpleadoFilter(self.request.GET, queryset=queryset)
+        queryset = self.filterset.qs
+
+        # 2. Aplicar Ordenamiento
+        ordering = self.request.GET.get('order_by')
+        if ordering:
+            # Lista de campos seguros para ordenar (NUNCA incluir campos que no existen en el modelo)
+            valid_fields = ['legajo', 'nombre', 'tipo', 'experiencia', 'min_turnos_mensuales', 'max_turnos_mensuales', 'activo']
+            check_field = ordering[1:] if ordering.startswith('-') else ordering
+            if check_field in valid_fields:
+                queryset = queryset.order_by(ordering)
+        
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Pasamos el form del filtro al template
+        context['filter_form'] = self.filterset.form
+        # Pasamos el orden actual para mantener las flechitas en la UI
+        context['current_order'] = self.request.GET.get('order_by', '')
+        return context
+
+class EmpleadoCreateView(LoginRequiredMixin, CreateView):
+    model = Empleado
+    form_class = EmpleadoForm
+    template_name = 'rostering/empleado_form.html'
+    success_url = reverse_lazy('empleado_list')
+    extra_context = {'titulo': 'Nuevo Empleado'}
+
+class EmpleadoUpdateView(LoginRequiredMixin, UpdateView):
+    model = Empleado
+    form_class = EmpleadoForm
+    template_name = 'rostering/empleado_form.html' # Reutilizamos el template
+    success_url = reverse_lazy('empleado_list')
+    extra_context = {'titulo': 'Editar Empleado'}
+
+class EmpleadoDeleteView(LoginRequiredMixin, DeleteView):
+    model = Empleado
+    template_name = 'rostering/empleado_confirm_delete.html'
+    success_url = reverse_lazy('empleado_list')
