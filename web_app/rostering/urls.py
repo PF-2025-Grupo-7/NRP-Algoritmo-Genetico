@@ -23,4 +23,14 @@ urlpatterns = [
     path('empleados/crear/', views.EmpleadoCreateView.as_view(), name='empleado_create'),
     path('empleados/<int:pk>/editar/', views.EmpleadoUpdateView.as_view(), name='empleado_update'),
     path('empleados/<int:pk>/eliminar/', views.EmpleadoDeleteView.as_view(), name='empleado_delete'),
+
+    # Cronogramas
+    path('cronogramas/', views.CronogramaListView.as_view(), name='cronograma_list'),
+    path('cronogramas/<int:pk>/eliminar/', views.CronogramaDeleteView.as_view(), name='cronograma_delete'),
+
+    # Tipos de Turno
+    path('config/turnos/', views.TipoTurnoListView.as_view(), name='tipoturno_list'),
+    path('config/turnos/crear/', views.TipoTurnoCreateView.as_view(), name='tipoturno_create'),
+    path('config/turnos/<int:pk>/editar/', views.TipoTurnoUpdateView.as_view(), name='tipoturno_update'),
+    path('config/turnos/<int:pk>/eliminar/', views.TipoTurnoDeleteView.as_view(), name='tipoturno_delete'),
 ]

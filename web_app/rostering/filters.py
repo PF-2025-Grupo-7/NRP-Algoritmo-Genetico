@@ -1,6 +1,6 @@
 import django_filters
 from django import forms
-from .models import Empleado
+from .models import Empleado, Cronograma  # <--- IMPORTANTE: Incluir Cronograma
 
 class EmpleadoFilter(django_filters.FilterSet):
     search = django_filters.CharFilter(
@@ -21,21 +21,19 @@ class EmpleadoFilter(django_filters.FilterSet):
         widget=forms.Select(attrs={'class': 'form-select'})
     )
 
-    # --- NUEVOS FILTROS NUMÉRICOS ---
     min_turnos = django_filters.NumberFilter(
         field_name='min_turnos_mensuales',
-        lookup_expr='gte', # Mayor o igual que
+        lookup_expr='gte',
         label='Mínimo de Turnos (>=)',
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 4'})
     )
 
     max_turnos = django_filters.NumberFilter(
         field_name='max_turnos_mensuales',
-        lookup_expr='lte', # Menor o igual que
+        lookup_expr='lte',
         label='Máximo de Turnos (<=)',
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 20'})
     )
-    # -------------------------------
 
     activo = django_filters.BooleanFilter(
         widget=forms.Select(attrs={'class': 'form-select'}, choices=[(None, 'Todos'), (True, 'Activo'), (False, 'Inactivo')])
@@ -47,3 +45,37 @@ class EmpleadoFilter(django_filters.FilterSet):
 
     def filter_search(self, queryset, name, value):
         return queryset.filter(nombre_completo__icontains=value) | queryset.filter(legajo__icontains=value)
+
+# --- ESTA ES LA CLASE QUE TE FALTABA ---
+class CronogramaFilter(django_filters.FilterSet):
+    # Mapeamos 'anio' al lookup 'year' de fecha_inicio
+    anio = django_filters.NumberFilter(
+        field_name='fecha_inicio', 
+        lookup_expr='year', 
+        label='Año',
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 2025'})
+    )
+    # Mapeamos 'mes' al lookup 'month' de fecha_inicio
+    mes = django_filters.NumberFilter(
+        field_name='fecha_inicio', 
+        lookup_expr='month', 
+        label='Mes',
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ej: 10'})
+    )
+    
+    estado = django_filters.ChoiceFilter(
+        choices=Cronograma.Estado.choices, 
+        empty_label="Todos los Estados",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    # Agregamos filtro por especialidad ya que lo tenés en el modelo
+    especialidad = django_filters.ChoiceFilter(
+        choices=Empleado.TipoEspecialidad.choices,
+        empty_label="Todas las Especialidades",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    class Meta:
+        model = Cronograma
+        fields = ['anio', 'mes', 'estado', 'especialidad']

@@ -14,12 +14,12 @@ from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from datetime import timedelta
-from .models import Cronograma, Asignacion, Empleado
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
-from .forms import EmpleadoForm
-from .filters import EmpleadoFilter
+from .models import Empleado, Cronograma, TipoTurno, Asignacion
+from .forms import EmpleadoForm, TipoTurnoForm
+from .filters import EmpleadoFilter, CronogramaFilter
 
 # Importamos modelos
 from .models import Empleado, Cronograma, TrabajoPlanificacion
@@ -329,3 +329,51 @@ class EmpleadoDeleteView(LoginRequiredMixin, DeleteView):
     model = Empleado
     template_name = 'rostering/empleado_confirm_delete.html'
     success_url = reverse_lazy('empleado_list')
+
+class CronogramaListView(LoginRequiredMixin, ListView):
+    model = Cronograma
+    template_name = 'rostering/cronograma_list.html'
+    context_object_name = 'cronogramas'
+    # CORREGIDO: Ordenar por fecha_inicio descendente
+    ordering = ['-fecha_inicio', '-fecha_creacion'] 
+    paginate_by = 10
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        self.filterset = CronogramaFilter(self.request.GET, queryset=queryset)
+        return self.filterset.qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['filter_form'] = self.filterset.form
+        return context
+
+# Solo necesitamos Delete. El Create es el Generador, y el Update es la Matriz.
+class CronogramaDeleteView(LoginRequiredMixin, DeleteView):
+    model = Cronograma
+    template_name = 'rostering/cronograma_confirm_delete.html'
+    success_url = reverse_lazy('cronograma_list')
+
+class TipoTurnoListView(LoginRequiredMixin, ListView):
+    model = TipoTurno
+    template_name = 'rostering/tipoturno_list.html'
+    context_object_name = 'turnos'
+
+class TipoTurnoCreateView(LoginRequiredMixin, CreateView):
+    model = TipoTurno
+    form_class = TipoTurnoForm
+    template_name = 'rostering/tipoturno_form.html'
+    success_url = reverse_lazy('tipoturno_list')
+    extra_context = {'titulo': 'Crear Tipo de Turno'}
+
+class TipoTurnoUpdateView(LoginRequiredMixin, UpdateView):
+    model = TipoTurno
+    form_class = TipoTurnoForm
+    template_name = 'rostering/tipoturno_form.html'
+    success_url = reverse_lazy('tipoturno_list')
+    extra_context = {'titulo': 'Editar Tipo de Turno'}
+
+class TipoTurnoDeleteView(LoginRequiredMixin, DeleteView):
+    model = TipoTurno
+    template_name = 'rostering/tipoturno_confirm_delete.html'
+    success_url = reverse_lazy('tipoturno_list')
