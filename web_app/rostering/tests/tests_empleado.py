@@ -2,13 +2,14 @@ from django.test import TestCase # type: ignore
 from django.core.exceptions import ValidationError # type: ignore
 from rostering.models import Empleado
 
-legajo = "EMP001"
-
 class TestEmpleado(TestCase):
+
+    def setUp(self):
+        self.legajo = "EMP001"
 
     def crear_empleado(self, **custom_data):
         empleado_default = {
-            "legajo": "EMP001",
+            "legajo": self.legajo,
             "nombre_completo": "Juan Pérez",
             "especialidad": Empleado.TipoEspecialidad.MEDICO,
             "experiencia": Empleado.TipoExperiencia.SENIOR,
@@ -28,9 +29,9 @@ class TestEmpleado(TestCase):
         
         nombre = "Ana María"
 
-        self.crear_empleado(legajo=legajo, nombre_completo=nombre)
+        self.crear_empleado(legajo=self.legajo, nombre_completo=nombre)
 
-        empleado = Empleado.objects.get(legajo=legajo)
+        empleado = Empleado.objects.get(legajo=self.legajo)
         self.assertIsNotNone(empleado)
         self.assertEqual(nombre, empleado.nombre_completo)
 
@@ -51,7 +52,7 @@ class TestEmpleado(TestCase):
             experiencia=Empleado.TipoExperiencia.SENIOR,
         )
 
-        empleado = Empleado.objects.get(legajo=legajo)
+        empleado = Empleado.objects.get(legajo=self.legajo)
         self.assertTrue(empleado.activo)
         self.assertEqual(min_turnos, empleado.min_turnos_mensuales)
         self.assertEqual(max_turnos, empleado.max_turnos_mensuales)
@@ -69,5 +70,5 @@ class TestEmpleado(TestCase):
     def test_cuando_empleado_no_esta_activo_str_deberia_indicar_inactivo(self):
         self.crear_empleado(activo = False)
 
-        empleado = Empleado.objects.get(legajo=legajo)
+        empleado = Empleado.objects.get(legajo=self.legajo)
         self.assertFalse(empleado.activo)

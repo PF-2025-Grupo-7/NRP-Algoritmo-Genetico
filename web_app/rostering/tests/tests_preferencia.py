@@ -20,12 +20,10 @@ class TestPreferencia(TestCase):
             hora_fin=time(12, 0)
         )
 
-        self.fecha = date(2026, 2, 10)
-
     def crear_preferencia(self, **custom_data):
         default_data = {
             "empleado": self.empleado,
-            "fecha": self.fecha,
+            "fecha": date(2026, 2, 10),
             "tipo_turno": self.turno_medico,
             "deseo": Preferencia.Deseo.TRABAJAR,
             "comentario": "Prefiere turno mañana"

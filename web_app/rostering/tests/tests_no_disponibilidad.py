@@ -20,14 +20,11 @@ class TestNoDisponibilidad(TestCase):
             hora_fin=time(12, 0)
         )
 
-        self.fecha_inicio = date(2026, 1, 10)
-        self.fecha_fin = date(2026, 1, 15)
-
     def crear_no_disponibilidad(self, **custom_data):
         default_data = {
             "empleado": self.empleado,
-            "fecha_inicio": self.fecha_inicio,
-            "fecha_fin": self.fecha_fin,
+            "fecha_inicio": date(2026, 1, 10),
+            "fecha_fin": date(2026, 1, 15),
             "tipo_turno": self.turno_medico,
             "motivo": "Vacaciones"
         }

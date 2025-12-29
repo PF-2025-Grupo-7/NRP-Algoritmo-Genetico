@@ -7,7 +7,6 @@ class TestCronograma(TestCase):
 
     def setUp(self):
         self.especialidad_medico = Empleado.TipoEspecialidad.MEDICO
-        self.especialidad_enfermero = Empleado.TipoEspecialidad.ENFERMERO
 
         self.fecha_inicio = date(2026, 1, 1)
         self.fecha_fin = date(2026, 1, 31)
@@ -19,7 +18,7 @@ class TestCronograma(TestCase):
 
         self.plantilla_enfermero = PlantillaDemanda.objects.create(
             nombre="Demanda Enfermeros Enero",
-            especialidad=self.especialidad_enfermero
+            especialidad= Empleado.TipoEspecialidad.ENFERMERO
         )
 
         self.configuracion = ConfiguracionAlgoritmo.objects.create(
