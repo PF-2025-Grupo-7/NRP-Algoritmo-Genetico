@@ -21,6 +21,28 @@
                             {{ filter_form.experiencia }}
                         </div>
                         <div class="mb-3">
+                            <label class="form-label small fw-bold">Configuración de Turnos</label>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <div class="form-floating">
+                                        {{ filter_form.min_turnos }}
+                                        <label for="{{ filter_form.min_turnos.id_for_label }}" class="small opacity-50">Min >=</label>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="form-floating">
+                                        {{ filter_form.max_turnos }}
+                                        <label for="{{ filter_form.max_turnos.id_for_label }}" class="small opacity-50">Max <=</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Estado</label>
+                            {{ filter_form.activo }}
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label small fw-bold">Estado</label>
                             {{ filter_form.activo }}
                         </div>
