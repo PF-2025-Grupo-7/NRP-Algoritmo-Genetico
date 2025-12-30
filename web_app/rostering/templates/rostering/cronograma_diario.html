@@ -3,36 +3,56 @@
 {% block title %}Vista Diaria{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>📅 Vista Operativa Diaria</h2>
+<div class="d-flex justify-content-between align-items-center mb-4 no-print">
     <div>
-        <a href="{% url 'ver_cronograma' cronograma.id %}" class="btn btn-outline-primary">📊 Ver Matriz</a>
-        <button class="btn btn-secondary" onclick="window.print()">🖨 Imprimir</button>
+        <h2 class="mb-0">📅 Vista Operativa Diaria</h2>
+        <p class="text-muted small">
+            {{ cronograma.get_especialidad_display }} | {{ cronograma.fecha_inicio }} - {{ cronograma.fecha_fin }}
+        </p>
+    </div>
+    <div>
+        <a href="{% url 'ver_cronograma' cronograma.id %}" class="btn btn-outline-primary">
+            <i class="bi bi-grid-3x3"></i> Ver Matriz
+        </a>
+        <button class="btn btn-success" onclick="window.print()">
+            <i class="bi bi-printer"></i> Imprimir PDF
+        </button>
     </div>
 </div>
 
-<div class="container">
+<div class="container-fluid">
     {% for fecha, turnos in agenda.items %}
-        <div class="card mb-4 shadow-sm">
-            <div class="card-header bg-dark text-white d-flex justify-content-between">
-                <h5 class="mb-0">{{ fecha|date:"l d \d\e F"|title }}</h5> </div>
+        <div class="card mb-4 shadow-sm page-break-card border-secondary">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center print-header">
+                <h5 class="mb-0 text-capitalize">
+                    {{ fecha|date:"l d \d\e F Y" }}
+                </h5> 
+                <span class="badge bg-light text-dark border">Día {{ forloop.counter }}</span>
+            </div>
+            
             <div class="card-body">
-                <div class="row">
-                    {% for nombre_turno, empleados in turnos.items %}
-                        <div class="col-md-4 mb-3">
-                            <div class="card h-100 border-0 bg-light">
-                                <div class="card-body">
-                                    <h6 class="card-title text-primary border-bottom pb-2">
-                                        {{ nombre_turno }}
-                                        <span class="badge bg-secondary float-end">{{ empleados|length }}</span>
-                                    </h6>
-                                    <ul class="list-group list-group-flush bg-transparent">
+                <div class="row g-3"> {% for nombre_turno, empleados in turnos.items %}
+                        <div class="col-md-4 print-col-4">
+                            <div class="card h-100 border bg-light turno-card">
+                                <div class="card-header bg-white border-bottom-0 pt-3 pb-1">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h6 class="card-title text-primary fw-bold mb-0">{{ nombre_turno }}</h6>
+                                        <span class="badge bg-secondary rounded-pill">{{ empleados|length }}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="card-body p-2">
+                                    <ul class="list-group list-group-flush rounded-2">
                                         {% for emp in empleados %}
-                                            <li class="list-group-item bg-transparent py-1 px-0 d-flex justify-content-between align-items-center">
-                                                <span>{{ emp.nombre_completo }}</span>
+                                            <li class="list-group-item bg-white py-1 px-2 d-flex justify-content-between align-items-center mb-1 border rounded-1 shadow-sm small-text">
+                                                <span class="fw-medium text-dark">{{ emp.nombre_completo }}</span>
                                                 {% if emp.experiencia == 'SENIOR' %}
-                                                    <span class="badge text-bg-warning" style="font-size: 0.6em">S</span>
+                                                    <span class="badge bg-warning text-dark border" title="Senior" style="font-size: 0.65em">S</span>
                                                 {% endif %}
+                                            </li>
+                                        {% empty %}
+                                            <li class="list-group-item bg-transparent text-muted small fst-italic text-center">
+                                                Sin asignaciones
                                             </li>
                                         {% endfor %}
                                     </ul>
@@ -45,4 +65,85 @@
         </div>
     {% endfor %}
 </div>
+
+<style>
+    /* Estilos normales de pantalla */
+    .small-text { font-size: 0.9rem; }
+
+    /* ESTILOS DE IMPRESIÓN */
+    @media print {
+        /* Configuración de Página */
+        @page {
+            size: landscape; /* Horizontal para que entren los 3 turnos lado a lado */
+            margin: 8mm;
+        }
+
+        /* Ocultar interfaz */
+        header, footer, nav, .sidebar, .no-print, .btn, .navbar {
+            display: none !important;
+        }
+
+        /* Ajustes de Cuerpo */
+        body {
+            background-color: white !important;
+            font-family: sans-serif;
+            -webkit-print-color-adjust: exact !important; /* Imprimir colores de fondo */
+            print-color-adjust: exact !important;
+            font-size: 10pt; /* Letra un poco más chica para ahorrar papel */
+        }
+
+        .container, .container-fluid {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        /* EVITAR CORTES DE PÁGINA FEOS */
+        .page-break-card {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            border: 1px solid #000 !important; /* Borde sólido para definir bien el día */
+            box-shadow: none !important;
+            margin-bottom: 15px !important;
+        }
+
+        /* Header de tarjeta más simple para imprimir */
+        .print-header {
+            background-color: #333 !important; /* Forzar negro/gris oscuro */
+            color: white !important;
+            border-bottom: 1px solid black;
+        }
+
+        /* FORZAR GRID DE 3 COLUMNAS */
+        /* Bootstrap a veces colapsa a 1 columna al imprimir, esto lo evita */
+        .row {
+            display: flex !important;
+            flex-wrap: wrap !important;
+        }
+        
+        .print-col-4 {
+            width: 33.33% !important;
+            flex: 0 0 33.33% !important;
+            max-width: 33.33% !important;
+            padding-right: 5px; /* Espacio entre columnas */
+        }
+
+        /* Limpieza visual de las tarjetas internas */
+        .turno-card {
+            border: 1px solid #ccc !important;
+            background-color: #f8f9fa !important;
+        }
+        
+        /* Badges más legibles en papel */
+        .badge {
+            border: 1px solid #000 !important;
+            color: black !important;
+            background: white !important; /* Ahorrar tinta en badges grandes */
+        }
+        .badge.bg-warning {
+            background: #ffc107 !important; /* Mantener amarillo para Senior */
+        }
+    }
+</style>
 {% endblock %}

@@ -3,17 +3,19 @@
 {% block title %}Cronograma Detallado{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 no-print">
     <div>
         <h2 class="mb-0">📅 Cronograma {{ cronograma.get_especialidad_display }}</h2>
         <p class="text-muted small mb-0">
             Del {{ cronograma.fecha_inicio|date:"d M" }} al {{ cronograma.fecha_fin|date:"d M Y" }} 
-            | Fitness: <strong>{{ cronograma.fitness }}</strong>
+            | Fitness: <strong>{{ cronograma.fitness|default:"-" }}</strong>
         </p>
     </div>
     <div>
-        <a href="{% url 'vista_generador' %}" class="btn btn-outline-secondary btn-sm">⬅ Volver</a>
-        <button class="btn btn-success btn-sm" onclick="window.print()">🖨 Imprimir</button>
+        <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary btn-sm">⬅ Volver</a>
+        <button class="btn btn-success btn-sm" onclick="window.print()">
+            <i class="bi bi-printer"></i> Guardar como PDF
+        </button>
     </div>
 </div>
 
@@ -39,7 +41,7 @@
                         <td class="text-start sticky-col-start bg-white fw-bold text-truncate" style="max-width: 200px;">
                             {{ fila.empleado.nombre_completo }}
                             <span class="badge rounded-pill text-bg-light border ms-1" style="font-size: 0.6em;">
-                                {{ fila.empleado.experiencia|slice:":1" }}
+                                {{ fila.empleado.get_experiencia_display|slice:":1" }}
                             </span>
                         </td>
                         
@@ -71,7 +73,7 @@
 </div>
 
 <style>
-    /* CSS Mágico para fijar la primera columna */
+    /* 1. ESTILOS DE VISUALIZACIÓN EN PANTALLA */
     .sticky-col-start {
         position: sticky;
         left: 0;
@@ -80,6 +82,66 @@
     }
     thead .sticky-col-start {
         z-index: 3 !important; /* Esquina superior izquierda siempre arriba */
+    }
+
+    /* 2. ESTILOS PARA IMPRESIÓN (PDF) */
+    @media print {
+        @page {
+            size: landscape; /* Hoja horizontal */
+            margin: 5mm;     /* Márgenes mínimos */
+        }
+
+        /* Ocultar elementos de navegación y botones */
+        header, footer, nav, .sidebar, .navbar, .no-print, .btn {
+            display: none !important;
+        }
+
+        /* Ajustes del cuerpo para impresión limpia */
+        body {
+            background-color: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            /* Forzar impresión de colores de fondo (badges) */
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* Ajustes de contenedores */
+        .container, .container-fluid, .main-content, .card {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
+
+        /* Ajustes de la tabla para que entre todo */
+        .table-responsive {
+            overflow: visible !important;
+            max-height: none !important;
+        }
+        
+        table {
+            font-size: 9px !important; /* Letra más chica para que entren 31 días */
+            width: 100% !important;
+        }
+
+        th, td {
+            padding: 2px !important;
+            white-space: nowrap;
+        }
+
+        /* Desactivar sticky en impresión para evitar cortes raros */
+        .sticky-col-start {
+            position: static !important;
+            border-right: 1px solid #dee2e6 !important;
+        }
+        
+        /* Evitar que se parta una fila a la mitad entre hojas */
+        tr {
+            page-break-inside: avoid;
+        }
     }
 </style>
 {% endblock %}
