@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card border-danger shadow">
+                <div class="card-header bg-danger text-white">
+                    <i class="bi bi-exclamation-triangle"></i> Confirmar Eliminación
+                </div>
+                <div class="card-body text-center p-4">
+                    <h5 class="card-title mb-3">¿Estás seguro?</h5>
+                    <p class="card-text">
+                        Vas a eliminar el turno <strong>"{{ object.nombre }}"</strong>.
+                        <br>
+                        <span class="text-muted small">Esto podría afectar a estadísticas históricas si se usa en planificaciones viejas.</span>
+                    </p>
+                    
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-center gap-2">
+                            <a href="{% url 'tipoturno_list' %}" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-danger px-4">Sí, eliminar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
