@@ -16,7 +16,7 @@ from django.contrib.auth.decorators import login_required
 from datetime import timedelta
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 # Importar SecuenciaProhibida
 from .models import Empleado, Cronograma, TipoTurno, NoDisponibilidad, Preferencia, SecuenciaProhibida
 # Importar Form y Filter
@@ -32,6 +32,8 @@ from .services import (
     consultar_resultado_ag, 
     guardar_solucion_db
 )
+from .models import PlantillaDemanda, ReglaDemandaSemanal, ExcepcionDemanda
+from .forms import PlantillaDemandaForm, ReglaDemandaSemanalForm, ExcepcionDemandaForm
 
 # --- VISTA 1: INICIAR EL PROCESO ---
 
@@ -507,3 +509,100 @@ class SecuenciaProhibidaDeleteView(LoginRequiredMixin, DeleteView):
     model = SecuenciaProhibida
     template_name = 'rostering/confirm_delete_generic.html'
     success_url = reverse_lazy('secuencia_list')
+
+# --- PLANTILLAS (MAESTRO) ---
+
+class PlantillaListView(LoginRequiredMixin, ListView):
+    model = PlantillaDemanda
+    template_name = 'rostering/plantilla_list.html'
+    context_object_name = 'plantillas'
+
+class PlantillaCreateView(LoginRequiredMixin, CreateView):
+    model = PlantillaDemanda
+    form_class = PlantillaDemandaForm
+    template_name = 'rostering/plantilla_form.html'
+    success_url = reverse_lazy('plantilla_list')
+    extra_context = {'titulo': 'Nueva Plantilla de Demanda'}
+
+class PlantillaDetailView(LoginRequiredMixin, DetailView):
+    """ Este es el DASHBOARD de la plantilla """
+    model = PlantillaDemanda
+    template_name = 'rostering/plantilla_detail.html'
+    context_object_name = 'plantilla'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Ordenamos reglas: Lunes(0) a Domingo(6)
+        context['reglas'] = self.object.reglas.all().order_by('dia', 'turno__hora_inicio')
+        context['excepciones'] = self.object.excepciones.all().order_by('fecha')
+        return context
+
+class PlantillaDeleteView(LoginRequiredMixin, DeleteView):
+    model = PlantillaDemanda
+    template_name = 'rostering/confirm_delete_generic.html'
+    success_url = reverse_lazy('plantilla_list')
+
+# --- REGLAS (DETALLE) ---
+
+class ReglaCreateView(LoginRequiredMixin, CreateView):
+    model = ReglaDemandaSemanal
+    form_class = ReglaDemandaSemanalForm
+    template_name = 'rostering/regla_form.html'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        # Pasamos el ID al form para filtrar turnos
+        kwargs['plantilla_id'] = self.kwargs['plantilla_id']
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.plantilla_id = self.kwargs['plantilla_id']
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('plantilla_detail', kwargs={'pk': self.kwargs['plantilla_id']})
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        plantilla = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
+        context['titulo'] = f"Agregar Regla a {plantilla.nombre}"
+        return context
+
+class ReglaDeleteView(LoginRequiredMixin, DeleteView):
+    model = ReglaDemandaSemanal
+    template_name = 'rostering/confirm_delete_generic.html'
+    
+    def get_success_url(self):
+        return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.plantilla.id})
+
+# --- EXCEPCIONES (DETALLE) ---
+
+class ExcepcionCreateView(LoginRequiredMixin, CreateView):
+    model = ExcepcionDemanda
+    form_class = ExcepcionDemandaForm
+    template_name = 'rostering/regla_form.html' # Reusamos template
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['plantilla_id'] = self.kwargs['plantilla_id']
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.plantilla_id = self.kwargs['plantilla_id']
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('plantilla_detail', kwargs={'pk': self.kwargs['plantilla_id']})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        plantilla = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
+        context['titulo'] = f"Agregar Excepción a {plantilla.nombre}"
+        return context
+
+class ExcepcionDeleteView(LoginRequiredMixin, DeleteView):
+    model = ExcepcionDemanda
+    template_name = 'rostering/confirm_delete_generic.html'
+    
+    def get_success_url(self):
+        return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.plantilla.id})

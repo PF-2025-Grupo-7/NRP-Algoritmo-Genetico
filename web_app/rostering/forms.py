@@ -1,6 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Empleado, TipoTurno, NoDisponibilidad, Preferencia, SecuenciaProhibida
+from .models import Empleado, TipoTurno, NoDisponibilidad, Preferencia, SecuenciaProhibida, PlantillaDemanda, ReglaDemandaSemanal, ExcepcionDemanda
 
 # Este Mixin sirve para darle estilo Bootstrap a cualquier form que hagan
 class BootstrapFormMixin:
@@ -70,3 +70,50 @@ class SecuenciaProhibidaForm(BootstrapFormMixin, forms.ModelForm):
         # La validación cruzada de especialidades ya está en el modelo (método clean),
         # Django la ejecuta automáticamente y asigna los errores al form.
         return cleaned_data
+    
+# --- PLANTILLAS DE DEMANDA ---
+
+class PlantillaDemandaForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = PlantillaDemanda
+        fields = '__all__'
+        widgets = {
+            'especialidad': forms.Select(attrs={'class': 'form-select'}),
+            'descripcion': forms.Textarea(attrs={'rows': 3}),
+        }
+
+class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = ReglaDemandaSemanal
+        fields = ['dia', 'turno', 'cantidad_senior', 'cantidad_junior']
+        widgets = {
+            'dia': forms.Select(attrs={'class': 'form-select'}),
+            'turno': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        # Recibimos la plantilla para filtrar los turnos
+        plantilla_id = kwargs.pop('plantilla_id', None)
+        super().__init__(*args, **kwargs)
+        
+        if plantilla_id:
+            plantilla = PlantillaDemanda.objects.get(id=plantilla_id)
+            # Solo mostramos turnos de la misma especialidad
+            self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
+
+class ExcepcionDemandaForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = ExcepcionDemanda
+        fields = ['fecha', 'turno', 'cantidad_senior', 'cantidad_junior', 'motivo']
+        widgets = {
+            'fecha': forms.DateInput(attrs={'type': 'date'}),
+            'turno': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        plantilla_id = kwargs.pop('plantilla_id', None)
+        super().__init__(*args, **kwargs)
+        
+        if plantilla_id:
+            plantilla = PlantillaDemanda.objects.get(id=plantilla_id)
+            self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=plantilla.especialidad)

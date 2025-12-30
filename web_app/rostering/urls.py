@@ -51,4 +51,17 @@ urlpatterns = [
     path('config/secuencias/crear/', views.SecuenciaProhibidaCreateView.as_view(), name='secuencia_create'),
     path('config/secuencias/<int:pk>/editar/', views.SecuenciaProhibidaUpdateView.as_view(), name='secuencia_update'),
     path('config/secuencias/<int:pk>/eliminar/', views.SecuenciaProhibidaDeleteView.as_view(), name='secuencia_delete'),
+
+    # Plantillas de Demanda
+    path('config/plantillas/', views.PlantillaListView.as_view(), name='plantilla_list'),
+    path('config/plantillas/crear/', views.PlantillaCreateView.as_view(), name='plantilla_create'),
+    path('config/plantillas/<int:pk>/', views.PlantillaDetailView.as_view(), name='plantilla_detail'), # Dashboard
+    path('config/plantillas/<int:pk>/eliminar/', views.PlantillaDeleteView.as_view(), name='plantilla_delete'),
+
+    # Reglas y Excepciones (Vinculadas a una plantilla)
+    path('config/plantillas/<int:plantilla_id>/regla/nueva/', views.ReglaCreateView.as_view(), name='regla_create'),
+    path('config/regla/<int:pk>/eliminar/', views.ReglaDeleteView.as_view(), name='regla_delete'),
+    
+    path('config/plantillas/<int:plantilla_id>/excepcion/nueva/', views.ExcepcionCreateView.as_view(), name='excepcion_create'),
+    path('config/excepcion/<int:pk>/eliminar/', views.ExcepcionDeleteView.as_view(), name='excepcion_delete'),
 ]

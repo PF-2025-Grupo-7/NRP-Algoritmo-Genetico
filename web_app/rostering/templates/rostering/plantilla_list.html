@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-list-check"></i> Plantillas de Demanda</h2>
+        <a href="{% url 'plantilla_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Nueva Plantilla
+        </a>
+    </div>
+
+    <div class="row">
+        {% for p in plantillas %}
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm h-100 border-0">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title text-primary fw-bold">{{ p.nombre }}</h5>
+                        {% if p.especialidad == 'MEDICO' %}
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary">Médico</span>
+                        {% else %}
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success">Enfermero</span>
+                        {% endif %}
+                    </div>
+                    <p class="card-text text-muted small">{{ p.descripcion|default:"Sin descripción" }}</p>
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-4">
+                        <div class="small text-muted">
+                            <i class="bi bi-calendar-week"></i> {{ p.reglas.count }} Reglas
+                        </div>
+                        <div class="btn-group">
+                            <a href="{% url 'plantilla_detail' p.pk %}" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-gear"></i> Configurar
+                            </a>
+                            <a href="{% url 'plantilla_delete' p.pk %}" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12 text-center py-5 text-muted">
+            <i class="bi bi-inbox fs-1 d-block"></i> No hay plantillas creadas.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
