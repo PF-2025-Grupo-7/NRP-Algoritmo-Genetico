@@ -1,6 +1,6 @@
 import django_filters
 from django import forms
-from .models import Empleado, Cronograma  # <--- IMPORTANTE: Incluir Cronograma
+from .models import Empleado, Cronograma, TipoTurno, NoDisponibilidad, Preferencia
 
 class EmpleadoFilter(django_filters.FilterSet):
     search = django_filters.CharFilter(
@@ -79,3 +79,20 @@ class CronogramaFilter(django_filters.FilterSet):
     class Meta:
         model = Cronograma
         fields = ['anio', 'mes', 'estado', 'especialidad']
+
+class NoDisponibilidadFilter(django_filters.FilterSet):
+    empleado = django_filters.CharFilter(field_name='empleado__nombre_completo', lookup_expr='icontains', label='Empleado')
+    fecha = django_filters.DateFilter(field_name='fecha_inicio', lookup_expr='gte', label='A partir de (Fecha)', widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}))
+
+    class Meta:
+        model = NoDisponibilidad
+        fields = ['empleado', 'fecha']
+
+class PreferenciaFilter(django_filters.FilterSet):
+    empleado = django_filters.CharFilter(field_name='empleado__nombre_completo', lookup_expr='icontains', label='Empleado')
+    fecha = django_filters.DateFilter(field_name='fecha', label='Fecha exacta', widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}))
+    deseo = django_filters.ChoiceFilter(choices=Preferencia.Deseo.choices, widget=forms.Select(attrs={'class': 'form-select'}))
+
+    class Meta:
+        model = Preferencia
+        fields = ['empleado', 'fecha', 'deseo']

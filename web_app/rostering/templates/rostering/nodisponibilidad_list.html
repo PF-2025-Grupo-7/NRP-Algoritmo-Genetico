@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-calendar-x"></i> Gestión de Ausencias</h2>
+        <a href="{% url 'nodisponibilidad_create' %}" class="btn btn-danger">
+            <i class="bi bi-plus-circle"></i> Registrar Ausencia
+        </a>
+    </div>
+
+    <div class="card mb-3 bg-light border-0">
+        <div class="card-body py-2">
+            <form method="get" class="row g-2 align-items-center">
+                <div class="col-auto fw-bold">Filtrar:</div>
+                <div class="col-auto">{{ filter_form.empleado }}</div>
+                <div class="col-auto">{{ filter_form.fecha }}</div>
+                <div class="col-auto"><button class="btn btn-secondary btn-sm">Buscar</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive card shadow-sm">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Empleado</th>
+                    <th>Especialidad</th> <th>Desde</th>
+                    <th>Hasta</th>
+                    <th>Alcance</th>
+                    <th>Motivo</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in ausencias %}
+                <tr>
+                    <td class="fw-bold">{{ a.empleado.nombre_completo }}</td>
+                    
+                    <td>
+                        {% if a.empleado.especialidad == 'MEDICO' %}
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary">Médico</span>
+                        {% elif a.empleado.especialidad == 'ENFERMERO' %}
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success">Enfermero</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ a.empleado.get_especialidad_display }}</span>
+                        {% endif %}
+                    </td>
+
+                    <td>{{ a.fecha_inicio|date:"d/m/Y" }}</td>
+                    <td>{{ a.fecha_fin|date:"d/m/Y" }}</td>
+                    <td>
+                        {% if a.tipo_turno %}
+                            <span class="badge bg-warning text-dark">{{ a.tipo_turno }}</span>
+                        {% else %}
+                            <span class="badge bg-danger">Día Completo</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ a.motivo }}</td>
+                    <td>
+                        <a href="{% url 'nodisponibilidad_update' a.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                        <a href="{% url 'nodisponibilidad_delete' a.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center py-4">No hay ausencias registradas.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

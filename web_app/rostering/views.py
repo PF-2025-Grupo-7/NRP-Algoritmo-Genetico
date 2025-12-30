@@ -17,9 +17,12 @@ from datetime import timedelta
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
-from .models import Empleado, Cronograma, TipoTurno, Asignacion
-from .forms import EmpleadoForm, TipoTurnoForm
-from .filters import EmpleadoFilter, CronogramaFilter
+from .models import Empleado, Cronograma, TipoTurno, Asignacion, NoDisponibilidad, Preferencia 
+from .forms import (
+    EmpleadoForm, TipoTurnoForm, 
+    NoDisponibilidadForm, PreferenciaForm
+)
+from .filters import EmpleadoFilter, CronogramaFilter, NoDisponibilidadFilter, PreferenciaFilter
 
 # Importamos modelos
 from .models import Empleado, Cronograma, TrabajoPlanificacion
@@ -377,3 +380,78 @@ class TipoTurnoDeleteView(LoginRequiredMixin, DeleteView):
     model = TipoTurno
     template_name = 'rostering/tipoturno_confirm_delete.html'
     success_url = reverse_lazy('tipoturno_list')
+
+
+class NoDisponibilidadListView(LoginRequiredMixin, ListView):
+    model = NoDisponibilidad
+    template_name = 'rostering/nodisponibilidad_list.html'
+    context_object_name = 'ausencias'
+    ordering = ['-fecha_inicio']
+    paginate_by = 10
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related('empleado') # <--- ESTO OPTIMIZA
+        self.filterset = NoDisponibilidadFilter(self.request.GET, queryset=queryset)
+        return self.filterset.qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['filter_form'] = self.filterset.form
+        return context
+
+class NoDisponibilidadCreateView(LoginRequiredMixin, CreateView):
+    model = NoDisponibilidad
+    form_class = NoDisponibilidadForm
+    template_name = 'rostering/nodisponibilidad_form.html'
+    success_url = reverse_lazy('nodisponibilidad_list')
+    extra_context = {'titulo': 'Registrar Ausencia / Licencia'}
+
+class NoDisponibilidadUpdateView(LoginRequiredMixin, UpdateView):
+    model = NoDisponibilidad
+    form_class = NoDisponibilidadForm
+    template_name = 'rostering/nodisponibilidad_form.html'
+    success_url = reverse_lazy('nodisponibilidad_list')
+    extra_context = {'titulo': 'Editar Ausencia'}
+
+class NoDisponibilidadDeleteView(LoginRequiredMixin, DeleteView):
+    model = NoDisponibilidad
+    template_name = 'rostering/confirm_delete_generic.html' # Usaremos uno genérico para ahorrar archivos
+    success_url = reverse_lazy('nodisponibilidad_list')
+
+# --- PREFERENCIAS ---
+
+class PreferenciaListView(LoginRequiredMixin, ListView):
+    model = Preferencia
+    template_name = 'rostering/preferencia_list.html'
+    context_object_name = 'preferencias'
+    ordering = ['-fecha']
+    paginate_by = 10
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related('empleado') # <--- ESTO OPTIMIZA
+        self.filterset = PreferenciaFilter(self.request.GET, queryset=queryset)
+        return self.filterset.qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['filter_form'] = self.filterset.form
+        return context
+
+class PreferenciaCreateView(LoginRequiredMixin, CreateView):
+    model = Preferencia
+    form_class = PreferenciaForm
+    template_name = 'rostering/preferencia_form.html'
+    success_url = reverse_lazy('preferencia_list')
+    extra_context = {'titulo': 'Nueva Preferencia'}
+
+class PreferenciaUpdateView(LoginRequiredMixin, UpdateView):
+    model = Preferencia
+    form_class = PreferenciaForm
+    template_name = 'rostering/preferencia_form.html'
+    success_url = reverse_lazy('preferencia_list')
+    extra_context = {'titulo': 'Editar Preferencia'}
+
+class PreferenciaDeleteView(LoginRequiredMixin, DeleteView):
+    model = Preferencia
+    template_name = 'rostering/confirm_delete_generic.html'
+    success_url = reverse_lazy('preferencia_list')

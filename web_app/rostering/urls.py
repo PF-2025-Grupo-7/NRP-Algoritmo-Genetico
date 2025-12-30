@@ -33,4 +33,16 @@ urlpatterns = [
     path('config/turnos/crear/', views.TipoTurnoCreateView.as_view(), name='tipoturno_create'),
     path('config/turnos/<int:pk>/editar/', views.TipoTurnoUpdateView.as_view(), name='tipoturno_update'),
     path('config/turnos/<int:pk>/eliminar/', views.TipoTurnoDeleteView.as_view(), name='tipoturno_delete'),
+
+    # Ausencias / No Disponibilidad
+    path('ausencias/', views.NoDisponibilidadListView.as_view(), name='nodisponibilidad_list'),
+    path('ausencias/crear/', views.NoDisponibilidadCreateView.as_view(), name='nodisponibilidad_create'),
+    path('ausencias/<int:pk>/editar/', views.NoDisponibilidadUpdateView.as_view(), name='nodisponibilidad_update'),
+    path('ausencias/<int:pk>/eliminar/', views.NoDisponibilidadDeleteView.as_view(), name='nodisponibilidad_delete'),
+
+    # Preferencias
+    path('preferencias/', views.PreferenciaListView.as_view(), name='preferencia_list'),
+    path('preferencias/crear/', views.PreferenciaCreateView.as_view(), name='preferencia_create'),
+    path('preferencias/<int:pk>/editar/', views.PreferenciaUpdateView.as_view(), name='preferencia_update'),
+    path('preferencias/<int:pk>/eliminar/', views.PreferenciaDeleteView.as_view(), name='preferencia_delete'),
 ]

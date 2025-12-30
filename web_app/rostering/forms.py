@@ -1,5 +1,6 @@
 from django import forms
-from .models import Empleado, TipoTurno  # <--- Agregá TipoTurno
+from django.core.exceptions import ValidationError
+from .models import Empleado, NoDisponibilidad, TipoTurno, Preferencia
 
 # Este Mixin sirve para darle estilo Bootstrap a cualquier form que hagan
 class BootstrapFormMixin:
@@ -25,4 +26,27 @@ class TipoTurnoForm(BootstrapFormMixin, forms.ModelForm):
             'hora_inicio': forms.TimeInput(attrs={'type': 'time'}),
             'hora_fin': forms.TimeInput(attrs={'type': 'time'}),
             # Si tienes un campo 'color', usa type='color'
+        }
+
+class NoDisponibilidadForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = NoDisponibilidad
+        fields = '__all__'
+        widgets = {
+            'fecha_inicio': forms.DateInput(attrs={'type': 'date'}),
+            'fecha_fin': forms.DateInput(attrs={'type': 'date'}),
+            'empleado': forms.Select(attrs={'class': 'form-select'}),
+            'tipo_turno': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+class PreferenciaForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = Preferencia
+        fields = '__all__'
+        widgets = {
+            'fecha': forms.DateInput(attrs={'type': 'date'}),
+            'empleado': forms.Select(attrs={'class': 'form-select'}),
+            'tipo_turno': forms.Select(attrs={'class': 'form-select'}),
+            'deseo': forms.Select(attrs={'class': 'form-select'}),
+            'comentario': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Opcional...'})
         }
