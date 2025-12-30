@@ -7,22 +7,23 @@
     <div class="col-md-8 text-center">
         <h2 class="mb-4">⚡ Generador de Planificación</h2>
         
-        <div class="card shadow-sm mb-4">
-            <div class="card-body text-start">
-                <h5 class="card-title text-muted mb-3">Configuración del Escenario</h5>
-                
+        <div class="card shadow-sm mb-4 border-0">
+            <div class="card-header bg-light text-start">
+                <h5 class="mb-0 text-muted"><i class="bi bi-sliders"></i> Configuración del Escenario</h5>
+            </div>
+            <div class="card-body text-start p-4">
                 <form id="form-generador">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label">Fecha Inicio</label>
+                            <label class="form-label fw-bold">Fecha Inicio</label>
                             <input type="date" id="fecha_inicio" class="form-control" value="2025-11-01">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Fecha Fin</label>
+                            <label class="form-label fw-bold">Fecha Fin</label>
                             <input type="date" id="fecha_fin" class="form-control" value="2025-11-30">
                         </div>
                         <div class="col-md-12">
-                            <label class="form-label">Especialidad</label>
+                            <label class="form-label fw-bold">Especialidad</label>
                             <select id="especialidad" class="form-select">
                                 <option value="MEDICO">Médicos (Turnos 12hs)</option>
                                 <option value="ENFERMERO">Enfermeros (Turnos 8hs)</option>
@@ -31,7 +32,7 @@
                     </div>
 
                     <div class="d-grid gap-2 mt-4">
-                        <button type="button" class="btn btn-primary btn-lg" onclick="iniciarGeneracion()">
+                        <button type="button" id="btn-accion" class="btn btn-primary btn-lg" onclick="iniciarGeneracion()">
                             🚀 Ejecutar Algoritmo Genético
                         </button>
                     </div>
@@ -39,55 +40,66 @@
             </div>
         </div>
 
-        <div id="resultado-container" class="alert alert-info d-none">
-            <h4>Estado: <span id="estado-badge" class="badge bg-warning">En Proceso...</span></h4>
-            <p id="mensaje-estado">El motor está optimizando los turnos...</p>
+        <div id="resultado-container" class="alert alert-secondary d-none text-center shadow-sm">
+            <h4 class="mt-2">Estado: <span id="estado-badge" class="badge bg-secondary">Iniciando...</span></h4>
+            
+            <div id="loading-spinner" class="my-3 d-none">
+                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+            </div>
+
+            <p id="mensaje-estado" class="fs-5 text-muted">Preparando motor de optimización...</p>
         </div>
 
         <hr class="my-5">
 
         <div class="d-flex justify-content-center">
-            <form action="{% url 'logout' %}" method="post">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-outline-danger px-5">
-                    🚪 Cerrar Sesión y Salir
-                </button>
-            </form>
+            <a href="{% url 'cronograma_list' %}" class="btn btn-link text-muted text-decoration-none">
+                <i class="bi bi-arrow-left"></i> Ir al listado de planificaciones
+            </a>
         </div>
 
     </div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Script simple para conectar con tu API (views.py)
-    async function iniciarGeneracion() {
-        const btn = document.querySelector('button[onclick="iniciarGeneracion()"]');
-        const container = document.getElementById('resultado-container');
-        const badge = document.getElementById('estado-badge');
-        const msg = document.getElementById('mensaje-estado');
+    // Variables globales para elementos del DOM
+    const btn = document.getElementById('btn-accion');
+    const container = document.getElementById('resultado-container');
+    const badge = document.getElementById('estado-badge');
+    const msg = document.getElementById('mensaje-estado');
+    const spinner = document.getElementById('loading-spinner');
 
-        // Datos del form
+    async function iniciarGeneracion() {
+        // 1. Obtener datos
         const payload = {
             fecha_inicio: document.getElementById('fecha_inicio').value,
             fecha_fin: document.getElementById('fecha_fin').value,
             especialidad: document.getElementById('especialidad').value
         };
 
-        // UI Loading
+        // 2. Actualizar UI (Modo Carga)
         btn.disabled = true;
-        btn.innerText = "⏳ Iniciando...";
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enviando solicitud...`;
+        
         container.classList.remove('d-none');
+        container.classList.remove('alert-success', 'alert-danger');
+        container.classList.add('alert-info');
+        
+        badge.className = 'badge bg-info text-dark';
+        badge.innerText = 'Encolado';
+        spinner.classList.remove('d-none'); // Mostrar spinner grande
 
         try {
-            // 1. Llamar a Django -> API Docker
+            // 3. POST a la API
             const response = await fetch('/api/planificar/iniciar/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}' // Importante para POST en Django
+                    'X-CSRFToken': '{{ csrf_token }}'
                 },
                 body: JSON.stringify(payload)
             });
@@ -95,56 +107,89 @@
             const data = await response.json();
 
             if (response.ok) {
-                msg.innerText = `Job ID: ${data.job_id}. Esperando resultados...`;
-                btn.innerText = "🔄 Procesando...";
+                msg.innerText = `Job ID: ${data.job_id}. Optimizando turnos...`;
+                btn.innerText = "⏳ Procesando... Por favor espere";
                 
-                // 2. Polling (Consultar estado cada 2 segundos)
+                // 4. Iniciar Polling
                 pollEstado(data.job_id);
             } else {
-                alert("Error: " + data.error);
-                btn.disabled = false;
+                mostrarError("Error al iniciar: " + (data.error || "Desconocido"));
             }
 
         } catch (error) {
             console.error(error);
-            alert("Error de conexión");
-            btn.disabled = false;
+            mostrarError("Error de conexión con el servidor.");
         }
     }
 
     async function pollEstado(jobId) {
-        const badge = document.getElementById('estado-badge');
-        const msg = document.getElementById('mensaje-estado');
-        const btn = document.querySelector('button[onclick="iniciarGeneracion()"]');
-
         const intervalo = setInterval(async () => {
-            const res = await fetch(`/api/planificar/estado/${jobId}/`);
-            const data = await res.json();
+            try {
+                const res = await fetch(`/api/planificar/estado/${jobId}/`);
+                const data = await res.json();
 
-            if (data.status === 'completed') {
+                if (data.status === 'completed') {
+                    clearInterval(intervalo);
+                    exitoPlanificacion(data);
+                } else if (data.status === 'failed' || data.status === 'error') {
+                    clearInterval(intervalo);
+                    mostrarError(data.error || "El algoritmo falló.");
+                } else {
+                    // Sigue 'running'
+                    badge.className = 'badge bg-warning text-dark';
+                    badge.innerText = 'Procesando';
+                }
+            } catch (e) {
                 clearInterval(intervalo);
-                badge.className = 'badge bg-success';
-                badge.innerText = '¡Terminado!';
-                msg.innerHTML = `<strong>Fitness:</strong> ${data.fitness} <br> Cronograma guardado ID: ${data.cronograma_id}`;
-                btn.disabled = false;
-                btn.innerHTML = "👁 Ver Resultado"; // Cambiamos el texto
-                btn.className = "btn btn-success btn-lg"; // Lo ponemos verde
-                btn.onclick = function() {
-                    // Redirigir a la nueva vista
-                    window.location.href = `/cronograma/${data.cronograma_id}/`;
-                };;
-                
-                // Opcional: Redirigir a la vista de detalle
-                // window.location.href = `/cronograma/${data.cronograma_id}/`;
-            } else if (data.status === 'failed' || data.status === 'error') {
-                clearInterval(intervalo);
-                badge.className = 'badge bg-danger';
-                badge.innerText = 'Error';
-                msg.innerText = data.error;
-                btn.disabled = false;
+                mostrarError("Perdimos conexión con el monitor de estado.");
             }
-            // Si es 'running', sigue el loop
-        }, 2000);
+        }, 2000); // Consultar cada 2 segundos
+    }
+
+    function exitoPlanificacion(data) {
+        // UI de Éxito
+        container.classList.remove('alert-info');
+        container.classList.add('alert-success');
+        spinner.classList.add('d-none'); // Ocultar spinner
+
+        badge.className = 'badge bg-success';
+        badge.innerText = '¡Finalizado!';
+        
+        msg.innerHTML = `
+            <strong>Optimización exitosa.</strong><br>
+            Fitness: ${parseFloat(data.fitness).toFixed(2)}
+        `;
+
+        // TRUCO DE DJANGO + JS: 
+        // Usamos un ID placeholder '0' y lo reemplazamos por el ID real.
+        // Esto asegura que la URL sea la correcta definida en urls.py
+        const urlBase = "{% url 'ver_cronograma' 0 %}"; 
+        const urlFinal = urlBase.replace('0', data.cronograma_id);
+
+        // Transformar el botón principal en "Ver Resultado"
+        btn.disabled = false;
+        btn.className = "btn btn-success btn-lg shadow"; // Estilo verde vibrante
+        btn.innerHTML = `<i class="bi bi-eye"></i> Ver Cronograma Generado`;
+        
+        // Asignar la redirección
+        btn.onclick = function() {
+            window.location.href = urlFinal;
+        };
+    }
+
+    function mostrarError(mensaje) {
+        container.classList.remove('alert-info');
+        container.classList.add('alert-danger');
+        spinner.classList.add('d-none');
+        
+        badge.className = 'badge bg-danger';
+        badge.innerText = 'Falló';
+        msg.innerText = mensaje;
+
+        btn.disabled = false;
+        btn.innerText = "🚀 Reintentar";
+        // Resetear onclick por si había cambiado
+        btn.onclick = iniciarGeneracion; 
     }
 </script>
 {% endblock %}
