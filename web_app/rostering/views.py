@@ -17,19 +17,15 @@ from datetime import timedelta
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
-from .models import Empleado, Cronograma, TipoTurno, Asignacion, NoDisponibilidad, Preferencia 
+# Importar SecuenciaProhibida
+from .models import Empleado, Cronograma, TipoTurno, NoDisponibilidad, Preferencia, SecuenciaProhibida
+# Importar Form y Filter
 from .forms import (
-    EmpleadoForm, TipoTurnoForm, 
-    NoDisponibilidadForm, PreferenciaForm
+    EmpleadoForm, TipoTurnoForm, NoDisponibilidadForm, PreferenciaForm, SecuenciaProhibidaForm
 )
 from .filters import (
-    EmpleadoFilter, CronogramaFilter, 
-    NoDisponibilidadFilter, PreferenciaFilter, 
-    TipoTurnoFilter  # <--- AGREGAR ESTE IMPORT
+    EmpleadoFilter, CronogramaFilter, NoDisponibilidadFilter, PreferenciaFilter, TipoTurnoFilter, SecuenciaProhibidaFilter
 )
-
-# Importamos modelos
-from .models import Empleado, Cronograma, TrabajoPlanificacion
 from .services import (
     generar_payload_ag, 
     invocar_api_planificacion, 
@@ -472,3 +468,42 @@ class PreferenciaDeleteView(LoginRequiredMixin, DeleteView):
     model = Preferencia
     template_name = 'rostering/confirm_delete_generic.html'
     success_url = reverse_lazy('preferencia_list')
+
+
+# --- SECUENCIAS PROHIBIDAS ---
+
+class SecuenciaProhibidaListView(LoginRequiredMixin, ListView):
+    model = SecuenciaProhibida
+    template_name = 'rostering/secuenciaprohibida_list.html'
+    context_object_name = 'secuencias'
+    ordering = ['especialidad', 'turno_previo']
+
+    def get_queryset(self):
+        # Optimizamos consultas con select_related
+        queryset = super().get_queryset().select_related('turno_previo', 'turno_siguiente')
+        self.filterset = SecuenciaProhibidaFilter(self.request.GET, queryset=queryset)
+        return self.filterset.qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['filter_form'] = self.filterset.form
+        return context
+
+class SecuenciaProhibidaCreateView(LoginRequiredMixin, CreateView):
+    model = SecuenciaProhibida
+    form_class = SecuenciaProhibidaForm
+    template_name = 'rostering/secuenciaprohibida_form.html' # Reusaremos el genérico si querés, o uno específico
+    success_url = reverse_lazy('secuencia_list')
+    extra_context = {'titulo': 'Nueva Secuencia Prohibida'}
+
+class SecuenciaProhibidaUpdateView(LoginRequiredMixin, UpdateView):
+    model = SecuenciaProhibida
+    form_class = SecuenciaProhibidaForm
+    template_name = 'rostering/secuenciaprohibida_form.html'
+    success_url = reverse_lazy('secuencia_list')
+    extra_context = {'titulo': 'Editar Regla'}
+
+class SecuenciaProhibidaDeleteView(LoginRequiredMixin, DeleteView):
+    model = SecuenciaProhibida
+    template_name = 'rostering/confirm_delete_generic.html'
+    success_url = reverse_lazy('secuencia_list')

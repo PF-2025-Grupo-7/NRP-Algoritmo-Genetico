@@ -13,23 +13,35 @@
         <div class="card-header bg-light">
             <form method="get" class="row g-2 align-items-center">
                 <div class="col-auto">
-                    <span class="fw-bold text-muted small text-uppercase">Filtrar por:</span>
+                    <span class="fw-bold text-muted small text-uppercase">Filtrar:</span>
                 </div>
-                <div class="col-auto">
-                    {{ filter_form.anio }}
-                </div>
-                <div class="col-auto">
-                    {{ filter_form.mes }}
-                </div>
+                
                 <div class="col-auto">
                     {{ filter_form.especialidad }}
                 </div>
+
                 <div class="col-auto">
                     {{ filter_form.estado }}
                 </div>
+
+                <div class="col-auto">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0 text-muted small">Desde</span>
+                        {{ filter_form.fecha_desde }}
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0 text-muted small">Hasta</span>
+                        {{ filter_form.fecha_hasta }}
+                    </div>
+                </div>
+
                 <div class="col-auto">
                     <button type="submit" class="btn btn-dark btn-sm">Buscar</button>
-                    <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                    {% if request.GET %}
+                        <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                    {% endif %}
                 </div>
             </form>
         </div>
@@ -101,6 +113,7 @@
                                     <a href="{% url 'ver_cronograma_diario' c.id %}" class="btn btn-sm btn-outline-primary">
                                         Vista Diaria
                                     </a>
+                                    <a href="{% url 'cronograma_delete' c.id %}" class="btn btn-sm btn-outline-danger ms-1"> Eliminar</a>
                                     <a href="{% url 'cronograma_delete' c.id %}" class="btn btn-sm btn-outline-danger">
                                         Eliminar
                                     </a>

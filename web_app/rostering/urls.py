@@ -45,4 +45,10 @@ urlpatterns = [
     path('preferencias/crear/', views.PreferenciaCreateView.as_view(), name='preferencia_create'),
     path('preferencias/<int:pk>/editar/', views.PreferenciaUpdateView.as_view(), name='preferencia_update'),
     path('preferencias/<int:pk>/eliminar/', views.PreferenciaDeleteView.as_view(), name='preferencia_delete'),
+
+    # Secuencias Prohibidas
+    path('config/secuencias/', views.SecuenciaProhibidaListView.as_view(), name='secuencia_list'),
+    path('config/secuencias/crear/', views.SecuenciaProhibidaCreateView.as_view(), name='secuencia_create'),
+    path('config/secuencias/<int:pk>/editar/', views.SecuenciaProhibidaUpdateView.as_view(), name='secuencia_update'),
+    path('config/secuencias/<int:pk>/eliminar/', views.SecuenciaProhibidaDeleteView.as_view(), name='secuencia_delete'),
 ]

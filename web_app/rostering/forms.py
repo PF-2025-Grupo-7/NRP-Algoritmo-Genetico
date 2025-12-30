@@ -1,6 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Empleado, NoDisponibilidad, TipoTurno, Preferencia
+from .models import Empleado, TipoTurno, NoDisponibilidad, Preferencia, SecuenciaProhibida
 
 # Este Mixin sirve para darle estilo Bootstrap a cualquier form que hagan
 class BootstrapFormMixin:
@@ -50,3 +50,23 @@ class PreferenciaForm(BootstrapFormMixin, forms.ModelForm):
             'deseo': forms.Select(attrs={'class': 'form-select'}),
             'comentario': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Opcional...'})
         }
+
+class SecuenciaProhibidaForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = SecuenciaProhibida
+        fields = '__all__'
+        widgets = {
+            'especialidad': forms.Select(attrs={'class': 'form-select'}),
+            'turno_previo': forms.Select(attrs={'class': 'form-select'}),
+            'turno_siguiente': forms.Select(attrs={'class': 'form-select'}),
+        }
+        help_texts = {
+            'turno_previo': 'El turno que termina el día anterior.',
+            'turno_siguiente': 'El turno que NO puede comenzar el día siguiente.',
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        # La validación cruzada de especialidades ya está en el modelo (método clean),
+        # Django la ejecuta automáticamente y asigna los errores al form.
+        return cleaned_data
