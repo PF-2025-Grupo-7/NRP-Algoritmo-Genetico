@@ -22,12 +22,21 @@
                             <label class="form-label fw-bold">Fecha Fin</label>
                             <input type="date" id="fecha_fin" class="form-control" value="2025-11-30">
                         </div>
-                        <div class="col-md-12">
+                        
+                        <div class="col-md-6">
                             <label class="form-label fw-bold">Especialidad</label>
-                            <select id="especialidad" class="form-select">
+                            <select id="especialidad" class="form-select" onchange="cargarPlantillas()">
                                 <option value="MEDICO">Médicos (Turnos 12hs)</option>
                                 <option value="ENFERMERO">Enfermeros (Turnos 8hs)</option>
                             </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Plantilla de Demanda</label>
+                            <select id="plantilla" class="form-select" required>
+                                <option value="" disabled selected>-- Cargando... --</option>
+                            </select>
+                            <div class="form-text text-muted small">Define cuánta gente se necesita por turno.</div>
                         </div>
                     </div>
 
@@ -42,59 +51,95 @@
 
         <div id="resultado-container" class="alert alert-secondary d-none text-center shadow-sm">
             <h4 class="mt-2">Estado: <span id="estado-badge" class="badge bg-secondary">Iniciando...</span></h4>
-            
             <div id="loading-spinner" class="my-3 d-none">
-                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-                    <span class="visually-hidden">Cargando...</span>
-                </div>
+                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
             </div>
-
             <p id="mensaje-estado" class="fs-5 text-muted">Preparando motor de optimización...</p>
         </div>
 
         <hr class="my-5">
-
         <div class="d-flex justify-content-center">
             <a href="{% url 'cronograma_list' %}" class="btn btn-link text-muted text-decoration-none">
                 <i class="bi bi-arrow-left"></i> Ir al listado de planificaciones
             </a>
         </div>
-
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Variables globales para elementos del DOM
-    const btn = document.getElementById('btn-accion');
-    const container = document.getElementById('resultado-container');
-    const badge = document.getElementById('estado-badge');
-    const msg = document.getElementById('mensaje-estado');
-    const spinner = document.getElementById('loading-spinner');
+    // Variables globales
+    const selectEspecialidad = document.getElementById('especialidad');
+    const selectPlantilla = document.getElementById('plantilla');
 
+    // 3. FUNCIÓN PARA CARGAR PLANTILLAS DESDE LA API
+    async function cargarPlantillas() {
+        const especialidad = selectEspecialidad.value;
+        selectPlantilla.innerHTML = '<option value="" disabled selected>Cargando...</option>';
+        selectPlantilla.disabled = true;
+
+        try {
+            const res = await fetch(`/api/plantillas/?especialidad=${especialidad}`);
+            const data = await res.json();
+
+            selectPlantilla.innerHTML = ''; // Limpiar
+            
+            if (data.plantillas.length === 0) {
+                const opt = document.createElement('option');
+                opt.text = "⚠️ No hay plantillas creadas para esta especialidad";
+                selectPlantilla.add(opt);
+            } else {
+                data.plantillas.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.text = p.nombre;
+                    selectPlantilla.add(opt);
+                });
+                selectPlantilla.disabled = false;
+            }
+        } catch (error) {
+            console.error("Error cargando plantillas:", error);
+            selectPlantilla.innerHTML = '<option>Error al cargar</option>';
+        }
+    }
+
+    // Cargar plantillas al iniciar la página
+    document.addEventListener('DOMContentLoaded', cargarPlantillas);
+
+
+    // 4. ACTUALIZAR LA FUNCIÓN DE INICIO PARA ENVIAR EL ID DE LA PLANTILLA
     async function iniciarGeneracion() {
-        // 1. Obtener datos
+        const btn = document.getElementById('btn-accion');
+        const container = document.getElementById('resultado-container');
+        const badge = document.getElementById('estado-badge');
+        const spinner = document.getElementById('loading-spinner');
+        const msg = document.getElementById('mensaje-estado');
+
+        // Validar que haya plantilla seleccionada
+        const plantillaId = selectPlantilla.value;
+        if (!plantillaId || selectPlantilla.disabled) {
+            alert("Por favor, selecciona una Plantilla de Demanda válida antes de continuar.");
+            return;
+        }
+
         const payload = {
             fecha_inicio: document.getElementById('fecha_inicio').value,
             fecha_fin: document.getElementById('fecha_fin').value,
-            especialidad: document.getElementById('especialidad').value
+            especialidad: selectEspecialidad.value,
+            plantilla_id: plantillaId // <--- AQUI ENVIAMOS EL DATO NUEVO
         };
 
-        // 2. Actualizar UI (Modo Carga)
+        // UI Loading
         btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Enviando solicitud...`;
-        
-        container.classList.remove('d-none');
-        container.classList.remove('alert-success', 'alert-danger');
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Enviando...`;
+        container.classList.remove('d-none', 'alert-success', 'alert-danger');
         container.classList.add('alert-info');
-        
         badge.className = 'badge bg-info text-dark';
         badge.innerText = 'Encolado';
-        spinner.classList.remove('d-none'); // Mostrar spinner grande
+        spinner.classList.remove('d-none');
 
         try {
-            // 3. POST a la API
             const response = await fetch('/api/planificar/iniciar/', {
                 method: 'POST',
                 headers: {
@@ -107,26 +152,28 @@
             const data = await response.json();
 
             if (response.ok) {
-                msg.innerText = `Job ID: ${data.job_id}. Optimizando turnos...`;
-                btn.innerText = "⏳ Procesando... Por favor espere";
-                
-                // 4. Iniciar Polling
-                pollEstado(data.job_id);
+                msg.innerText = `Job ID: ${data.job_id}. Optimizando...`;
+                pollEstado(data.job_id); // Reutilizamos tu función pollEstado existente
             } else {
                 mostrarError("Error al iniciar: " + (data.error || "Desconocido"));
             }
-
         } catch (error) {
             console.error(error);
             mostrarError("Error de conexión con el servidor.");
         }
     }
 
+    // ... (Tu función pollEstado y mostrarError siguen igual) ...
+    // Asegurate de copiar las funciones pollEstado, exitoPlanificacion y mostrarError 
+    // que ya tenías en el archivo anterior.
+    
+    // Solo pego pollEstado aquí para referencia, usá la que ya tenías
     async function pollEstado(jobId) {
         const intervalo = setInterval(async () => {
             try {
                 const res = await fetch(`/api/planificar/estado/${jobId}/`);
                 const data = await res.json();
+                const badge = document.getElementById('estado-badge');
 
                 if (data.status === 'completed') {
                     clearInterval(intervalo);
@@ -135,49 +182,48 @@
                     clearInterval(intervalo);
                     mostrarError(data.error || "El algoritmo falló.");
                 } else {
-                    // Sigue 'running'
                     badge.className = 'badge bg-warning text-dark';
                     badge.innerText = 'Procesando';
                 }
             } catch (e) {
                 clearInterval(intervalo);
-                mostrarError("Perdimos conexión con el monitor de estado.");
+                mostrarError("Error de conexión.");
             }
-        }, 2000); // Consultar cada 2 segundos
+        }, 2000);
     }
-
+    
     function exitoPlanificacion(data) {
-        // UI de Éxito
+        const container = document.getElementById('resultado-container');
+        const spinner = document.getElementById('loading-spinner');
+        const badge = document.getElementById('estado-badge');
+        const msg = document.getElementById('mensaje-estado');
+        const btn = document.getElementById('btn-accion');
+
         container.classList.remove('alert-info');
         container.classList.add('alert-success');
-        spinner.classList.add('d-none'); // Ocultar spinner
+        spinner.classList.add('d-none');
 
         badge.className = 'badge bg-success';
         badge.innerText = '¡Finalizado!';
         
-        msg.innerHTML = `
-            <strong>Optimización exitosa.</strong><br>
-            Fitness: ${parseFloat(data.fitness).toFixed(2)}
-        `;
+        msg.innerHTML = `<strong>Optimización exitosa.</strong><br>Fitness: ${parseFloat(data.fitness).toFixed(2)}`;
 
-        // TRUCO DE DJANGO + JS: 
-        // Usamos un ID placeholder '0' y lo reemplazamos por el ID real.
-        // Esto asegura que la URL sea la correcta definida en urls.py
         const urlBase = "{% url 'ver_cronograma' 0 %}"; 
         const urlFinal = urlBase.replace('0', data.cronograma_id);
 
-        // Transformar el botón principal en "Ver Resultado"
         btn.disabled = false;
-        btn.className = "btn btn-success btn-lg shadow"; // Estilo verde vibrante
+        btn.className = "btn btn-success btn-lg shadow";
         btn.innerHTML = `<i class="bi bi-eye"></i> Ver Cronograma Generado`;
-        
-        // Asignar la redirección
-        btn.onclick = function() {
-            window.location.href = urlFinal;
-        };
+        btn.onclick = function() { window.location.href = urlFinal; };
     }
 
     function mostrarError(mensaje) {
+        const container = document.getElementById('resultado-container');
+        const spinner = document.getElementById('loading-spinner');
+        const badge = document.getElementById('estado-badge');
+        const msg = document.getElementById('mensaje-estado');
+        const btn = document.getElementById('btn-accion');
+
         container.classList.remove('alert-info');
         container.classList.add('alert-danger');
         spinner.classList.add('d-none');
@@ -188,7 +234,6 @@
 
         btn.disabled = false;
         btn.innerText = "🚀 Reintentar";
-        // Resetear onclick por si había cambiado
         btn.onclick = iniciarGeneracion; 
     }
 </script>

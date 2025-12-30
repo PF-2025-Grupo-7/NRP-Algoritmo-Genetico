@@ -18,7 +18,7 @@ from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
 # Importar SecuenciaProhibida
-from .models import Empleado, Cronograma, TipoTurno, NoDisponibilidad, Preferencia, SecuenciaProhibida
+from .models import Empleado, Cronograma, TipoTurno, NoDisponibilidad, Preferencia, SecuenciaProhibida, Asignacion
 # Importar Form y Filter
 from .forms import (
     EmpleadoForm, TipoTurnoForm, NoDisponibilidadForm, PreferenciaForm, SecuenciaProhibidaForm
@@ -34,6 +34,8 @@ from .services import (
 )
 from .models import PlantillaDemanda, ReglaDemandaSemanal, ExcepcionDemanda
 from .forms import PlantillaDemandaForm, ReglaDemandaSemanalForm, ExcepcionDemandaForm
+from .models import TrabajoPlanificacion
+
 
 # --- VISTA 1: INICIAR EL PROCESO ---
 
@@ -51,9 +53,10 @@ def iniciar_planificacion(request):
         fecha_inicio_str = data.get('fecha_inicio')
         fecha_fin_str = data.get('fecha_fin')
         especialidad = data.get('especialidad')
+        plantilla_id = data.get('plantilla_id')
 
         # Validaciones básicas
-        if not all([fecha_inicio_str, fecha_fin_str, especialidad]):
+        if not all([fecha_inicio_str, fecha_fin_str, especialidad,plantilla_id]):
             return JsonResponse({'error': 'Faltan parámetros obligatorios (fecha_inicio, fecha_fin, especialidad).'}, status=400)
 
         inicio = parse_date(fecha_inicio_str)
@@ -83,7 +86,8 @@ def iniciar_planificacion(request):
             fecha_inicio=inicio,
             fecha_fin=fin,
             especialidad=especialidad,
-            payload_original=payload
+            payload_original=payload,
+            plantilla_demanda_id=plantilla_id
         )
 
         return JsonResponse({
@@ -105,11 +109,13 @@ def iniciar_planificacion(request):
 
 # --- VISTA 2: POLLING (CONSULTAR ESTADO) ---
 
+# En rostering/views.py
+
 @csrf_exempt
 @require_GET
 def verificar_estado_planificacion(request, job_id):
     try:
-        # 1. Recuperar contexto
+        # 1. Recuperar contexto (la memoria temporal)
         try:
             trabajo = TrabajoPlanificacion.objects.get(job_id=job_id)
         except TrabajoPlanificacion.DoesNotExist:
@@ -127,15 +133,18 @@ def verificar_estado_planificacion(request, job_id):
         # 3. Verificar si terminó
         if 'fitness' in resultado or resultado.get('status') == 'completed':
             try:
+                # --- AQUÍ ESTÁ LA CORRECCIÓN ---
+                # Pasamos el objeto plantilla_demanda recuperado del trabajo temporal
                 cronograma = guardar_solucion_db(
-                    trabajo.fecha_inicio, 
-                    trabajo.fecha_fin, 
-                    trabajo.especialidad, 
-                    trabajo.payload_original, 
-                    resultado
+                    fecha_inicio=trabajo.fecha_inicio, 
+                    fecha_fin=trabajo.fecha_fin, 
+                    especialidad=trabajo.especialidad, 
+                    payload_original=trabajo.payload_original, 
+                    resultado=resultado,
+                    plantilla_demanda=trabajo.plantilla_demanda # <--- NUEVO PARÁMETRO
                 )
                 
-                # Limpieza
+                # Limpieza: Borramos la memoria temporal
                 trabajo.delete()
 
                 return JsonResponse({
@@ -250,8 +259,6 @@ def ver_cronograma(request, cronograma_id):
         'rango_fechas': rango_fechas,
         'filas_tabla': filas_tabla,
     })
-
-# rostering/views.py
 
 def ver_cronograma_diario(request, cronograma_id):
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
@@ -551,12 +558,15 @@ class ReglaCreateView(LoginRequiredMixin, CreateView):
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        # Pasamos el ID al form para filtrar turnos
         kwargs['plantilla_id'] = self.kwargs['plantilla_id']
         return kwargs
 
     def form_valid(self, form):
-        form.instance.plantilla_id = self.kwargs['plantilla_id']
+        # CORRECCIÓN: Buscamos el objeto y lo asignamos completo
+        plantilla = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
+        form.instance.plantilla = plantilla 
+        # Al asignar el objeto 'plantilla' en lugar de solo 'plantilla_id',
+        # el método clean() del modelo ya no fallará.
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -580,7 +590,7 @@ class ReglaDeleteView(LoginRequiredMixin, DeleteView):
 class ExcepcionCreateView(LoginRequiredMixin, CreateView):
     model = ExcepcionDemanda
     form_class = ExcepcionDemandaForm
-    template_name = 'rostering/regla_form.html' # Reusamos template
+    template_name = 'rostering/regla_form.html'
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -588,7 +598,9 @@ class ExcepcionCreateView(LoginRequiredMixin, CreateView):
         return kwargs
 
     def form_valid(self, form):
-        form.instance.plantilla_id = self.kwargs['plantilla_id']
+        # CORRECCIÓN: Lo mismo aquí para evitar el error en Excepciones
+        plantilla = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
+        form.instance.plantilla = plantilla
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -606,3 +618,13 @@ class ExcepcionDeleteView(LoginRequiredMixin, DeleteView):
     
     def get_success_url(self):
         return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.plantilla.id})
+    
+def api_get_plantillas(request):
+    """Retorna JSON con las plantillas filtradas por especialidad"""
+    especialidad = request.GET.get('especialidad')
+    if not especialidad:
+        return JsonResponse({'plantillas': []})
+    
+    # Filtramos por la especialidad seleccionada
+    plantillas = PlantillaDemanda.objects.filter(especialidad=especialidad).values('id', 'nombre')
+    return JsonResponse({'plantillas': list(plantillas)})
