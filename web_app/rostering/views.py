@@ -22,7 +22,11 @@ from .forms import (
     EmpleadoForm, TipoTurnoForm, 
     NoDisponibilidadForm, PreferenciaForm
 )
-from .filters import EmpleadoFilter, CronogramaFilter, NoDisponibilidadFilter, PreferenciaFilter
+from .filters import (
+    EmpleadoFilter, CronogramaFilter, 
+    NoDisponibilidadFilter, PreferenciaFilter, 
+    TipoTurnoFilter  # <--- AGREGAR ESTE IMPORT
+)
 
 # Importamos modelos
 from .models import Empleado, Cronograma, TrabajoPlanificacion
@@ -361,6 +365,19 @@ class TipoTurnoListView(LoginRequiredMixin, ListView):
     model = TipoTurno
     template_name = 'rostering/tipoturno_list.html'
     context_object_name = 'turnos'
+    ordering = ['especialidad', 'hora_inicio'] # Ordenar por especialidad queda mejor ahora
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Conectamos el filtro
+        self.filterset = TipoTurnoFilter(self.request.GET, queryset=queryset)
+        return self.filterset.qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Pasamos el formulario del filtro al template
+        context['filter_form'] = self.filterset.form
+        return context
 
 class TipoTurnoCreateView(LoginRequiredMixin, CreateView):
     model = TipoTurno

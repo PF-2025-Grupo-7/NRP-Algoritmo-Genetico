@@ -11,7 +11,11 @@
     <div class="card mb-3 bg-light border-0">
         <div class="card-body py-2">
             <form method="get" class="row g-2 align-items-center">
-                <div class="col-auto fw-bold">Filtrar:</div>
+                <div class="col-auto fw-bold">Especialidad:</div>
+                <div class="col-auto">
+                    {{ filter_form.especialidad }}
+                </div>  
+                <div class="col-auto fw-bold">Nombre:</div>
                 <div class="col-auto">{{ filter_form.empleado }}</div>
                 <div class="col-auto">{{ filter_form.fecha }}</div>
                 <div class="col-auto">{{ filter_form.deseo }}</div>

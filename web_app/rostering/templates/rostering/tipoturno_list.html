@@ -9,6 +9,25 @@
         </a>
     </div>
 
+    <div class="card mb-3 bg-light border-0">
+        <div class="card-body py-2">
+            <form method="get" class="row g-2 align-items-center">
+                <div class="col-auto fw-bold">Ver:</div>
+                <div class="col-auto" style="min-width: 200px;">
+                    {{ filter_form.especialidad }}
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-secondary btn-sm">Filtrar</button>
+                    {% if request.GET.especialidad %}
+                        <a href="{% url 'tipoturno_list' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+
     <div class="card shadow-sm border-0">
         <div class="card-body p-0">
             <div class="table-responsive">

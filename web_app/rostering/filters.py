@@ -83,6 +83,12 @@ class CronogramaFilter(django_filters.FilterSet):
 class NoDisponibilidadFilter(django_filters.FilterSet):
     empleado = django_filters.CharFilter(field_name='empleado__nombre_completo', lookup_expr='icontains', label='Empleado')
     fecha = django_filters.DateFilter(field_name='fecha_inicio', lookup_expr='gte', label='A partir de (Fecha)', widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}))
+    especialidad = django_filters.ChoiceFilter(
+        field_name='empleado__especialidad',
+        choices=Empleado.TipoEspecialidad.choices,
+        label='Especialidad',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
 
     class Meta:
         model = NoDisponibilidad
@@ -92,7 +98,24 @@ class PreferenciaFilter(django_filters.FilterSet):
     empleado = django_filters.CharFilter(field_name='empleado__nombre_completo', lookup_expr='icontains', label='Empleado')
     fecha = django_filters.DateFilter(field_name='fecha', label='Fecha exacta', widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}))
     deseo = django_filters.ChoiceFilter(choices=Preferencia.Deseo.choices, widget=forms.Select(attrs={'class': 'form-select'}))
+    especialidad = django_filters.ChoiceFilter(
+        field_name='empleado__especialidad',
+        choices=Empleado.TipoEspecialidad.choices,
+        label='Especialidad',
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
 
     class Meta:
         model = Preferencia
         fields = ['empleado', 'fecha', 'deseo']
+    
+class TipoTurnoFilter(django_filters.FilterSet):
+    especialidad = django_filters.ChoiceFilter(
+        choices=Empleado.TipoEspecialidad.choices,
+        empty_label="Todas",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    class Meta:
+        model = TipoTurno
+        fields = ['especialidad']

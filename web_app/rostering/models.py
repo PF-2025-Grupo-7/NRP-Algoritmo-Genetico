@@ -429,7 +429,6 @@ class SecuenciaProhibida(models.Model):
     def __str__(self):
         return f"[{self.get_especialidad_display()}] NO HACER: {self.turno_previo.abreviatura} -> {self.turno_siguiente.abreviatura}"
     
-    # ... (otros modelos)
 
 class TrabajoPlanificacion(models.Model):
     """
