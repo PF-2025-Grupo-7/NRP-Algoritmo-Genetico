@@ -16,10 +16,16 @@ from django.contrib.auth.decorators import login_required
 from datetime import timedelta
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
-# Importar SecuenciaProhibida
+from django.views.generic import (
+    ListView, 
+    CreateView, 
+    UpdateView, 
+    DeleteView, 
+    DetailView, 
+    TemplateView, # <--- Faltaba esta
+    FormView      # <--- Y esta también la vas a necesitar para ConfiguracionSimpleView
+)
 from .models import Empleado, Cronograma, TipoTurno, NoDisponibilidad, Preferencia, SecuenciaProhibida, Asignacion
-# Importar Form y Filter
 from .forms import (
     EmpleadoForm, TipoTurnoForm, NoDisponibilidadForm, PreferenciaForm, SecuenciaProhibidaForm
 )
@@ -35,7 +41,9 @@ from .services import (
 from .models import PlantillaDemanda, ReglaDemandaSemanal, ExcepcionDemanda
 from .forms import PlantillaDemandaForm, ReglaDemandaSemanalForm, ExcepcionDemandaForm
 from .models import TrabajoPlanificacion
-
+from django.contrib.auth.mixins import UserPassesTestMixin
+from .models import ConfiguracionAlgoritmo
+from .forms import ConfiguracionSimpleForm, ConfiguracionAvanzadaForm
 
 # --- VISTA 1: INICIAR EL PROCESO ---
 
@@ -628,3 +636,48 @@ def api_get_plantillas(request):
     # Filtramos por la especialidad seleccionada
     plantillas = PlantillaDemanda.objects.filter(especialidad=especialidad).values('id', 'nombre')
     return JsonResponse({'plantillas': list(plantillas)})
+
+# Mixin para restringir acceso a Superusuarios
+class SuperUserRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        return self.request.user.is_superuser
+
+def get_config_activa():
+    """Helper para obtener o crear la config activa"""
+    config, created = ConfiguracionAlgoritmo.objects.get_or_create(activa=True)
+    return config
+
+# --- VISTAS DE CONFIGURACIÓN ---
+
+class ConfiguracionDashboardView(SuperUserRequiredMixin, TemplateView):
+    template_name = 'rostering/config_dashboard.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['config'] = get_config_activa()
+        return context
+
+class ConfiguracionSimpleView(SuperUserRequiredMixin, FormView):
+    template_name = 'rostering/config_simple.html'
+    form_class = ConfiguracionSimpleForm
+    success_url = reverse_lazy('config_dashboard')
+
+    def form_valid(self, form):
+        config = get_config_activa()
+        form.save(config)
+        messages.success(self.request, f"¡Configuración actualizada a modo {form.cleaned_data['modo']}!")
+        return super().form_valid(form)
+
+class ConfiguracionAvanzadaView(SuperUserRequiredMixin, UpdateView):
+    model = ConfiguracionAlgoritmo
+    form_class = ConfiguracionAvanzadaForm
+    template_name = 'rostering/config_avanzada.html'
+    success_url = reverse_lazy('config_dashboard')
+
+    def get_object(self):
+        # Forzamos la edición de la activa, ignorando el PK de la URL
+        return get_config_activa()
+
+    def form_valid(self, form):
+        messages.success(self.request, "Parámetros avanzados guardados correctamente.")
+        return super().form_valid(form)

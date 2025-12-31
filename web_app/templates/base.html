@@ -77,14 +77,20 @@
                                 <a class="dropdown-item" href="{% url 'plantilla_list' %}">
                                     <i class="bi bi-list-check"></i> Plantillas de Demanda
                                 </a>
-                            </li>   
-                            <li><hr class="dropdown-divider"></li>
+                            </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item" href="{% url 'vista_generador' %}">
                                     <i class="bi bi-cpu"></i> Ir al Generador
                                 </a>
                             </li>
+                            {% if user.is_superuser %}
+                                <li><hr class="dropdown-divider"></li> <li>
+                                    <a class="dropdown-item text-danger fw-bold" href="{% url 'config_dashboard' %}">
+                                        <i class="bi bi-gear-fill me-1"></i> Configuración
+                                    </a>
+                                </li>
+                            {% endif %} 
                         </ul>
                     </li>
                 </ul>

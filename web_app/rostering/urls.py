@@ -65,4 +65,9 @@ urlpatterns = [
     
     path('config/plantillas/<int:plantilla_id>/excepcion/nueva/', views.ExcepcionCreateView.as_view(), name='excepcion_create'),
     path('config/excepcion/<int:pk>/eliminar/', views.ExcepcionDeleteView.as_view(), name='excepcion_delete'),
+
+    # ... rutas anteriores ...
+    path('admin-panel/', views.ConfiguracionDashboardView.as_view(), name='config_dashboard'),
+    path('admin-panel/simple/', views.ConfiguracionSimpleView.as_view(), name='config_simple'),
+    path('admin-panel/avanzada/', views.ConfiguracionAvanzadaView.as_view(), name='config_avanzada'),
 ]

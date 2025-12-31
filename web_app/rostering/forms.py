@@ -1,6 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Empleado, TipoTurno, NoDisponibilidad, Preferencia, SecuenciaProhibida, PlantillaDemanda, ReglaDemandaSemanal, ExcepcionDemanda
+from .models import ConfiguracionAlgoritmo, Empleado, TipoTurno, NoDisponibilidad, Preferencia, SecuenciaProhibida, PlantillaDemanda, ReglaDemandaSemanal, ExcepcionDemanda
 
 # Este Mixin sirve para darle estilo Bootstrap a cualquier form que hagan
 class BootstrapFormMixin:
@@ -117,3 +117,51 @@ class ExcepcionDemandaForm(BootstrapFormMixin, forms.ModelForm):
         if plantilla_id:
             plantilla = PlantillaDemanda.objects.get(id=plantilla_id)
             self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
+
+class ConfiguracionSimpleForm(forms.Form):
+    TIPO_BUSQUEDA = [
+        ('RAPIDA', '⚡ Búsqueda Rápida (Borrador)'),
+        ('EQUILIBRADA', '⚖️ Búsqueda Equilibrada (Recomendada)'),
+        ('PROFUNDA', '🧠 Búsqueda Profunda (Alta Calidad)'),
+    ]
+
+    modo = forms.ChoiceField(
+        choices=TIPO_BUSQUEDA, 
+        widget=forms.RadioSelect(attrs={'class': 'btn-check'}),
+        label="Seleccione el tipo de optimización"
+    )
+
+    def save(self, config_instance):
+        """Aplica los presets al objeto de configuración según el modo elegido"""
+        modo = self.cleaned_data['modo']
+        
+        if modo == 'RAPIDA':
+            config_instance.tamano_poblacion = 100
+            config_instance.generaciones = 75
+            config_instance.prob_mutacion = 0.3  # Más caos para salir rápido de mínimos locales
+            config_instance.nombre = "Configuración Rápida"
+            
+        elif modo == 'EQUILIBRADA':
+            config_instance.tamano_poblacion = 100
+            config_instance.generaciones = 150
+            config_instance.prob_mutacion = 0.2
+            config_instance.nombre = "Configuración Equilibrada"
+            
+        elif modo == 'PROFUNDA':
+            config_instance.tamano_poblacion = 150
+            config_instance.generaciones = 250
+            config_instance.prob_mutacion = 0.15 # Mutación fina
+            config_instance.nombre = "Configuración Profunda"
+            
+        config_instance.save()
+
+class ConfiguracionAvanzadaForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = ConfiguracionAlgoritmo
+        fields = '__all__'
+        exclude = ['activa'] # Siempre editamos la activa
+        widgets = {
+            'estrategia_seleccion': forms.Select(attrs={'class': 'form-select'}),
+            'estrategia_cruce': forms.Select(attrs={'class': 'form-select'}),
+            'estrategia_mutacion': forms.Select(attrs={'class': 'form-select'}),
+        }
