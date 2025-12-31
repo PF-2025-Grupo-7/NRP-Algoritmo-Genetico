@@ -70,4 +70,7 @@ urlpatterns = [
     path('admin-panel/', views.ConfiguracionDashboardView.as_view(), name='config_dashboard'),
     path('admin-panel/simple/', views.ConfiguracionSimpleView.as_view(), name='config_simple'),
     path('admin-panel/avanzada/', views.ConfiguracionAvanzadaView.as_view(), name='config_avanzada'),
+
+    # ...
+    path('cronograma/<int:pk>/publicar/', views.publicar_cronograma, name='cronograma_publish'),
 ]

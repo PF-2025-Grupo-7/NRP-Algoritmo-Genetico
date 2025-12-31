@@ -681,3 +681,17 @@ class ConfiguracionAvanzadaView(SuperUserRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Parámetros avanzados guardados correctamente.")
         return super().form_valid(form)
+    
+@login_required
+@require_POST
+def publicar_cronograma(request, pk):
+    cronograma = get_object_or_404(Cronograma, pk=pk)
+    
+    if cronograma.estado == Cronograma.Estado.PUBLICADO:
+        messages.warning(request, "Este cronograma ya está publicado.")
+    else:
+        cronograma.estado = Cronograma.Estado.PUBLICADO
+        cronograma.save()
+        messages.success(request, f"¡La planificación {cronograma.fecha_inicio} ha sido PUBLICADA exitosamente!")
+    
+    return redirect('ver_cronograma', cronograma_id=pk)
