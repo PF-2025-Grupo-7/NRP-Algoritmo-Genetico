@@ -164,7 +164,7 @@ class ExcepcionDemanda(models.Model):
     def clean(self):
         super().clean()
         # Validar solo si la excepción está vinculada a una plantilla
-        if self.plantilla_id and self.turno_id:
+        if self.plantilla and self.turno:
             if self.plantilla.especialidad != self.turno.especialidad:
                 raise ValidationError({
                     'turno': f"El turno '{self.turno}' ({self.turno.get_especialidad_display()}) "
@@ -195,7 +195,7 @@ class NoDisponibilidad(models.Model):
                 })
 
         # Si especifica un turno puntual (no es día completo), validar especialidad
-        if self.empleado_id and self.tipo_turno_id:
+        if self.empleado_id and self.tipo_turno:
             if self.empleado.especialidad != self.tipo_turno.especialidad:
                 raise ValidationError({
                     'tipo_turno': f"El turno '{self.tipo_turno}' ({self.tipo_turno.get_especialidad_display()}) "
