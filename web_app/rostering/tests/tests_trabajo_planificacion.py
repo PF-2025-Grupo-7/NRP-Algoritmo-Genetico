@@ -1,6 +1,6 @@
 from django.test import TestCase # type: ignore
 from django.core.exceptions import ValidationError # type: ignore
-from rostering.models import TrabajoPlanificacion, Empleado
+from rostering.models import TrabajoPlanificacion, Empleado, PlantillaDemanda
 from datetime import date
 import uuid
 
@@ -8,6 +8,12 @@ class TestTrabajoPlanificacion(TestCase):
 
     def setUp(self):
         self.especialidad = Empleado.TipoEspecialidad.MEDICO
+
+        self.plantilla_demanda = PlantillaDemanda.objects.create(
+            nombre="Plantilla Test",
+            especialidad=self.especialidad,
+            descripcion = "Descripción Plantilla",
+        )
     
     def crear_trabajo(self, **custom_data):
         default_data = {
@@ -15,6 +21,7 @@ class TestTrabajoPlanificacion(TestCase):
             "fecha_inicio": date(2025, 1, 1),
             "fecha_fin": date(2025, 1, 31),
             "especialidad": self.especialidad,
+            "plantilla_demanda": self.plantilla_demanda,
             "payload_original": {
                     "parametros": {
                         "tamano_poblacion": 100,
@@ -43,6 +50,7 @@ class TestTrabajoPlanificacion(TestCase):
         TrabajoPlanificacion.objects.get(job_id=id)
         self.assertIsNotNone(trabajo)
         self.assertEqual(trabajo.especialidad, especialidad)
+        self.assertEqual(trabajo.plantilla_demanda, self.plantilla_demanda)
 
     def test_cuando_faltan_campos_obligatorios_deberia_fallar(self):
         trabajo = TrabajoPlanificacion()
