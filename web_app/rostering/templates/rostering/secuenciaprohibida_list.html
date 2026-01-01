@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-ban"></i> Secuencias Prohibidas</h2>
+        <a href="{% url 'secuencia_create' %}" class="btn btn-danger">
+            <i class="bi bi-plus-lg"></i> Nueva Regla
+        </a>
+    </div>
+
+    <div class="card mb-3 bg-light border-0">
+        <div class="card-body py-2">
+            <form method="get" class="row g-2 align-items-center">
+                <div class="col-auto fw-bold">Filtrar por Especialidad:</div>
+                <div class="col-auto" style="min-width: 250px;">
+                    {{ filter_form.especialidad }}
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-secondary btn-sm">Aplicar</button>
+                    {% if request.GET.especialidad %}
+                        <a href="{% url 'secuencia_list' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-start ps-4">Especialidad</th>
+                            <th class="text-end pe-5">Si trabaja en...</th>
+                            <th class="text-start ps-5">No puede trabajar en...</th>
+                            <th class="text-end pe-4">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in secuencias %}
+                        <tr>
+                            <td class="text-start ps-4">
+                                {% if s.especialidad == 'MEDICO' %}
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary">Médico</span>
+                                {% elif s.especialidad == 'ENFERMERO' %}
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success">Enfermero</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ s.get_especialidad_display }}</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="text-end pe-5">
+                                <span class="badge fs-6 shadow-sm
+                                    {% if s.turno_previo.es_nocturno %}bg-dark border-light{% else %}bg-primary{% endif %}"
+                                    title="{{ s.turno_previo.nombre }}">
+                                    {{ s.turno_previo.abreviatura }}
+                                </span>
+                                <div class="small text-muted mt-1">{{ s.turno_previo.nombre }}</div>
+                            </td>
+
+                            <td class="text-start ps-5">
+                                <span class="badge fs-6 shadow-sm
+                                    {% if s.turno_siguiente.es_nocturno %}bg-dark border-light{% else %}bg-primary{% endif %}"
+                                    title="{{ s.turno_siguiente.nombre }}">
+                                    {{ s.turno_siguiente.abreviatura }}
+                                </span>
+                                <div class="small text-muted mt-1">{{ s.turno_siguiente.nombre }}</div>
+                            </td>
+
+                            <td class="text-end pe-4">
+                                <div class="btn-group">
+                                    <a href="{% url 'secuencia_update' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                                    <a href="{% url 'secuencia_delete' s.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <i class="bi bi-check-circle fs-1 text-success d-block mb-2"></i>
+                                No hay restricciones de secuencia definidas.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

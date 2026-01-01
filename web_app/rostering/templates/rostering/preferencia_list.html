@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-heart"></i> Preferencias de Empleados</h2>
+        <a href="{% url 'preferencia_create' %}" class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> Nueva Preferencia
+        </a>
+    </div>
+
+    <div class="card mb-3 bg-light border-0">
+        <div class="card-body py-2">
+            <form method="get" class="row g-2 align-items-center">
+                <div class="col-auto fw-bold">Especialidad:</div>
+                <div class="col-auto">
+                    {{ filter_form.especialidad }}
+                </div>  
+                <div class="col-auto fw-bold">Nombre:</div>
+                <div class="col-auto">{{ filter_form.empleado }}</div>
+                <div class="col-auto">{{ filter_form.fecha }}</div>
+                <div class="col-auto">{{ filter_form.deseo }}</div>
+                <div class="col-auto"><button class="btn btn-secondary btn-sm">Buscar</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive card shadow-sm">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Empleado</th>
+                    <th>Especialidad</th> <th>Fecha</th>
+                    <th>Deseo</th>
+                    <th>Turno Específico</th>
+                    <th>Comentario</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in preferencias %}
+                <tr>
+                    <td class="fw-bold">{{ p.empleado.nombre_completo }}</td>
+                    
+                    <td>
+                        {% if p.empleado.especialidad == 'MEDICO' %}
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary">Médico</span>
+                        {% elif p.empleado.especialidad == 'ENFERMERO' %}
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success">Enfermero</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ p.empleado.get_especialidad_display }}</span>
+                        {% endif %}
+                    </td>
+
+                    <td>{{ p.fecha|date:"D d/m/Y" }}</td>
+                    <td>
+                        {% if p.deseo == 'TRABAJAR' %}
+                            <span class="badge bg-success">Quiere Trabajar</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Quiere Descansar</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if p.tipo_turno %}
+                            {{ p.tipo_turno }}
+                        {% else %}
+                            <span class="text-muted small">Cualquiera / Todo el día</span>
+                        {% endif %}
+                    </td>
+                    <td class="small text-muted">{{ p.comentario|default:"-"|truncatechars:30 }}</td>
+                    <td>
+                        <a href="{% url 'preferencia_update' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                        <a href="{% url 'preferencia_delete' p.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center py-4">No hay preferencias registradas.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

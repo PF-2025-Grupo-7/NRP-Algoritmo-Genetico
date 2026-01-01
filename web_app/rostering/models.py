@@ -115,8 +115,11 @@ class ReglaDemandaSemanal(models.Model):
 
     def clean(self):
         super().clean()
-        # Validar que el turno sea de la misma especialidad que la plantilla
-        if self.plantilla and self.turno:
+        
+        # CORRECCIÓN: Verificamos 'self.plantilla_id' antes de acceder a 'self.plantilla'.
+        # Si plantilla_id es None (pasa durante la validación del form), saltamos esta validación
+        # porque se ejecutará de nuevo al guardar (save), cuando la plantilla ya esté asignada.
+        if self.plantilla_id and self.turno:
             if self.plantilla.especialidad != self.turno.especialidad:
                 raise ValidationError({
                     'turno': f"El turno '{self.turno}' ({self.turno.get_especialidad_display()}) "
@@ -429,7 +432,6 @@ class SecuenciaProhibida(models.Model):
     def __str__(self):
         return f"[{self.get_especialidad_display()}] NO HACER: {self.turno_previo.abreviatura} -> {self.turno_siguiente.abreviatura}"
     
-    # ... (otros modelos)
 
 class TrabajoPlanificacion(models.Model):
     """
@@ -444,6 +446,14 @@ class TrabajoPlanificacion(models.Model):
     fecha_fin = models.DateField()
     especialidad = models.CharField(max_length=20)
     payload_original = models.JSONField(help_text="Copia del JSON enviado al optimizador")
+
+    # --- CAMPO NUEVO ---
+    plantilla_demanda = models.ForeignKey(
+        'PlantillaDemanda', # Usamos string por si la clase está definida más abajo
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True
+    )
 
     def __str__(self):
         return f"Job {self.job_id} ({self.especialidad})"

@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="bi bi-clock"></i> Configuración de Turnos</h2>
+        <a href="{% url 'tipoturno_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Nuevo Tipo de Turno
+        </a>
+    </div>
+
+    <div class="card mb-3 bg-light border-0">
+        <div class="card-body py-2">
+            <form method="get" class="row g-2 align-items-center">
+                <div class="col-auto fw-bold">Ver:</div>
+                <div class="col-auto" style="min-width: 200px;">
+                    {{ filter_form.especialidad }}
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-secondary btn-sm">Filtrar</button>
+                    {% if request.GET.especialidad %}
+                        <a href="{% url 'tipoturno_list' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Especialidad</th> <th>Abreviatura</th>
+                            <th>Horario</th>
+                            <th>Duración</th>
+                            <th>Atributos</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for turno in turnos %}
+                        <tr>
+                            <td class="fw-bold text-primary">{{ turno.nombre }}</td>
+                            
+                            <td>
+                                {% if turno.especialidad == 'MEDICO' %}
+                                    <span class="badge bg-info text-dark border"><i class="bi bi-heart-pulse"></i> Médico</span>
+                                {% elif turno.especialidad == 'ENFERMERO' %}
+                                    <span class="badge bg-success border"><i class="bi bi-bandaid"></i> Enfermero</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ turno.get_especialidad_display }}</span>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                <span class="badge d-inline-block shadow-sm
+                                    {% if turno.es_nocturno %}bg-dark border border-light
+                                    {% elif turno.hora_inicio.hour < 12 %}bg-warning text-dark border border-warning
+                                    {% else %}bg-primary border border-primary{% endif %} fs-6" 
+                                    style="min-width: 50px; padding: 8px;"> {{ turno.abreviatura }}
+                                </span>
+                            </td>
+
+                            <td>
+                                <div class="text-muted small">
+                                    <i class="bi bi-clock"></i> 
+                                    {{ turno.hora_inicio|time:"H:i" }} - {{ turno.hora_fin|time:"H:i" }}
+                                </div>
+                            </td>
+                            
+                            <td class="fw-bold">
+                                {{ turno.duracion_horas }} hs
+                            </td>
+                            
+                            <td>
+                                {% if turno.es_nocturno %}
+                                    <span class="badge rounded-pill bg-indigo text-white" style="background-color: #6610f2;">
+                                        <i class="bi bi-moon-stars-fill"></i> Nocturno
+                                    </span>
+                                {% else %}
+                                    <span class="badge rounded-pill bg-light text-muted border">
+                                        <i class="bi bi-sun-fill text-warning"></i> Diurno
+                                    </span>
+                                {% endif %}
+                            </td>
+                            
+                            <td class="text-end">
+                                <div class="btn-group" role="group">
+                                    <a href="{% url 'tipoturno_update' turno.pk %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{% url 'tipoturno_delete' turno.pk %}" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                No hay tipos de turno configurados.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

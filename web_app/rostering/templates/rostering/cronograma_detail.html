@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Cronograma Detallado{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 no-print border-bottom pb-3">
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <h2 class="mb-0 fw-bold">📅 Cronograma {{ cronograma.get_especialidad_display }}</h2>
+            
+            {% if cronograma.estado == 'PUBLICADO' %}
+                <span class="badge rounded-pill bg-success bg-opacity-10 text-success border border-success fs-6">
+                    <i class="bi bi-check-circle-fill me-1"></i> Publicado
+                </span>
+            {% else %}
+                <span class="badge rounded-pill bg-warning bg-opacity-10 text-dark border border-warning fs-6">
+                    <i class="bi bi-pencil-fill me-1"></i> Borrador
+                </span>
+            {% endif %}
+        </div>
+
+        <p class="text-muted small mb-0">
+            <i class="bi bi-calendar-range"></i> Del {{ cronograma.fecha_inicio|date:"d M" }} al {{ cronograma.fecha_fin|date:"d M Y" }} 
+            <span class="mx-2">|</span> 
+            <i class="bi bi-activity"></i> Fitness: <strong>{{ cronograma.fitness|default:"-"|floatformat:2 }}</strong>
+        </p>
+    </div>
+
+    <div class="d-flex gap-2">
+        <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+
+        <button class="btn btn-dark" onclick="window.print()" title="Imprimir o Guardar como PDF">
+            <i class="bi bi-printer-fill"></i> PDF
+        </button>
+
+        {% if cronograma.estado != 'PUBLICADO' %}
+            <button type="button" class="btn btn-success shadow-sm" data-bs-toggle="modal" data-bs-target="#modalPublicar">
+                <i class="bi bi-megaphone-fill me-1"></i> Publicar Oficialmente
+            </button>
+        {% endif %}
+    </div>
+</div>
+
+{% if cronograma.estado != 'PUBLICADO' %}
+<div class="modal fade" id="modalPublicar" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-check-circle"></i> Confirmar Publicación</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <i class="bi bi-exclamation-circle text-success" style="font-size: 3rem;"></i>
+                <h5 class="mt-3">¿Hacer oficial esta planificación?</h5>
+                <p class="text-muted mb-0">
+                    El estado pasará a <strong>PUBLICADO</strong> y quedará visible como la versión definitiva para este período.
+                </p>
+            </div>
+            <div class="modal-footer bg-light justify-content-center">
+                <button type="button" class="btn btn-link text-secondary text-decoration-none" data-bs-dismiss="modal">Cancelar</button>
+                
+                <form action="{% url 'cronograma_publish' cronograma.id %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success px-4 fw-bold">Sí, Publicar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive" style="max-height: 80vh;">
+            <table class="table table-bordered table-hover mb-0 text-center align-middle" style="font-size: 0.85rem;">
+                <thead class="table-light sticky-top" style="z-index: 2;">
+                    <tr>
+                        <th class="sticky-col-start bg-light" style="min-width: 200px;">Profesional</th>
+                        <th style="min-width: 60px;">Total</th>
+                        {% for fecha in rango_fechas %}
+                            <th style="min-width: 45px;" class="{% if fecha.weekday >= 5 %}bg-warning-subtle{% endif %}">
+                                <div class="small fw-bold">{{ fecha|date:"D"|upper|slice:":2" }}</div>
+                                <div>{{ fecha|date:"d" }}</div>
+                            </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for fila in filas_tabla %}
+                    <tr>
+                        <td class="text-start sticky-col-start bg-white fw-bold text-truncate" style="max-width: 200px;">
+                            {{ fila.empleado.nombre_completo }}
+                            <span class="badge rounded-pill text-bg-light border ms-1" style="font-size: 0.6em;">
+                                {{ fila.empleado.get_experiencia_display|slice:":1" }}
+                            </span>
+                        </td>
+                        
+                        <td class="bg-light">
+                            <strong>{{ fila.stats.turnos }}</strong> <small class="text-muted">t</small>
+                        </td>
+
+                        {% for celda in fila.celdas %}
+                            <td class="p-1 {% if not celda.turno %}bg-light text-muted{% endif %}">
+                                {% if celda.turno %}
+                                    <div class="badge w-100 py-2 shadow-sm
+                                        {% if celda.turno.es_nocturno %}bg-dark text-white
+                                        {% elif celda.turno.hora_inicio.hour < 12 %}bg-warning text-dark
+                                        {% else %}bg-primary text-white{% endif %}"
+                                        title="{{ celda.turno.nombre }} ({{ celda.turno.duracion_horas }}hs)">
+                                        {{ celda.turno.abreviatura }}
+                                    </div>
+                                {% else %}
+                                    <span class="small text-black-50">-</span>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* 1. ESTILOS DE VISUALIZACIÓN EN PANTALLA */
+    .sticky-col-start {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        border-right: 2px solid #dee2e6 !important;
+    }
+    thead .sticky-col-start {
+        z-index: 3 !important; /* Esquina superior izquierda siempre arriba */
+    }
+
+    /* 2. ESTILOS PARA IMPRESIÓN (PDF) */
+    @media print {
+        @page {
+            size: landscape; /* Hoja horizontal */
+            margin: 5mm;     /* Márgenes mínimos */
+        }
+
+        /* Ocultar elementos de navegación y botones */
+        header, footer, nav, .sidebar, .navbar, .no-print, .btn {
+            display: none !important;
+        }
+
+        /* Ajustes del cuerpo para impresión limpia */
+        body {
+            background-color: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            /* Forzar impresión de colores de fondo (badges) */
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* Ajustes de contenedores */
+        .container, .container-fluid, .main-content, .card {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+        }
+
+        /* Ajustes de la tabla para que entre todo */
+        .table-responsive {
+            overflow: visible !important;
+            max-height: none !important;
+        }
+        
+        table {
+            font-size: 9px !important; /* Letra más chica para que entren 31 días */
+            width: 100% !important;
+        }
+
+        th, td {
+            padding: 2px !important;
+            white-space: nowrap;
+        }
+
+        /* Desactivar sticky en impresión para evitar cortes raros */
+        .sticky-col-start {
+            position: static !important;
+            border-right: 1px solid #dee2e6 !important;
+        }
+        
+        /* Evitar que se parta una fila a la mitad entre hojas */
+        tr {
+            page-break-inside: avoid;
+        }
+    }
+</style>
+{% endblock %}

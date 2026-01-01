@@ -11,6 +11,10 @@ from .models import (
     ConfiguracionAlgoritmo, SecuenciaProhibida, DiaSemana,
     Cronograma, Asignacion
 )
+from datetime import timedelta
+from django.db import transaction
+# Ajustá los puntos '.' según dónde esté el archivo (si es views.py o services.py)
+from .models import Cronograma, Asignacion, TipoTurno, ConfiguracionAlgoritmo, PlantillaDemanda, TrabajoPlanificacion
 
 def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None):
     """
@@ -287,49 +291,58 @@ def consultar_resultado_ag(job_id):
         return {"status": "error", "error": str(e)}
 
 
-def guardar_solucion_db(inicio, fin, especialidad, json_payload, api_response):
+def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original, resultado, plantilla_demanda=None):
     """
-    Guarda el cronograma, sus asignaciones y las métricas de análisis.
+    Guarda el cronograma. Los parámetros ahora coinciden con la llamada de la vista.
     """
-    matriz_solucion = api_response.get('matriz_solucion') or api_response.get('solution')
-    fitness = api_response.get('fitness')
-    tiempo = api_response.get('tiempo_ejecucion')
-    explicabilidad = api_response.get('explicabilidad', {})
+    # 1. Validamos usando 'resultado' (antes era api_response)
+    matriz_solucion = resultado.get('matriz_solucion') or resultado.get('solution')
+    
+    if not matriz_solucion:
+        raise ValueError("La respuesta de la API no contiene una solución válida (matriz vacía).")
 
-    # 1. Crear el Encabezado (Cronograma)
+    fitness = resultado.get('fitness', 0)
+    tiempo = resultado.get('tiempo_ejecucion', 0)
+    explicabilidad = resultado.get('explicabilidad', {})
+
+    # 2. Configuración activa
     config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
-    plantilla = PlantillaDemanda.objects.filter(especialidad=especialidad).first()
 
     with transaction.atomic():
+        # 3. Crear Cronograma (usando fecha_inicio y fecha_fin)
         cronograma = Cronograma.objects.create(
             especialidad=especialidad,
-            fecha_inicio=inicio,
-            fecha_fin=fin,
+            fecha_inicio=fecha_inicio, # Coincide con el argumento
+            fecha_fin=fecha_fin,       # Coincide con el argumento
             estado=Cronograma.Estado.BORRADOR,
-            plantilla_demanda=plantilla,
+            plantilla_demanda=plantilla_demanda,
             configuracion_usada=config_activa,
             fitness=fitness,
             tiempo_ejecucion=tiempo,
             reporte_analisis=explicabilidad 
         )
         
-        # 2. Preparar Mapeos
+        # 4. Preparar Mapeos
         turnos_db = {t.id: t for t in TipoTurno.objects.filter(especialidad=especialidad)}
-        lista_empleados_payload = json_payload['datos_problema']['lista_profesionales']
+        
+        # Usamos 'payload_original' (antes era json_payload)
+        lista_empleados_payload = payload_original['datos_problema']['lista_profesionales']
         mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
         
         nuevas_asignaciones = []
         
-        # 3. Recorrer la Matriz
+        # 5. Recorrer Matriz
         for i, fila_turnos in enumerate(matriz_solucion):
             empleado_id = mapa_idx_a_empleado_id.get(i)
+            
             if not empleado_id:
                 continue 
             
             for j, turno_id_api in enumerate(fila_turnos):
-                # 0 o -1 suele significar libre en el algoritmo, o IDs que no están en DB
-                if turno_id_api in turnos_db:
-                    fecha_turno = inicio + timedelta(days=j)
+                if turno_id_api and turno_id_api in turnos_db:
+                    
+                    # Calculamos fecha usando fecha_inicio
+                    fecha_turno = fecha_inicio + timedelta(days=j)
                     turno_obj = turnos_db[turno_id_api]
                     
                     asignacion = Asignacion(

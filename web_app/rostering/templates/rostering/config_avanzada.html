@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4"><i class="bi bi-sliders"></i> Configuración Avanzada</h2>
+
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="card shadow border-0">
+            <div class="card-header bg-dark"> <ul class="nav nav-tabs card-header-tabs" id="myTab" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active fw-bold" id="tech-tab" data-bs-toggle="tab" data-bs-target="#tech" type="button">
+                            <i class="bi bi-cpu"></i> Parámetros Técnicos
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-bold" id="biz-tab" data-bs-toggle="tab" data-bs-target="#biz" type="button">
+                            <i class="bi bi-briefcase"></i> Pesos de Negocio
+                        </button>
+                    </li>
+                </ul>
+            </div>
+                        
+            <div class="card-body p-4">
+                <div class="tab-content" id="myTabContent">
+                    
+                    <div class="tab-pane fade show active" id="tech">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Nombre Configuración</label>
+                                {{ form.nombre }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Semilla (Opcional)</label>
+                                {{ form.semilla }}
+                            </div>
+                        </div>
+                        <hr>
+                        <h6 class="text-primary mb-3">Algoritmo Genético</h6>
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Población</label>
+                                {{ form.tamano_poblacion }}
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Generaciones</label>
+                                {{ form.generaciones }}
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Prob. Cruce</label>
+                                {{ form.prob_cruce }}
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label">Prob. Mutación</label>
+                                {{ form.prob_mutacion }}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Selección</label>
+                                {{ form.estrategia_seleccion }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Cruce</label>
+                                {{ form.estrategia_cruce }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Mutación</label>
+                                {{ form.estrategia_mutacion }}
+                            </div>
+                        </div>
+                        <div class="form-check mt-2">
+                            {{ form.elitismo }}
+                            <label class="form-check-label" for="{{ form.elitismo.id_for_label }}">Activar Elitismo</label>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="biz">
+                        <h6 class="text-success mb-3">Ponderación de Objetivos (Pesos)</h6>
+                        <p class="text-muted small">Cuanto mayor es el número, más importancia le dará el algoritmo a esa regla.</p>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Peso Equidad General</label>
+                                {{ form.peso_equidad_general }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Peso Turnos Difíciles</label>
+                                {{ form.peso_equidad_dificil }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Peso Días Libres (Preferencias)</label>
+                                {{ form.peso_preferencia_dias_libres }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Peso Turno Específico (Preferencias)</label>
+                                {{ form.peso_preferencia_turno }}
+                            </div>
+                        </div>
+                        <hr>
+                        <h6 class="text-warning text-dark mb-3">Tolerancias y Factores</h6>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Tolerancia Gral (Horas)</label>
+                                {{ form.tolerancia_general }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Tolerancia Difícil (Turnos)</label>
+                                {{ form.tolerancia_dificil }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Factor Alpha (PTE)</label>
+                                {{ form.factor_alpha_pte }}
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            
+            <div class="card-footer text-end p-3">
+                <a href="{% url 'config_dashboard' %}" class="btn btn-secondary me-2">Cancelar</a>
+                <button type="submit" class="btn btn-success px-4">Guardar Configuración</button>
+            </div>
+        </div>
+    </form>
+</div>
+<style>
+    /* Estilos personalizados para las pestañas en fondo oscuro */
+    
+    /* 1. Estado Inactivo: Texto gris claro para que contraste con el bg-dark */
+    .card-header-tabs .nav-link {
+        color: rgba(255, 255, 255, 0.7); 
+        border: none;
+    }
+    
+    /* 2. Al pasar el mouse (Hover): Texto blanco brillante */
+    .card-header-tabs .nav-link:hover {
+        color: #ffffff;
+        border: none;
+        isolation: isolate; /* Fix para bordes en algunos navegadores */
+    }
+    
+    /* 3. Estado Activo: Texto oscuro (porque el fondo se vuelve blanco automáticamente por Bootstrap) */
+    .card-header-tabs .nav-link.active {
+        color: #212529; /* Negro suave */
+        background-color: #fff;
+        border-bottom-color: #fff; /* Conecta visualmente con el body del card */
+    }
+</style>
+{% endblock %}
