@@ -2,25 +2,22 @@ import json
 import traceback
 import requests
 import os
-from datetime import timedelta, date
-from django.db.models import Q
-from django.core.exceptions import ValidationError  # <--- Agregado para validación
+from datetime import timedelta, datetime, date
+from django.core.exceptions import ValidationError
 from django.db import transaction
+
+# --- MODELOS ---
 from .models import (
     Empleado, TipoTurno, PlantillaDemanda, ReglaDemandaSemanal,
     ExcepcionDemanda, NoDisponibilidad, Preferencia, 
     ConfiguracionAlgoritmo, SecuenciaProhibida, DiaSemana,
     Cronograma, Asignacion
 )
-from datetime import timedelta
-from django.db import transaction
-# Ajustá los puntos '.' según dónde esté el archivo (si es views.py o services.py)
-from .models import Cronograma, Asignacion, TipoTurno, ConfiguracionAlgoritmo, PlantillaDemanda, TrabajoPlanificacion
 
 def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None):
     """
     Construye el diccionario JSON exacto que espera la API de optimización.
-    Refactorizado para lógica basada en CANTIDAD DE TURNOS (Slots).
+    Valida la coherencia de datos y transforma los modelos de Django en estructuras primitivas.
     """
     # 1. Validaciones y Setup Inicial
     num_dias = (fecha_fin - fecha_inicio).days + 1
@@ -28,7 +25,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio.")
 
     # VALIDACIÓN CRÍTICA: Uniformidad de Turnos
-    # Como el AG cuenta slots (1 turno = 1 fatiga), todos deben durar lo mismo.
+    # El algoritmo cuenta slots (1 turno = 1 fatiga), por lo que deben durar lo mismo.
     turnos_qs = TipoTurno.objects.filter(especialidad=especialidad)
     duraciones = set(t.duracion_horas for t in turnos_qs)
     
@@ -53,7 +50,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
             raise ValueError(f"No hay plantilla de demanda creada para {especialidad}")
 
     # ---------------------------------------------------------
-    # 2. SECCIÓN CONFIG (Técnica)
+    # 2. CONFIGURACIÓN DEL ALGORITMO
     # ---------------------------------------------------------
     payload_config = {
         "pop_size": config.tamano_poblacion,
@@ -65,7 +62,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     }
 
     # ---------------------------------------------------------
-    # 3. SECCIÓN ESTRATEGIAS
+    # 3. ESTRATEGIAS EVOLUTIVAS
     # ---------------------------------------------------------
     payload_estrategias = {
         "sel": config.estrategia_seleccion,
@@ -77,8 +74,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     # 4. DATOS DEL PROBLEMA - PROFESIONALES
     # ---------------------------------------------------------
     
-    # Calcular factor de proporción. 
-    # Si 'min_turnos_mensuales' es para 30 días, y planificamos 15, el objetivo debe ser la mitad.
+    # Factor de proporción para ajustar límites mensuales al periodo seleccionado
     factor_tiempo = num_dias / 30.0
     
     empleados_qs = Empleado.objects.filter(especialidad=especialidad, activo=True)
@@ -92,13 +88,11 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         
         skill = emp.experiencia.lower() # 'senior' / 'junior'
 
-        # CÁLCULO DE LÍMITES DE TURNOS (SLOTS)
-        # Convertimos a int porque el AG trabaja con números enteros de slots.
-        # Ej: 20 turnos mes * (15/30 dias) = 10 turnos objetivo.
+        # Cálculo de límites de turnos (Slots)
         t_min_periodo = int(emp.min_turnos_mensuales * factor_tiempo)
         t_max_periodo = int(emp.max_turnos_mensuales * factor_tiempo)
 
-        # Ajuste de seguridad: t_max nunca menos que t_min
+        # Ajuste de seguridad
         if t_max_periodo < t_min_periodo:
             t_max_periodo = t_min_periodo
 
@@ -106,8 +100,8 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
             "id_db": emp.id,
             "nombre": emp.nombre_completo,
             "skill": skill,
-            "t_min": t_min_periodo,  # Lógica corregida: Cantidad de turnos
-            "t_max": t_max_periodo,  # Lógica corregida: Cantidad de turnos
+            "t_min": t_min_periodo,
+            "t_max": t_max_periodo,
         })
 
     # ---------------------------------------------------------
@@ -117,9 +111,6 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     
     turnos_a_cubrir = [t.id for t in turnos_qs]
     turnos_noche = [t.id for t in turnos_qs if t.es_nocturno]
-    
-    # CORRECCIÓN: Volvemos a enviar esto porque la API lo valida (422 si falta),
-    # aunque lógicamente no lo use para contar slots.
     duracion_turnos = {str(t.id): float(t.duracion_horas) for t in turnos_qs}
     
     max_turno_val = max(turnos_a_cubrir) if turnos_a_cubrir else 0
@@ -146,7 +137,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     reglas_finde = ReglaDemandaSemanal.objects.filter(plantilla=plantilla, dia=DiaSemana.SABADO)
     dict_demanda_finde = extraer_demanda(reglas_finde)
 
-    # 6.3. Días Pico (Excepciones)
+    # 6.3. Días Pico (Excepciones por fecha específica)
     dias_pico_indices = []
     dict_demanda_pico = {}
     
@@ -156,7 +147,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         
         if excepcion.exists():
             dias_pico_indices.append(i)
-            # Tomamos la definición de la primera ocurrencia encontrada
+            # Tomamos la definición de la primera ocurrencia encontrada como modelo de pico
             if not dict_demanda_pico:
                 dict_demanda_pico = extraer_demanda(excepcion)
         
@@ -173,7 +164,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     # 7. EXCEPCIONES Y PREFERENCIAS
     # ---------------------------------------------------------
     
-    # 7.1 Disponibilidad
+    # 7.1 Disponibilidad (Licencias, Enfermedad)
     excepciones_disponibilidad = []
     no_disp_qs = NoDisponibilidad.objects.filter(
         empleado__in=empleados_qs,
@@ -196,7 +187,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
                 "disponible": False
             })
 
-    # 7.2 Preferencias
+    # 7.2 Preferencias (Peticiones de días libres o turnos específicos)
     excepciones_preferencias = []
     prefs_qs = Preferencia.objects.filter(
         empleado__in=empleados_qs,
@@ -257,11 +248,11 @@ def invocar_api_planificacion(payload):
     """
     Envía el JSON a la API de optimización y devuelve la respuesta.
     """
-    # En entorno Docker, el host suele ser el nombre del servicio
+    # En entorno Docker, el host 'optimizer' resuelve al contenedor de la API
     url = "http://optimizer:8000/planificar" 
     
     try:
-        # DEBUG: Guardar payload localmente para inspección si algo falla
+        # DEBUG: Guardar payload localmente si está habilitado
         if os.getenv('DEBUG_PAYLOAD', 'False') == 'True':
             with open('debug_payload.json', 'w', encoding='utf-8') as f:
                 json.dump(payload, f, indent=2, default=str)
@@ -277,7 +268,7 @@ def invocar_api_planificacion(payload):
 
 def consultar_resultado_ag(job_id):
     """
-    Consulta el endpoint de resultados de la API.
+    Consulta el endpoint de resultados de la API (Polling).
     """
     url = f"http://optimizer:8000/result/{job_id}"
     try:
@@ -292,73 +283,57 @@ def consultar_resultado_ag(job_id):
         return {"status": "error", "error": str(e)}
 
 
-from datetime import timedelta, datetime, date
-import traceback
-from django.db import transaction
-from .models import Cronograma, Asignacion, TipoTurno, ConfiguracionAlgoritmo, Empleado
-
-from datetime import timedelta, datetime, date
-import traceback
-from django.db import transaction
-from .models import Cronograma, Asignacion, TipoTurno, ConfiguracionAlgoritmo, Empleado
-
 def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original, resultado, plantilla_demanda=None):
+    """
+    Procesa la respuesta JSON del motor genético y persiste el Cronograma y sus Asignaciones en la base de datos.
+    También enriquece el reporte de análisis con nombres reales para visualización.
+    """
     print("--- DEBUG: INICIANDO GUARDADO DB ---")
     try:
-        # 1. Validaciones básicas
+        # 1. Validaciones básicas de respuesta
         matriz_solucion = resultado.get('matriz_solucion') or resultado.get('solution')
         if not matriz_solucion:
-            raise ValueError("Matriz vacía")
+            raise ValueError("La API devolvió una matriz de solución vacía.")
 
         fitness = resultado.get('fitness', 0)
         tiempo = resultado.get('tiempo_ejecucion', 0)
         explicabilidad = resultado.get('explicabilidad', {})
 
-        # 2. Configuración activa
+        # 2. Configuración activa usada
         config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
 
-        # --- LÓGICA DE NOMBRES Y LÍMITES ---
+        # 3. Recuperar mapeo de Empleados (Payload Index -> DB ID)
         if 'datos_problema' not in payload_original:
-            raise KeyError("Falta 'datos_problema' en payload")
+            raise KeyError("El payload original no contiene 'datos_problema'. No se puede mapear empleados.")
             
         lista_empleados_payload = payload_original['datos_problema']['lista_profesionales']
         mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
+        
         ids_a_buscar = list(mapa_idx_a_empleado_id.values())
         empleados_db = Empleado.objects.filter(id__in=ids_a_buscar)
         empleados_map = {e.id: e for e in empleados_db}
 
-        # 1. OBTENER DURACIÓN DE REFERENCIA
+        # 4. Obtener duración de referencia para cálculos de reporte
         turno_referencia = TipoTurno.objects.filter(especialidad=especialidad).first()
+        duracion_horas = 12.0 # Valor por defecto seguro
         
-        duracion_horas = 0.0
         if turno_referencia:
-            # ESTRATEGIA A: Campo explícito
             if turno_referencia.duracion_horas and turno_referencia.duracion_horas > 0:
                 duracion_horas = float(turno_referencia.duracion_horas)
-                print(f"DEBUG: Duración desde DB: {duracion_horas}")
-            
-            # ESTRATEGIA B: Diferencia horaria
             elif turno_referencia.hora_inicio and turno_referencia.hora_fin:
-                h_ini = turno_referencia.hora_inicio
-                h_fin = turno_referencia.hora_fin
+                # Cálculo fallback si no está el campo explícito
                 dummy_date = date(2000, 1, 1)
-                dt_ini = datetime.combine(dummy_date, h_ini)
-                dt_fin = datetime.combine(dummy_date, h_fin)
+                dt_ini = datetime.combine(dummy_date, turno_referencia.hora_inicio)
+                dt_fin = datetime.combine(dummy_date, turno_referencia.hora_fin)
                 diff = dt_fin - dt_ini
                 if diff.total_seconds() < 0:
                     diff += timedelta(days=1)
                 duracion_horas = diff.total_seconds() / 3600.0
-                print(f"DEBUG: Duración calculada por horas: {duracion_horas}")
 
-        if not duracion_horas: 
-            duracion_horas = 12.0
-            print("DEBUG: Duración fallback (12.0)")
-
+        # 5. Enriquecer reporte de explicabilidad (Nombres y Límites)
         nombres_cortos = []
         nombres_largos = []
         limites_contractuales = []
-
-        print(f"DEBUG: Procesando {len(lista_empleados_payload)} empleados...")
 
         for i in range(len(lista_empleados_payload)):
             emp_id = mapa_idx_a_empleado_id.get(i)
@@ -374,20 +349,13 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                 else:
                     n_corto = full_name if full_name else f"P{i+1}"
 
-                # --- CÁLCULO DE LÍMITES ---
+                # Cálculo de límites en horas para el gráfico
                 min_turnos = getattr(empleado, 'min_turnos_mensuales', 0) or 0
                 max_turnos = getattr(empleado, 'max_turnos_mensuales', 0) or 0
                 
-                # Convertimos a float
                 min_h = float(min_turnos) * duracion_horas
                 max_h = float(max_turnos) * duracion_horas
-                
                 limites = [min_h, max_h]
-                
-                # --- PRINT DE VERIFICACIÓN (Solo los primeros 3 para no saturar) ---
-                if i < 3:
-                    print(f"   > Emp: {n_corto} | Turnos: {min_turnos}-{max_turnos} | Dur: {duracion_horas} -> Limites: {limites}")
-                # ------------------------------------------------------------------
 
             else:
                 n_corto = f"P{i+1}"
@@ -398,7 +366,7 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             nombres_largos.append(n_largo)
             limites_contractuales.append(limites)
 
-        # Inyectamos en el JSON
+        # Inyectar datos en el JSON de reporte para que el Frontend no tenga que recalcular
         if 'datos_equidad' not in explicabilidad:
             explicabilidad['datos_equidad'] = {}
         
@@ -406,7 +374,7 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
         explicabilidad['datos_equidad']['nombres_cortos'] = nombres_cortos
         explicabilidad['datos_equidad']['limites_contractuales'] = limites_contractuales
         
-        # --- GUARDADO EN BD ---
+        # 6. Transacción Atómica para guardar Cronograma y Asignaciones
         with transaction.atomic():
             cronograma = Cronograma.objects.create(
                 especialidad=especialidad,
@@ -439,10 +407,10 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             if nuevas_asignaciones:
                 Asignacion.objects.bulk_create(nuevas_asignaciones)
             
-        print("--- DEBUG: FIN GUARDADO EXITOSO ---")
+        print("--- DEBUG: GUARDADO EXITOSO ---")
         return cronograma
 
     except Exception as e:
         print("\n🔴 CRASH EN GUARDAR_SOLUCION")
         print(traceback.format_exc()) 
-        raise e
+        raise e # Re-lanzar para que la vista capture el error 500

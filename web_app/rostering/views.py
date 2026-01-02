@@ -1,58 +1,129 @@
 import json
-from datetime import datetime, date
-from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST, require_GET
-from django.contrib.auth.decorators import login_required
-from django.utils.dateparse import parse_date
-from django.views.decorators.csrf import csrf_exempt 
-from django.core.exceptions import ValidationError # <--- IMPORTAR ESTO
-from django.shortcuts import render, redirect # Asegurate de tener redirect
-from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth import login
-from django.contrib import messages
+from datetime import datetime, timedelta
 from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
-from datetime import timedelta
+from django.http import JsonResponse
 from django.urls import reverse_lazy
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.utils import timezone
+from django.utils.dateparse import parse_date
+from django.contrib import messages
+from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST, require_GET
+from django.core.exceptions import ValidationError
 from django.views.generic import (
-    ListView, 
-    CreateView, 
-    UpdateView, 
-    DeleteView, 
-    DetailView, 
-    TemplateView, # <--- Faltaba esta
-    FormView      # <--- Y esta también la vas a necesitar para ConfiguracionSimpleView
+    ListView, CreateView, UpdateView, DeleteView, 
+    DetailView, TemplateView, FormView
 )
-from .models import Empleado, Cronograma, TipoTurno, NoDisponibilidad, Preferencia, SecuenciaProhibida, Asignacion
+
+# --- MODELOS ---
+from .models import (
+    Empleado, Cronograma, TipoTurno, NoDisponibilidad, 
+    Preferencia, SecuenciaProhibida, Asignacion,
+    PlantillaDemanda, ReglaDemandaSemanal, ExcepcionDemanda,
+    TrabajoPlanificacion, ConfiguracionAlgoritmo
+)
+
+# --- FORMS ---
 from .forms import (
-    EmpleadoForm, TipoTurnoForm, NoDisponibilidadForm, PreferenciaForm, SecuenciaProhibidaForm
+    EmpleadoForm, TipoTurnoForm, NoDisponibilidadForm, 
+    PreferenciaForm, SecuenciaProhibidaForm,
+    PlantillaDemandaForm, ReglaDemandaSemanalForm, ExcepcionDemandaForm,
+    ConfiguracionSimpleForm, ConfiguracionAvanzadaForm
 )
+
+# --- FILTROS ---
 from .filters import (
-    EmpleadoFilter, CronogramaFilter, NoDisponibilidadFilter, PreferenciaFilter, TipoTurnoFilter, SecuenciaProhibidaFilter
+    EmpleadoFilter, CronogramaFilter, NoDisponibilidadFilter, 
+    PreferenciaFilter, TipoTurnoFilter, SecuenciaProhibidaFilter
 )
+
+# --- SERVICIOS ---
 from .services import (
     generar_payload_ag, 
     invocar_api_planificacion, 
     consultar_resultado_ag, 
     guardar_solucion_db
 )
-from .models import PlantillaDemanda, ReglaDemandaSemanal, ExcepcionDemanda
-from .forms import PlantillaDemandaForm, ReglaDemandaSemanalForm, ExcepcionDemandaForm
-from .models import TrabajoPlanificacion
-from django.contrib.auth.mixins import UserPassesTestMixin
-from .models import ConfiguracionAlgoritmo
-from .forms import ConfiguracionSimpleForm, ConfiguracionAvanzadaForm
 
-# --- VISTA 1: INICIAR EL PROCESO ---
+
+# ==============================================================================
+# VISTAS GENERALES Y DE GESTIÓN
+# ==============================================================================
+
+def dashboard(request):
+    """
+    Vista principal: KPIs, accesos rápidos y estado actual del sistema.
+    """
+    total_empleados = Empleado.objects.count()
+    borradores_pendientes = Cronograma.objects.filter(estado=Cronograma.Estado.BORRADOR).count()
+    
+    # Obtenemos el último generado y los recientes
+    ultimo_cronograma = Cronograma.objects.order_by('-fecha_creacion').first()
+    recientes = Cronograma.objects.all().order_by('-fecha_creacion')[:5]
+
+    # Lógica para sugerir el próximo mes a planificar
+    hoy = timezone.now().date()
+    if hoy.month == 12:
+        prox_mes, prox_anio = 1, hoy.year + 1
+    else:
+        prox_mes, prox_anio = hoy.month + 1, hoy.year
+    
+    existe_proximo = Cronograma.objects.filter(
+        fecha_inicio__month=prox_mes, 
+        fecha_inicio__year=prox_anio
+    ).exists()
+
+    nombre_mes_objetivo = f"{prox_mes:02d}/{prox_anio}"
+
+    context = {
+        'total_empleados': total_empleados,
+        'borradores': borradores_pendientes,
+        'ultimo': ultimo_cronograma,
+        'recientes': recientes,
+        'existe_proximo': existe_proximo,
+        'mes_objetivo': nombre_mes_objetivo,
+    }
+    return render(request, 'rostering/dashboard.html', context)
+
+
+def registrar_usuario(request):
+    """Permite el registro de nuevos usuarios en el sistema."""
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user) # Logueo automático tras registro
+            messages.success(request, "¡Registro exitoso! Bienvenido.")
+            return redirect('dashboard')
+        else:
+            messages.error(request, "Por favor corrige los errores abajo.")
+    else:
+        form = UserCreationForm()
+        
+    return render(request, 'registration/register.html', {'form': form})
+
+
+# ==============================================================================
+# MOTOR DE PLANIFICACIÓN (API ORCHESTRATION)
+# ==============================================================================
+
+@login_required
+def pagina_generador(request):
+    """Renderiza la pantalla para configurar y lanzar una nueva planificación."""
+    return render(request, 'rostering/generador.html')
+
 
 @csrf_exempt 
 @login_required
 @require_POST
 def iniciar_planificacion(request):
+    """
+    Endpoint AJAX: Recibe parámetros, valida, genera payload y llama a la API de optimización.
+    """
     try:
-        # 1. Leer datos
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
@@ -64,8 +135,8 @@ def iniciar_planificacion(request):
         plantilla_id = data.get('plantilla_id')
 
         # Validaciones básicas
-        if not all([fecha_inicio_str, fecha_fin_str, especialidad,plantilla_id]):
-            return JsonResponse({'error': 'Faltan parámetros obligatorios (fecha_inicio, fecha_fin, especialidad).'}, status=400)
+        if not all([fecha_inicio_str, fecha_fin_str, especialidad, plantilla_id]):
+            return JsonResponse({'error': 'Faltan parámetros obligatorios.'}, status=400)
 
         inicio = parse_date(fecha_inicio_str)
         fin = parse_date(fecha_fin_str)
@@ -73,14 +144,13 @@ def iniciar_planificacion(request):
         if not inicio or not fin:
             return JsonResponse({'error': 'Formato de fecha inválido. Usar YYYY-MM-DD.'}, status=400)
 
-        # 2. Generar el Payload (Aquí salta el ValidationError si los turnos no son uniformes)
+        # 1. Generar el Payload (Lógica de negocio en services.py)
         payload = generar_payload_ag(inicio, fin, especialidad)
 
-        # 3. Invocar a la API
+        # 2. Invocar a la API Python
         respuesta_api = invocar_api_planificacion(payload)
 
         if not respuesta_api or 'job_id' not in respuesta_api:
-            # Si la API devuelve un mensaje de error específico, intentamos mostrarlo
             msg = 'No se pudo iniciar el trabajo en el motor de IA.'
             if respuesta_api and 'detail' in respuesta_api:
                 msg += f" Detalle: {respuesta_api['detail']}"
@@ -88,7 +158,7 @@ def iniciar_planificacion(request):
 
         job_id = respuesta_api['job_id']
 
-        # 4. Guardar contexto
+        # 3. Guardar contexto para recuperarlo cuando termine el algoritmo
         TrabajoPlanificacion.objects.create(
             job_id=job_id,
             fecha_inicio=inicio,
@@ -104,32 +174,29 @@ def iniciar_planificacion(request):
             'mensaje': 'Optimización iniciada correctamente.'
         })
 
-    # MANEJO DE ERRORES DE LÓGICA (Validaciones de services.py)
     except ValidationError as ve:
         return JsonResponse({'error': f"Error de validación: {ve.message}"}, status=400)
     except ValueError as ve:
         return JsonResponse({'error': str(ve)}, status=400)
     except Exception as e:
-        # Loguear error real en consola del servidor para debug
         print(f"Error 500 en iniciar_planificacion: {e}")
         return JsonResponse({'error': f"Error interno del servidor: {str(e)}"}, status=500)
 
 
-# --- VISTA 2: POLLING (CONSULTAR ESTADO) ---
-
-# En rostering/views.py
-
 @csrf_exempt
 @require_GET
 def verificar_estado_planificacion(request, job_id):
+    """
+    Polling: El frontend consulta esto periódicamente para ver si el AG terminó.
+    Si terminó, guarda los resultados en la DB.
+    """
     try:
-        # 1. Recuperar contexto (la memoria temporal)
         try:
             trabajo = TrabajoPlanificacion.objects.get(job_id=job_id)
         except TrabajoPlanificacion.DoesNotExist:
             return JsonResponse({'error': 'Job ID no encontrado o expirado.'}, status=404)
 
-        # 2. Consultar a la API
+        # 1. Consultar a la API
         resultado = consultar_resultado_ag(job_id)
         
         if not resultado:
@@ -138,18 +205,17 @@ def verificar_estado_planificacion(request, job_id):
         if 'status' in resultado and resultado['status'] == 'error':
              return JsonResponse({'status': 'failed', 'error': resultado.get('error', 'Error desconocido en el motor.')})
 
-        # 3. Verificar si terminó
+        # 2. Verificar si terminó
         if 'fitness' in resultado or resultado.get('status') == 'completed':
             try:
-                # --- AQUÍ ESTÁ LA CORRECCIÓN ---
-                # Pasamos el objeto plantilla_demanda recuperado del trabajo temporal
+                # Guardar solución en Base de Datos
                 cronograma = guardar_solucion_db(
                     fecha_inicio=trabajo.fecha_inicio, 
                     fecha_fin=trabajo.fecha_fin, 
                     especialidad=trabajo.especialidad, 
                     payload_original=trabajo.payload_original, 
                     resultado=resultado,
-                    plantilla_demanda=trabajo.plantilla_demanda # <--- NUEVO PARÁMETRO
+                    plantilla_demanda=trabajo.plantilla_demanda
                 )
                 
                 # Limpieza: Borramos la memoria temporal
@@ -166,56 +232,49 @@ def verificar_estado_planificacion(request, job_id):
                 print(f"Error guardando DB: {save_error}")
                 return JsonResponse({'error': f"Error guardando cronograma: {str(save_error)}"}, status=500)
 
-        # 4. Sigue corriendo
+        # 3. Sigue corriendo
         return JsonResponse({'status': 'running'})
 
     except Exception as e:
         print(f"Error polling: {e}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def api_get_plantillas(request):
+    """Retorna JSON con las plantillas filtradas por especialidad para el select del frontend."""
+    especialidad = request.GET.get('especialidad')
+    if not especialidad:
+        return JsonResponse({'plantillas': []})
     
-@login_required
-def pagina_generador(request):
-    return render(request, 'rostering/generador.html') # Asegurate que sea .html
+    plantillas = PlantillaDemanda.objects.filter(especialidad=especialidad).values('id', 'nombre')
+    return JsonResponse({'plantillas': list(plantillas)})
 
 
-def registrar_usuario(request):
-    if request.method == 'POST':
-        form = UserCreationForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            # Loguear al usuario inmediatamente después de registrarse
-            login(request, user)
-            messages.success(request, "¡Registro exitoso! Bienvenido.")
-            return redirect('vista_generador') # Redirige al home
-        else:
-            messages.error(request, "Por favor corrige los errores abajo.")
-    else:
-        form = UserCreationForm()
-        
-    return render(request, 'registration/register.html', {'form': form})
-
+# ==============================================================================
+# VISUALIZACIÓN DE CRONOGRAMAS
+# ==============================================================================
 
 @login_required
 def ver_cronograma(request, cronograma_id):
-    # 1. Obtener el cronograma
+    """
+    Vista Detallada (Matriz): Muestra la tabla Empleados vs Fechas.
+    """
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
     
-    # 2. Generar el rango de fechas (encabezados de columnas)
+    # 1. Generar encabezados de columnas (Fechas)
     rango_fechas = []
     fecha_iter = cronograma.fecha_inicio
     while fecha_iter <= cronograma.fecha_fin:
         rango_fechas.append(fecha_iter)
         fecha_iter += timedelta(days=1)
         
-    # 3. Obtener todas las asignaciones de golpe (Optimización DB)
+    # 2. Obtener todas las asignaciones (Eager loading para optimizar)
     asignaciones = Asignacion.objects.filter(
         cronograma=cronograma
     ).select_related('empleado', 'tipo_turno')
     
-    # 4. Construir la Matriz:  dict[empleado_id][fecha_str] = turno
-    # Esto facilita buscar en el template: "¿Qué hace el Empleado X el día Y?"
+    # 3. Construir Matriz rápida: dict[empleado_id][fecha_str] = turno
     matriz_asignaciones = {}
-    
     for asig in asignaciones:
         emp_id = asig.empleado.id
         fecha_str = asig.fecha.strftime("%Y-%m-%d")
@@ -225,17 +284,14 @@ def ver_cronograma(request, cronograma_id):
         
         matriz_asignaciones[emp_id][fecha_str] = asig.tipo_turno
 
-    # 5. Obtener lista de empleados ordenada (Filas)
-    # Filtramos solo los que tienen asignaciones o pertenecen a la especialidad
+    # 4. Obtener lista de empleados ordenada
     empleados = Empleado.objects.filter(
         especialidad=cronograma.especialidad, 
         activo=True
-    ).order_by('experiencia', 'legajo') # Seniors primero, luego Juniors
+    ).order_by('experiencia', 'legajo')
 
-    # 6. Preparar estructura final para el template
-    # Lista de filas, donde cada fila tiene el empleado y sus celdas ordenadas
+    # 5. Construir estructura para el template
     filas_tabla = []
-    
     for emp in empleados:
         celdas = []
         horas_totales = 0
@@ -243,16 +299,14 @@ def ver_cronograma(request, cronograma_id):
         
         for fecha in rango_fechas:
             fecha_key = fecha.strftime("%Y-%m-%d")
-            # Buscamos si hay turno ese día para este empleado
             turno = matriz_asignaciones.get(emp.id, {}).get(fecha_key)
             
             celdas.append({
                 'fecha': fecha,
-                'turno': turno, # Puede ser None (Franco)
+                'turno': turno, # Puede ser None
             })
             
             if turno:
-                # Sumamos para estadísticas rápidas
                 horas_totales += turno.duracion_horas
                 turnos_totales += 1
                 
@@ -268,20 +322,19 @@ def ver_cronograma(request, cronograma_id):
         'filas_tabla': filas_tabla,
     })
 
+
 def ver_cronograma_diario(request, cronograma_id):
+    """
+    Vista Diaria: Muestra quién trabaja en qué turno para cada día.
+    """
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
     
-    # Obtenemos todas las asignaciones ordenadas por fecha y hora de turno
     asignaciones = Asignacion.objects.filter(cronograma=cronograma).select_related(
         'empleado', 'tipo_turno'
     ).order_by('fecha', 'tipo_turno__hora_inicio')
 
-    # Estructura: agenda[fecha_date] = { 'Turno Mañana': [Emp1, Emp2], 'Turno Tarde': [...] }
+    # Estructura: agenda[fecha] = { 'Mañana': [Emp1], 'Tarde': [Emp2] }
     agenda = {}
-    
-    # Tipos de turno para ordenar la visualización (Mañana primero, Noche al final)
-    tipos_turno = list(asignaciones.values_list('tipo_turno__nombre', flat=True).distinct())
-    # Opcional: Ordenar tipos_turno manualmente si querés un orden específico
     
     for asig in asignaciones:
         fecha = asig.fecha
@@ -301,7 +354,47 @@ def ver_cronograma_diario(request, cronograma_id):
     })
 
 
-# --- ABM DE EMPLEADOS ---
+class CronogramaAnalisisView(LoginRequiredMixin, DetailView):
+    """
+    Muestra las estadísticas detalladas, métricas y violaciones de restricciones del cronograma.
+    """
+    model = Cronograma
+    template_name = 'rostering/cronograma_analisis.html'
+    context_object_name = 'cronograma'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Deserializamos el JSON de reporte
+        reporte = self.object.reporte_analisis or {}
+        
+        context['metricas'] = reporte.get('metricas', {})
+        context['violaciones_duras'] = reporte.get('violaciones_duras', {})
+        context['violaciones_blandas'] = reporte.get('violaciones_blandas', {})
+        context['equidad'] = reporte.get('datos_equidad', {})
+        
+        return context
+
+
+@login_required
+@require_POST
+def publicar_cronograma(request, pk):
+    """Cambia el estado del cronograma de Borrador a Publicado."""
+    cronograma = get_object_or_404(Cronograma, pk=pk)
+    
+    if cronograma.estado == Cronograma.Estado.PUBLICADO:
+        messages.warning(request, "Este cronograma ya está publicado.")
+    else:
+        cronograma.estado = Cronograma.Estado.PUBLICADO
+        cronograma.save()
+        messages.success(request, f"¡La planificación {cronograma.fecha_inicio} ha sido PUBLICADA exitosamente!")
+    
+    return redirect('ver_cronograma', cronograma_id=pk)
+
+
+# ==============================================================================
+# ABM: EMPLEADOS
+# ==============================================================================
 
 class EmpleadoListView(LoginRequiredMixin, ListView):
     model = Empleado
@@ -311,13 +404,11 @@ class EmpleadoListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        
         self.filterset = EmpleadoFilter(self.request.GET, queryset=queryset)
         queryset = self.filterset.qs
 
         ordering = self.request.GET.get('order_by')
         if ordering:
-            # CORREGIDO: Campos reales del modelo
             valid_fields = ['legajo', 'nombre_completo', 'especialidad', 'experiencia', 'min_turnos_mensuales', 'max_turnos_mensuales', 'activo']
             check_field = ordering[1:] if ordering.startswith('-') else ordering
             if check_field in valid_fields:
@@ -341,7 +432,7 @@ class EmpleadoCreateView(LoginRequiredMixin, CreateView):
 class EmpleadoUpdateView(LoginRequiredMixin, UpdateView):
     model = Empleado
     form_class = EmpleadoForm
-    template_name = 'rostering/empleado_form.html' # Reutilizamos el template
+    template_name = 'rostering/empleado_form.html'
     success_url = reverse_lazy('empleado_list')
     extra_context = {'titulo': 'Editar Empleado'}
 
@@ -350,11 +441,15 @@ class EmpleadoDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'rostering/empleado_confirm_delete.html'
     success_url = reverse_lazy('empleado_list')
 
+
+# ==============================================================================
+# ABM: CRONOGRAMAS
+# ==============================================================================
+
 class CronogramaListView(LoginRequiredMixin, ListView):
     model = Cronograma
     template_name = 'rostering/cronograma_list.html'
     context_object_name = 'cronogramas'
-    # CORREGIDO: Ordenar por fecha_inicio descendente
     ordering = ['-fecha_inicio', '-fecha_creacion'] 
     paginate_by = 10
 
@@ -368,27 +463,29 @@ class CronogramaListView(LoginRequiredMixin, ListView):
         context['filter_form'] = self.filterset.form
         return context
 
-# Solo necesitamos Delete. El Create es el Generador, y el Update es la Matriz.
 class CronogramaDeleteView(LoginRequiredMixin, DeleteView):
     model = Cronograma
     template_name = 'rostering/cronograma_confirm_delete.html'
     success_url = reverse_lazy('cronograma_list')
 
+
+# ==============================================================================
+# ABM: TIPOS DE TURNO
+# ==============================================================================
+
 class TipoTurnoListView(LoginRequiredMixin, ListView):
     model = TipoTurno
     template_name = 'rostering/tipoturno_list.html'
     context_object_name = 'turnos'
-    ordering = ['especialidad', 'hora_inicio'] # Ordenar por especialidad queda mejor ahora
+    ordering = ['especialidad', 'hora_inicio']
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        # Conectamos el filtro
         self.filterset = TipoTurnoFilter(self.request.GET, queryset=queryset)
         return self.filterset.qs
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Pasamos el formulario del filtro al template
         context['filter_form'] = self.filterset.form
         return context
 
@@ -412,6 +509,10 @@ class TipoTurnoDeleteView(LoginRequiredMixin, DeleteView):
     success_url = reverse_lazy('tipoturno_list')
 
 
+# ==============================================================================
+# ABM: AUSENCIAS (NO DISPONIBILIDAD)
+# ==============================================================================
+
 class NoDisponibilidadListView(LoginRequiredMixin, ListView):
     model = NoDisponibilidad
     template_name = 'rostering/nodisponibilidad_list.html'
@@ -420,7 +521,7 @@ class NoDisponibilidadListView(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        queryset = super().get_queryset().select_related('empleado') # <--- ESTO OPTIMIZA
+        queryset = super().get_queryset().select_related('empleado')
         self.filterset = NoDisponibilidadFilter(self.request.GET, queryset=queryset)
         return self.filterset.qs
 
@@ -445,10 +546,13 @@ class NoDisponibilidadUpdateView(LoginRequiredMixin, UpdateView):
 
 class NoDisponibilidadDeleteView(LoginRequiredMixin, DeleteView):
     model = NoDisponibilidad
-    template_name = 'rostering/confirm_delete_generic.html' # Usaremos uno genérico para ahorrar archivos
+    template_name = 'rostering/confirm_delete_generic.html'
     success_url = reverse_lazy('nodisponibilidad_list')
 
-# --- PREFERENCIAS ---
+
+# ==============================================================================
+# ABM: PREFERENCIAS
+# ==============================================================================
 
 class PreferenciaListView(LoginRequiredMixin, ListView):
     model = Preferencia
@@ -458,7 +562,7 @@ class PreferenciaListView(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        queryset = super().get_queryset().select_related('empleado') # <--- ESTO OPTIMIZA
+        queryset = super().get_queryset().select_related('empleado')
         self.filterset = PreferenciaFilter(self.request.GET, queryset=queryset)
         return self.filterset.qs
 
@@ -487,7 +591,9 @@ class PreferenciaDeleteView(LoginRequiredMixin, DeleteView):
     success_url = reverse_lazy('preferencia_list')
 
 
-# --- SECUENCIAS PROHIBIDAS ---
+# ==============================================================================
+# ABM: SECUENCIAS PROHIBIDAS
+# ==============================================================================
 
 class SecuenciaProhibidaListView(LoginRequiredMixin, ListView):
     model = SecuenciaProhibida
@@ -496,7 +602,6 @@ class SecuenciaProhibidaListView(LoginRequiredMixin, ListView):
     ordering = ['especialidad', 'turno_previo']
 
     def get_queryset(self):
-        # Optimizamos consultas con select_related
         queryset = super().get_queryset().select_related('turno_previo', 'turno_siguiente')
         self.filterset = SecuenciaProhibidaFilter(self.request.GET, queryset=queryset)
         return self.filterset.qs
@@ -509,7 +614,7 @@ class SecuenciaProhibidaListView(LoginRequiredMixin, ListView):
 class SecuenciaProhibidaCreateView(LoginRequiredMixin, CreateView):
     model = SecuenciaProhibida
     form_class = SecuenciaProhibidaForm
-    template_name = 'rostering/secuenciaprohibida_form.html' # Reusaremos el genérico si querés, o uno específico
+    template_name = 'rostering/secuenciaprohibida_form.html'
     success_url = reverse_lazy('secuencia_list')
     extra_context = {'titulo': 'Nueva Secuencia Prohibida'}
 
@@ -525,7 +630,10 @@ class SecuenciaProhibidaDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'rostering/confirm_delete_generic.html'
     success_url = reverse_lazy('secuencia_list')
 
-# --- PLANTILLAS (MAESTRO) ---
+
+# ==============================================================================
+# GESTIÓN DE PLANTILLAS Y REGLAS (Master-Detail)
+# ==============================================================================
 
 class PlantillaListView(LoginRequiredMixin, ListView):
     model = PlantillaDemanda
@@ -540,14 +648,13 @@ class PlantillaCreateView(LoginRequiredMixin, CreateView):
     extra_context = {'titulo': 'Nueva Plantilla de Demanda'}
 
 class PlantillaDetailView(LoginRequiredMixin, DetailView):
-    """ Este es el DASHBOARD de la plantilla """
+    """ Este es el DASHBOARD de la plantilla: muestra reglas semanales y excepciones."""
     model = PlantillaDemanda
     template_name = 'rostering/plantilla_detail.html'
     context_object_name = 'plantilla'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Ordenamos reglas: Lunes(0) a Domingo(6)
         context['reglas'] = self.object.reglas.all().order_by('dia', 'turno__hora_inicio')
         context['excepciones'] = self.object.excepciones.all().order_by('fecha')
         return context
@@ -557,7 +664,8 @@ class PlantillaDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'rostering/confirm_delete_generic.html'
     success_url = reverse_lazy('plantilla_list')
 
-# --- REGLAS (DETALLE) ---
+
+# --- REGLAS SEMANALES ---
 
 class ReglaCreateView(LoginRequiredMixin, CreateView):
     model = ReglaDemandaSemanal
@@ -570,11 +678,8 @@ class ReglaCreateView(LoginRequiredMixin, CreateView):
         return kwargs
 
     def form_valid(self, form):
-        # CORRECCIÓN: Buscamos el objeto y lo asignamos completo
         plantilla = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
         form.instance.plantilla = plantilla 
-        # Al asignar el objeto 'plantilla' en lugar de solo 'plantilla_id',
-        # el método clean() del modelo ya no fallará.
         return super().form_valid(form)
 
     def get_success_url(self):
@@ -593,7 +698,8 @@ class ReglaDeleteView(LoginRequiredMixin, DeleteView):
     def get_success_url(self):
         return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.plantilla.id})
 
-# --- EXCEPCIONES (DETALLE) ---
+
+# --- EXCEPCIONES DE DEMANDA ---
 
 class ExcepcionCreateView(LoginRequiredMixin, CreateView):
     model = ExcepcionDemanda
@@ -606,7 +712,6 @@ class ExcepcionCreateView(LoginRequiredMixin, CreateView):
         return kwargs
 
     def form_valid(self, form):
-        # CORRECCIÓN: Lo mismo aquí para evitar el error en Excepciones
         plantilla = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
         form.instance.plantilla = plantilla
         return super().form_valid(form)
@@ -626,18 +731,12 @@ class ExcepcionDeleteView(LoginRequiredMixin, DeleteView):
     
     def get_success_url(self):
         return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.plantilla.id})
-    
-def api_get_plantillas(request):
-    """Retorna JSON con las plantillas filtradas por especialidad"""
-    especialidad = request.GET.get('especialidad')
-    if not especialidad:
-        return JsonResponse({'plantillas': []})
-    
-    # Filtramos por la especialidad seleccionada
-    plantillas = PlantillaDemanda.objects.filter(especialidad=especialidad).values('id', 'nombre')
-    return JsonResponse({'plantillas': list(plantillas)})
 
-# Mixin para restringir acceso a Superusuarios
+
+# ==============================================================================
+# CONFIGURACIÓN DEL SISTEMA
+# ==============================================================================
+
 class SuperUserRequiredMixin(UserPassesTestMixin):
     def test_func(self):
         return self.request.user.is_superuser
@@ -646,8 +745,6 @@ def get_config_activa():
     """Helper para obtener o crear la config activa"""
     config, created = ConfiguracionAlgoritmo.objects.get_or_create(activa=True)
     return config
-
-# --- VISTAS DE CONFIGURACIÓN ---
 
 class ConfiguracionDashboardView(SuperUserRequiredMixin, TemplateView):
     template_name = 'rostering/config_dashboard.html'
@@ -681,82 +778,3 @@ class ConfiguracionAvanzadaView(SuperUserRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Parámetros avanzados guardados correctamente.")
         return super().form_valid(form)
-    
-@login_required
-@require_POST
-def publicar_cronograma(request, pk):
-    cronograma = get_object_or_404(Cronograma, pk=pk)
-    
-    if cronograma.estado == Cronograma.Estado.PUBLICADO:
-        messages.warning(request, "Este cronograma ya está publicado.")
-    else:
-        cronograma.estado = Cronograma.Estado.PUBLICADO
-        cronograma.save()
-        messages.success(request, f"¡La planificación {cronograma.fecha_inicio} ha sido PUBLICADA exitosamente!")
-    
-    return redirect('ver_cronograma', cronograma_id=pk)
-
-class CronogramaAnalisisView(LoginRequiredMixin, DetailView):
-    model = Cronograma
-    template_name = 'rostering/cronograma_analisis.html'
-    context_object_name = 'cronograma'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Obtenemos el JSON guardado
-        reporte = self.object.reporte_analisis or {}
-        
-        # Extraemos secciones clave con valores por defecto para no romper si está vacío
-        context['metricas'] = reporte.get('metricas', {})
-        context['violaciones_duras'] = reporte.get('violaciones_duras', {})
-        context['violaciones_blandas'] = reporte.get('violaciones_blandas', {})
-        context['equidad'] = reporte.get('datos_equidad', {})
-        
-        return context
-    
-
-from django.shortcuts import render
-from django.utils import timezone
-from .models import Cronograma, Empleado
-
-def dashboard(request):
-    """
-    Vista principal: KPIs, accesos rápidos y estado actual.
-    """
-    # 1. KPIs Rápidos
-    total_empleados = Empleado.objects.count()
-    borradores_pendientes = Cronograma.objects.filter(estado=Cronograma.Estado.BORRADOR).count()
-    
-    # CORREGIDO: Usamos '-fecha_creacion' en lugar de '-updated_at'
-    ultimo_cronograma = Cronograma.objects.order_by('-fecha_creacion').first()
-
-    # CORREGIDO: Usamos '-fecha_creacion' en lugar de '-created_at'
-    recientes = Cronograma.objects.all().order_by('-fecha_creacion')[:5]
-
-    # 3. Lógica para el "Llamado a la Acción"
-    hoy = timezone.now().date()
-    if hoy.month == 12:
-        prox_mes = 1
-        prox_anio = hoy.year + 1
-    else:
-        prox_mes = hoy.month + 1
-        prox_anio = hoy.year
-    
-    existe_proximo = Cronograma.objects.filter(
-        fecha_inicio__month=prox_mes, 
-        fecha_inicio__year=prox_anio
-    ).exists()
-
-    nombre_mes_objetivo = f"{prox_mes:02d}/{prox_anio}"
-
-    context = {
-        'total_empleados': total_empleados,
-        'borradores': borradores_pendientes,
-        'ultimo': ultimo_cronograma,
-        'recientes': recientes,
-        'existe_proximo': existe_proximo,
-        'mes_objetivo': nombre_mes_objetivo,
-    }
-    
-    return render(request, 'rostering/dashboard.html', context)
