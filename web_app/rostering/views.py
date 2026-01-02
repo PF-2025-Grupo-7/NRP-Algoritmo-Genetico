@@ -714,3 +714,49 @@ class CronogramaAnalisisView(LoginRequiredMixin, DetailView):
         context['equidad'] = reporte.get('datos_equidad', {})
         
         return context
+    
+
+from django.shortcuts import render
+from django.utils import timezone
+from .models import Cronograma, Empleado
+
+def dashboard(request):
+    """
+    Vista principal: KPIs, accesos rápidos y estado actual.
+    """
+    # 1. KPIs Rápidos
+    total_empleados = Empleado.objects.count()
+    borradores_pendientes = Cronograma.objects.filter(estado=Cronograma.Estado.BORRADOR).count()
+    
+    # CORREGIDO: Usamos '-fecha_creacion' en lugar de '-updated_at'
+    ultimo_cronograma = Cronograma.objects.order_by('-fecha_creacion').first()
+
+    # CORREGIDO: Usamos '-fecha_creacion' en lugar de '-created_at'
+    recientes = Cronograma.objects.all().order_by('-fecha_creacion')[:5]
+
+    # 3. Lógica para el "Llamado a la Acción"
+    hoy = timezone.now().date()
+    if hoy.month == 12:
+        prox_mes = 1
+        prox_anio = hoy.year + 1
+    else:
+        prox_mes = hoy.month + 1
+        prox_anio = hoy.year
+    
+    existe_proximo = Cronograma.objects.filter(
+        fecha_inicio__month=prox_mes, 
+        fecha_inicio__year=prox_anio
+    ).exists()
+
+    nombre_mes_objetivo = f"{prox_mes:02d}/{prox_anio}"
+
+    context = {
+        'total_empleados': total_empleados,
+        'borradores': borradores_pendientes,
+        'ultimo': ultimo_cronograma,
+        'recientes': recientes,
+        'existe_proximo': existe_proximo,
+        'mes_objetivo': nombre_mes_objetivo,
+    }
+    
+    return render(request, 'rostering/dashboard.html', context)

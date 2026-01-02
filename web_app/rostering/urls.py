@@ -2,11 +2,12 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    # Ruta raíz: Redirige directo al generador
-    path('', views.pagina_generador, name='vista_generador'),
+
+    path('', views.dashboard, name='dashboard'),
     
     # Si quieres mantener la url /generar/ también (opcional)
-    path('generar/', views.pagina_generador, name='vista_generador_explicita'),
+    path('generar/', views.pagina_generador, name='generar_cronograma'),
+    path('generar/', views.pagina_generador, name='vista_generador'),
     path('accounts/register/', views.registrar_usuario, name='register'),
 
     # NUEVA RUTA: Ver el resultado visual
@@ -76,4 +77,5 @@ urlpatterns = [
 
     # ...
     path('cronograma/<int:pk>/analisis/', views.CronogramaAnalisisView.as_view(), name='cronograma_analisis'),
+    
 ]
