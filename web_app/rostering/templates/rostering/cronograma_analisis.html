@@ -111,6 +111,7 @@
 {{ equidad.horas_por_profesional|default:None|json_script:"data-horas" }}
 {{ equidad.rango_ideal|default:None|json_script:"data-rango" }}
 {{ equidad.promedio_objetivo|default:0|json_script:"data-promedio" }}
+{{ equidad.nombres_profesionales|default:None|json_script:"data-nombres" }}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
@@ -137,8 +138,17 @@
         const rangoMin = rangoIdeal.length > 0 ? rangoIdeal[0] : 0;
         const rangoMax = rangoIdeal.length > 1 ? rangoIdeal[1] : 0;
 
-        // --- GENERACIÓN DEL GRÁFICO ---
-        const labels = horasReales.map((_, i) => `Prof. ${i + 1}`);
+        // Leemos los nombres reales (si existen)
+        const nombresReales = getDjangoData('data-nombres', []);
+
+        // GENERACIÓN DEL GRÁFICO
+        // Si tenemos nombres guardados, los usamos. Si no (para cronogramas viejos), usamos "Prof. X"
+        const labels = horasReales.map((_, i) => {
+            if (nombresReales.length > i) {
+                return nombresReales[i]; // "Juan Perez"
+            }
+            return `Prof. ${i + 1}`; // Fallback antiguo
+        });
 
         const horizontalLinePlugin = {
             id: 'horizontalLine',

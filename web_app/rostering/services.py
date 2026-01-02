@@ -293,11 +293,11 @@ def consultar_resultado_ag(job_id):
 
 def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original, resultado, plantilla_demanda=None):
     """
-    Guarda el cronograma. Los parámetros ahora coinciden con la llamada de la vista.
+    Guarda el cronograma e inyecta los nombres reales de los profesionales
+    en el reporte de análisis para visualización frontend.
     """
-    # 1. Validamos usando 'resultado' (antes era api_response)
+    # 1. Validaciones básicas
     matriz_solucion = resultado.get('matriz_solucion') or resultado.get('solution')
-    
     if not matriz_solucion:
         raise ValueError("La respuesta de la API no contiene una solución válida (matriz vacía).")
 
@@ -305,15 +305,45 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
     tiempo = resultado.get('tiempo_ejecucion', 0)
     explicabilidad = resultado.get('explicabilidad', {})
 
-    # 2. Configuración activa
+    # 2. Configuración activa (para historial)
     config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
 
+    # --- NUEVA LÓGICA: PREPARACIÓN DE NOMBRES PARA EL REPORTE ---
+    # Necesitamos hacer esto ANTES de crear el objeto Cronograma para actualizar el JSON
+    
+    # a. Recuperamos la lista original enviada al algoritmo
+    lista_empleados_payload = payload_original['datos_problema']['lista_profesionales']
+    
+    # b. Mapeamos Índice (0, 1, 2) -> ID Base de Datos (UUID/Int)
+    mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
+    
+    # c. Buscamos los nombres reales en la BD (Optimización: una sola query)
+    ids_a_buscar = list(mapa_idx_a_empleado_id.values())
+    empleados_db = Empleado.objects.filter(id__in=ids_a_buscar)
+    # Diccionario auxiliar: { id_empleado: "Apellido, Nombre" }
+    nombres_map = {e.id: str(e) for e in empleados_db}
+    
+    # d. Construimos la lista ordenada tal cual la usó el algoritmo
+    nombres_ordenados = []
+    for i in range(len(lista_empleados_payload)):
+        emp_id = mapa_idx_a_empleado_id.get(i)
+        # Usamos el nombre real, o un fallback si por algo raro no está
+        nombre_real = nombres_map.get(emp_id, f"Prof. {i+1}")
+        nombres_ordenados.append(nombre_real)
+
+    # e. Inyectamos los nombres en el JSON de explicabilidad
+    if 'datos_equidad' not in explicabilidad:
+        explicabilidad['datos_equidad'] = {}
+    
+    explicabilidad['datos_equidad']['nombres_profesionales'] = nombres_ordenados
+    # ------------------------------------------------------------
+
     with transaction.atomic():
-        # 3. Crear Cronograma (usando fecha_inicio y fecha_fin)
+        # 3. Crear Cronograma (Ahora incluye el JSON enriquecido con nombres)
         cronograma = Cronograma.objects.create(
             especialidad=especialidad,
-            fecha_inicio=fecha_inicio, # Coincide con el argumento
-            fecha_fin=fecha_fin,       # Coincide con el argumento
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
             estado=Cronograma.Estado.BORRADOR,
             plantilla_demanda=plantilla_demanda,
             configuracion_usada=config_activa,
@@ -322,16 +352,11 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             reporte_analisis=explicabilidad 
         )
         
-        # 4. Preparar Mapeos
+        # 4. Preparar datos para Asignaciones
         turnos_db = {t.id: t for t in TipoTurno.objects.filter(especialidad=especialidad)}
-        
-        # Usamos 'payload_original' (antes era json_payload)
-        lista_empleados_payload = payload_original['datos_problema']['lista_profesionales']
-        mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
-        
         nuevas_asignaciones = []
         
-        # 5. Recorrer Matriz
+        # 5. Recorrer Matriz y crear objetos
         for i, fila_turnos in enumerate(matriz_solucion):
             empleado_id = mapa_idx_a_empleado_id.get(i)
             
@@ -339,20 +364,21 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                 continue 
             
             for j, turno_id_api in enumerate(fila_turnos):
+                # Validamos que sea un turno real y exista en la DB
                 if turno_id_api and turno_id_api in turnos_db:
                     
-                    # Calculamos fecha usando fecha_inicio
                     fecha_turno = fecha_inicio + timedelta(days=j)
                     turno_obj = turnos_db[turno_id_api]
                     
                     asignacion = Asignacion(
                         cronograma=cronograma,
-                        empleado_id=empleado_id,
+                        empleado_id=empleado_id, # Usamos _id directo para evitar query extra
                         fecha=fecha_turno,
                         tipo_turno=turno_obj
                     )
                     nuevas_asignaciones.append(asignacion)
         
+        # 6. Insertar todas las asignaciones de golpe
         if nuevas_asignaciones:
             Asignacion.objects.bulk_create(nuevas_asignaciones)
             
