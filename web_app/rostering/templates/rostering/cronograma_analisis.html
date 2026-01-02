@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold"><i class="bi bi-graph-up-arrow"></i> Análisis de Solución</h2>
+            <p class="text-muted mb-0">
+                Detalle técnico de la planificación: {{ cronograma.get_especialidad_display }} 
+                ({{ cronograma.fecha_inicio|date:"M Y" }})
+            </p>
+        </div>
+        <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver al listado
+        </a>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase mb-3">Calidad (Fitness)</h6>
+                    <div class="display-4 fw-bold text-primary">
+                        {{ metricas.fitness_total|floatformat:2 }}
+                    </div>
+                    <small class="text-muted">Puntaje global del algoritmo</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase mb-3">Cobertura de Demanda</h6>
+                    {% if metricas.cobertura_cumplida %}
+                        <div class="text-success mb-2"><i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i></div>
+                        <h5 class="text-success">Completa</h5>
+                    {% else %}
+                        <div class="text-danger mb-2"><i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem;"></i></div>
+                        <h5 class="text-danger">Déficit Detectado</h5>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase mb-3">Promedio de Horas</h6>
+                    <div class="display-4 fw-bold text-dark">
+                        {{ equidad.promedio_objetivo|default:"-" }}
+                    </div>
+                    <small class="text-muted">Objetivo ideal por persona</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow border-0 h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-bar-chart-fill"></i> Distribución de Horas por Profesional
+                </div>
+                <div class="card-body">
+                    <canvas id="equityChart" height="150"></canvas>
+                </div>
+                <div class="card-footer bg-light small text-muted">
+                    Las barras deben estar cerca de la línea verde (promedio). Las líneas rojas indican el rango de tolerancia permitido.
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow border-0 h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-list-check"></i> Reglas Blandas
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        
+                        <li class="list-group-item bg-light fw-bold small">Preferencias de Francos (No cumplidas)</li>
+                        {% for v in violaciones_blandas.preferencia_libre_incumplida %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-person"></i> ID {{ v.empleado_id }}</span>
+                                <span class="badge bg-warning text-dark">{{ v.fecha }}</span>
+                            </li>
+                        {% empty %}
+                            <li class="list-group-item text-muted small fst-italic">¡Excelente! Todos tuvieron sus francos pedidos.</li>
+                        {% endfor %}
+
+                        <li class="list-group-item bg-light fw-bold small mt-2">Turnos Específicos (No asignados)</li>
+                        {% for v in violaciones_blandas.preferencia_turno_incumplida %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-person"></i> ID {{ v.empleado_id }}</span>
+                                <div class="text-end">
+                                    <span class="badge bg-secondary">{{ v.fecha }}</span>
+                                    <span class="badge bg-primary">{{ v.turno }}</span>
+                                </div>
+                            </li>
+                        {% empty %}
+                            <li class="list-group-item text-muted small fst-italic">Se cumplieron todos los pedidos de turno.</li>
+                        {% endfor %}
+
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ equidad.horas_por_profesional|default:None|json_script:"data-horas" }}
+{{ equidad.rango_ideal|default:None|json_script:"data-rango" }}
+{{ equidad.promedio_objetivo|default:0|json_script:"data-promedio" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Función helper para leer el JSON seguro
+        function getDjangoData(id, defaultValue) {
+            const element = document.getElementById(id);
+            if (!element) return defaultValue;
+            const content = JSON.parse(element.textContent);
+            return content === null ? defaultValue : content; // Si viene null, usamos el default
+        }
+
+        const ctxElement = document.getElementById('equityChart');
+        if (!ctxElement) return; // Protección si no existe el canvas
+
+        const ctx = ctxElement.getContext('2d');
+        
+        // --- ZONA DE DATOS LIMPIA ---
+        // Leemos los IDs que definimos arriba
+        const horasReales = getDjangoData('data-horas', []);
+        const rangoIdeal = getDjangoData('data-rango', []);
+        const promedio = getDjangoData('data-promedio', 0);
+        
+        const rangoMin = rangoIdeal.length > 0 ? rangoIdeal[0] : 0;
+        const rangoMax = rangoIdeal.length > 1 ? rangoIdeal[1] : 0;
+
+        // --- GENERACIÓN DEL GRÁFICO ---
+        const labels = horasReales.map((_, i) => `Prof. ${i + 1}`);
+
+        const horizontalLinePlugin = {
+            id: 'horizontalLine',
+            beforeDraw: function(chart) {
+                const yScale = chart.scales.y;
+                const ctx = chart.ctx;
+                const xLeft = chart.scales.x.left;
+                const xRight = chart.scales.x.right;
+
+                function drawLine(value, color, dash) {
+                    const y = yScale.getPixelForValue(value);
+                    ctx.beginPath();
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2;
+                    if(dash) ctx.setLineDash([5, 5]);
+                    ctx.moveTo(xLeft, y);
+                    ctx.lineTo(xRight, y);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+                if (promedio > 0) {
+                    drawLine(promedio, '#198754', false);
+                    if (rangoMin > 0) drawLine(rangoMin, 'rgba(220, 53, 69, 0.5)', true);
+                    if (rangoMax > 0) drawLine(rangoMax, 'rgba(220, 53, 69, 0.5)', true);
+                }
+            }
+        };
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Horas Asignadas',
+                    data: horasReales,
+                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Horas Mensuales' },
+                        suggestedMax: rangoMax > 0 ? rangoMax + 20 : 200
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            footer: function() {
+                                return `Rango Ideal: ${rangoMin} - ${rangoMax} hs`;
+                            }
+                        }
+                    }
+                }
+            },
+            plugins: [horizontalLinePlugin]
+        });
+    });
+</script>
+{% endblock %}

@@ -695,3 +695,22 @@ def publicar_cronograma(request, pk):
         messages.success(request, f"¡La planificación {cronograma.fecha_inicio} ha sido PUBLICADA exitosamente!")
     
     return redirect('ver_cronograma', cronograma_id=pk)
+
+class CronogramaAnalisisView(LoginRequiredMixin, DetailView):
+    model = Cronograma
+    template_name = 'rostering/cronograma_analisis.html'
+    context_object_name = 'cronograma'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Obtenemos el JSON guardado
+        reporte = self.object.reporte_analisis or {}
+        
+        # Extraemos secciones clave con valores por defecto para no romper si está vacío
+        context['metricas'] = reporte.get('metricas', {})
+        context['violaciones_duras'] = reporte.get('violaciones_duras', {})
+        context['violaciones_blandas'] = reporte.get('violaciones_blandas', {})
+        context['equidad'] = reporte.get('datos_equidad', {})
+        
+        return context

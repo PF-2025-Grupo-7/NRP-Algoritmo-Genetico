@@ -73,4 +73,7 @@ urlpatterns = [
 
     # ...
     path('cronograma/<int:pk>/publicar/', views.publicar_cronograma, name='cronograma_publish'),
+
+    # ...
+    path('cronograma/<int:pk>/analisis/', views.CronogramaAnalisisView.as_view(), name='cronograma_analisis'),
 ]
