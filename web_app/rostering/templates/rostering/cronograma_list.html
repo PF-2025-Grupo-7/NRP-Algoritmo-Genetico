@@ -113,6 +113,11 @@
                                     <a href="{% url 'ver_cronograma_diario' c.id %}" class="btn btn-sm btn-outline-primary">
                                         Vista Diaria
                                     </a>
+                                    {% if c.fitness %}
+                                    <a href="{% url 'cronograma_analisis' c.id %}" class="btn btn-sm btn-outline-info" title="Ver Análisis de Cronograma">
+                                        <i class="bi bi-graph-up"></i>
+                                    </a>
+                                    {% endif %}
                                     <a href="{% url 'cronograma_delete' c.id %}" class="btn btn-sm btn-outline-danger">
                                         Eliminar
                                     </a>

@@ -1,0 +1,274 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold"><i class="bi bi-graph-up-arrow"></i> Análisis de Solución</h2>
+            <p class="text-muted mb-0">
+                Detalle técnico de la planificación: {{ cronograma.get_especialidad_display }} 
+                ({{ cronograma.fecha_inicio|date:"M Y" }})
+            </p>
+        </div>
+        <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver al listado
+        </a>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase mb-3">Calidad (Fitness)</h6>
+                    <div class="display-4 fw-bold text-primary">
+                        {{ metricas.fitness_total|floatformat:2 }}
+                    </div>
+                    <small class="text-muted">Puntaje global del algoritmo</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase mb-3">Cobertura de Demanda</h6>
+                    {% if metricas.cobertura_cumplida %}
+                        <div class="text-success mb-2"><i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i></div>
+                        <h5 class="text-success">Completa</h5>
+                    {% else %}
+                        <div class="text-danger mb-2"><i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem;"></i></div>
+                        <h5 class="text-danger">Déficit Detectado</h5>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-body text-center">
+                    <h6 class="text-muted text-uppercase mb-3">Promedio de Horas</h6>
+                    <div class="display-4 fw-bold text-dark">
+                        {{ equidad.promedio_objetivo|default:"-"|floatformat:2 }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow border-0 h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-bar-chart-fill"></i> Distribución de Horas por Profesional
+                </div>
+                <div class="card-body">
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="equityChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow border-0 h-100">
+                <div class="card-header bg-white fw-bold">
+                    <i class="bi bi-list-check"></i> Reglas Blandas
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        
+                        <li class="list-group-item bg-light fw-bold small">Preferencias de Francos (No cumplidas)</li>
+                        {% for v in violaciones_blandas.preferencia_libre_incumplida %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-person"></i> ID {{ v.empleado_id }}</span>
+                                <span class="badge bg-warning text-dark">{{ v.fecha }}</span>
+                            </li>
+                        {% empty %}
+                            <li class="list-group-item text-muted small fst-italic">¡Excelente! Todos tuvieron sus francos pedidos.</li>
+                        {% endfor %}
+
+                        <li class="list-group-item bg-light fw-bold small mt-2">Turnos Específicos (No asignados)</li>
+                        {% for v in violaciones_blandas.preferencia_turno_incumplida %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-person"></i> ID {{ v.empleado_id }}</span>
+                                <div class="text-end">
+                                    <span class="badge bg-secondary">{{ v.fecha }}</span>
+                                    <span class="badge bg-primary">{{ v.turno }}</span>
+                                </div>
+                            </li>
+                        {% empty %}
+                            <li class="list-group-item text-muted small fst-italic">Se cumplieron todos los pedidos de turno.</li>
+                        {% endfor %}
+
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ equidad.horas_por_profesional|default:None|json_script:"data-horas" }}
+{{ equidad.nombres_cortos|default:None|json_script:"data-nombres-cortos" }}
+{{ equidad.nombres_profesionales|default:None|json_script:"data-nombres-largos" }}
+{{ equidad.limites_contractuales|default:None|json_script:"data-limites" }}
+{{ equidad.rango_ideal|default:None|json_script:"data-rango-equidad" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        function getData(id, def) {
+            const el = document.getElementById(id);
+            if (!el) return def;
+            const val = JSON.parse(el.textContent);
+            return val === null ? def : val;
+        }
+
+        const ctxEl = document.getElementById('equityChart');
+        if (!ctxEl) return;
+
+        // 1. Cargar Datos
+        const horasReales = getData('data-horas', []);
+        const nombresCortos = getData('data-nombres-cortos', []);
+        const nombresLargos = getData('data-nombres-largos', []);     
+        const limites = getData('data-limites', []); // Contratos individuales
+        const rangoEquidad = getData('data-rango-equidad', []); // Objetivo Global del algoritmo
+
+        // 2. Escala Dinámica
+        let minVal = Math.min(...horasReales);
+        if (limites.length > 0) {
+            const minLimits = limites.map(l => l[0]);
+            const minLimit = Math.min(...minLimits);
+            if (minLimit < minVal && minLimit > 0) minVal = minLimit;
+        }
+        const startY = minVal > 20 ? (minVal - 15) : 0; 
+
+        // 3. Configurar Gráfico
+        new Chart(ctxEl.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: nombresCortos.length > 0 ? nombresCortos : horasReales.map((_, i) => `P${i+1}`),
+                datasets: [
+                    {
+                        // CAPA 1 (FONDO): Contrato Individual
+                        label: 'Rango Contractual',
+                        data: limites, 
+                        // CAMBIO AQUÍ: Bajamos la opacidad de 0.15 a 0.06
+                        backgroundColor: 'rgba(0, 0, 0, 0.06)', 
+                        // También suavizamos el borde (de 0.3 a 0.1)
+                        borderColor: 'rgba(0, 0, 0, 0.1)',
+                        borderWidth: 1,
+                        borderSkipped: false,
+                        barPercentage: 0.8,
+                        grouped: false, 
+                        order: 2 // Al fondo
+                    },
+                    {
+                        // CAPA 2 (FRENTE): Asignación Real
+                        label: 'Horas Asignadas',
+                        data: horasReales,
+                        backgroundColor: function(context) {
+                            const idx = context.dataIndex;
+                            const val = context.raw;
+                            const range = limites[idx];
+                            // Rojo si se sale del contrato
+                            if (range && (val < range[0] || val > range[1])) {
+                                return 'rgba(220, 53, 69, 0.85)';
+                            }
+                            return 'rgba(54, 162, 235, 0.85)';
+                        },
+                        barPercentage: 0.4, 
+                        grouped: false,
+                        order: 1 // Al frente
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false, // Esto permite que respete los 400px del div
+                scales: {
+                    y: {
+                        // 1. Lógica para que arranque en un número "redondo" (múltiplo de 20)
+                        min: function(context) {
+                            // Calculamos el mínimo real de los datos
+                            let minData = Math.min(...horasReales);
+                            
+                            // Si hay contratos, miramos también el límite inferior del contrato
+                            if (limites.length > 0) {
+                                const minLimits = limites.map(l => l[0]).filter(v => v > 0);
+                                if (minLimits.length > 0) {
+                                    minData = Math.min(minData, ...minLimits);
+                                }
+                            }
+
+                            // Redondeamos hacia abajo al múltiplo de 20 más cercano
+                            // Ej: 135 -> 120. Le restamos 20 extra para dar aire abajo.
+                            const roundedMin = Math.floor(minData / 20) * 20;
+                            return roundedMin > 20 ? (roundedMin - 20) : 0;
+                        },
+                        
+                        // 2. Forzamos los pasos de 20 en 20 (100, 120, 140...)
+                        ticks: {
+                            stepSize: 20
+                        },
+                        
+                        title: { display: true, text: 'Horas Totales' },
+                        grid: { color: 'rgba(0,0,0,0.05)' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            autoSkip: false, // Mostrar todos los nombres
+                            maxRotation: 45,
+                            minRotation: 45  // Forzar inclinación para que entren bien
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: true, position: 'top' },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.9)', // Fondo más oscuro para leer bien
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        footerFont: { size: 11, style: 'italic' },
+                        callbacks: {
+                            // TÍTULO: Nombre del Profesional
+                            title: function(context) {
+                                const idx = context[0].dataIndex;
+                                return nombresLargos[idx] || context[0].label;
+                            },
+                            // CUERPO: Muestra las líneas principales
+                            label: function(context) {
+                                // Truco: Devolvemos null aquí para manejar todo en 'afterBody'
+                                // o personalizamos cada línea.
+                                return null; 
+                            },
+                            // CONTENIDO PERSONALIZADO
+                            afterBody: function(context) {
+                                const idx = context[0].dataIndex;
+                                const valReal = horasReales[idx];
+                                const contrato = limites[idx];
+                                
+                                let lines = [];
+                                lines.push(`✅ Asignado: ${valReal} hs`);
+                                
+                                if (contrato) {
+                                    lines.push(`📄 Contrato:  ${contrato[0]} - ${contrato[1]} hs`);
+                                }
+                                
+                                // Separador visual
+                                lines.push(''); 
+                                
+                                if (rangoEquidad && rangoEquidad.length === 2) {
+                                    lines.push(`⚖️ Equidad Ideal: ${rangoEquidad[0]} - ${rangoEquidad[1]} hs`);
+                                }
+                                
+                                return lines;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
