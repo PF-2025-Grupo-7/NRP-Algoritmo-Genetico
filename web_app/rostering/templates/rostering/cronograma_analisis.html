@@ -62,10 +62,9 @@
                     <i class="bi bi-bar-chart-fill"></i> Distribución de Horas por Profesional
                 </div>
                 <div class="card-body">
-                    <canvas id="equityChart" height="150"></canvas>
-                </div>
-                <div class="card-footer bg-light small text-muted">
-                    Las barras deben estar cerca de la línea verde (promedio). Las líneas rojas indican el rango de tolerancia permitido.
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="equityChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -109,109 +108,166 @@
 </div>
 
 {{ equidad.horas_por_profesional|default:None|json_script:"data-horas" }}
-{{ equidad.rango_ideal|default:None|json_script:"data-rango" }}
-{{ equidad.promedio_objetivo|default:0|json_script:"data-promedio" }}
-{{ equidad.nombres_profesionales|default:None|json_script:"data-nombres" }}
+{{ equidad.nombres_cortos|default:None|json_script:"data-nombres-cortos" }}
+{{ equidad.nombres_profesionales|default:None|json_script:"data-nombres-largos" }}
+{{ equidad.limites_contractuales|default:None|json_script:"data-limites" }}
+{{ equidad.rango_ideal|default:None|json_script:"data-rango-equidad" }}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        // Función helper para leer el JSON seguro
-        function getDjangoData(id, defaultValue) {
-            const element = document.getElementById(id);
-            if (!element) return defaultValue;
-            const content = JSON.parse(element.textContent);
-            return content === null ? defaultValue : content; // Si viene null, usamos el default
+        function getData(id, def) {
+            const el = document.getElementById(id);
+            if (!el) return def;
+            const val = JSON.parse(el.textContent);
+            return val === null ? def : val;
         }
 
-        const ctxElement = document.getElementById('equityChart');
-        if (!ctxElement) return; // Protección si no existe el canvas
+        const ctxEl = document.getElementById('equityChart');
+        if (!ctxEl) return;
 
-        const ctx = ctxElement.getContext('2d');
-        
-        // --- ZONA DE DATOS LIMPIA ---
-        // Leemos los IDs que definimos arriba
-        const horasReales = getDjangoData('data-horas', []);
-        const rangoIdeal = getDjangoData('data-rango', []);
-        const promedio = getDjangoData('data-promedio', 0);
-        
-        const rangoMin = rangoIdeal.length > 0 ? rangoIdeal[0] : 0;
-        const rangoMax = rangoIdeal.length > 1 ? rangoIdeal[1] : 0;
+        // 1. Cargar Datos
+        const horasReales = getData('data-horas', []);
+        const nombresCortos = getData('data-nombres-cortos', []);
+        const nombresLargos = getData('data-nombres-largos', []);     
+        const limites = getData('data-limites', []); // Contratos individuales
+        const rangoEquidad = getData('data-rango-equidad', []); // Objetivo Global del algoritmo
 
-        // Leemos los nombres reales (si existen)
-        const nombresReales = getDjangoData('data-nombres', []);
+        // 2. Escala Dinámica
+        let minVal = Math.min(...horasReales);
+        if (limites.length > 0) {
+            const minLimits = limites.map(l => l[0]);
+            const minLimit = Math.min(...minLimits);
+            if (minLimit < minVal && minLimit > 0) minVal = minLimit;
+        }
+        const startY = minVal > 20 ? (minVal - 15) : 0; 
 
-        // GENERACIÓN DEL GRÁFICO
-        // Si tenemos nombres guardados, los usamos. Si no (para cronogramas viejos), usamos "Prof. X"
-        const labels = horasReales.map((_, i) => {
-            if (nombresReales.length > i) {
-                return nombresReales[i]; // "Juan Perez"
-            }
-            return `Prof. ${i + 1}`; // Fallback antiguo
-        });
-
-        const horizontalLinePlugin = {
-            id: 'horizontalLine',
-            beforeDraw: function(chart) {
-                const yScale = chart.scales.y;
-                const ctx = chart.ctx;
-                const xLeft = chart.scales.x.left;
-                const xRight = chart.scales.x.right;
-
-                function drawLine(value, color, dash) {
-                    const y = yScale.getPixelForValue(value);
-                    ctx.beginPath();
-                    ctx.strokeStyle = color;
-                    ctx.lineWidth = 2;
-                    if(dash) ctx.setLineDash([5, 5]);
-                    ctx.moveTo(xLeft, y);
-                    ctx.lineTo(xRight, y);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                }
-
-                if (promedio > 0) {
-                    drawLine(promedio, '#198754', false);
-                    if (rangoMin > 0) drawLine(rangoMin, 'rgba(220, 53, 69, 0.5)', true);
-                    if (rangoMax > 0) drawLine(rangoMax, 'rgba(220, 53, 69, 0.5)', true);
-                }
-            }
-        };
-
-        new Chart(ctx, {
+        // 3. Configurar Gráfico
+        new Chart(ctxEl.getContext('2d'), {
             type: 'bar',
             data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Horas Asignadas',
-                    data: horasReales,
-                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
-                }]
+                labels: nombresCortos.length > 0 ? nombresCortos : horasReales.map((_, i) => `P${i+1}`),
+                datasets: [
+                    {
+                        // CAPA 1 (FONDO): Contrato Individual
+                        label: 'Rango Contractual',
+                        data: limites, 
+                        // CAMBIO AQUÍ: Bajamos la opacidad de 0.15 a 0.06
+                        backgroundColor: 'rgba(0, 0, 0, 0.06)', 
+                        // También suavizamos el borde (de 0.3 a 0.1)
+                        borderColor: 'rgba(0, 0, 0, 0.1)',
+                        borderWidth: 1,
+                        borderSkipped: false,
+                        barPercentage: 0.8,
+                        grouped: false, 
+                        order: 2 // Al fondo
+                    },
+                    {
+                        // CAPA 2 (FRENTE): Asignación Real
+                        label: 'Horas Asignadas',
+                        data: horasReales,
+                        backgroundColor: function(context) {
+                            const idx = context.dataIndex;
+                            const val = context.raw;
+                            const range = limites[idx];
+                            // Rojo si se sale del contrato
+                            if (range && (val < range[0] || val > range[1])) {
+                                return 'rgba(220, 53, 69, 0.85)';
+                            }
+                            return 'rgba(54, 162, 235, 0.85)';
+                        },
+                        barPercentage: 0.4, 
+                        grouped: false,
+                        order: 1 // Al frente
+                    }
+                ]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false,
+                maintainAspectRatio: false, // Esto permite que respete los 400px del div
                 scales: {
                     y: {
-                        beginAtZero: true,
-                        title: { display: true, text: 'Horas Mensuales' },
-                        suggestedMax: rangoMax > 0 ? rangoMax + 20 : 200
+                        // 1. Lógica para que arranque en un número "redondo" (múltiplo de 20)
+                        min: function(context) {
+                            // Calculamos el mínimo real de los datos
+                            let minData = Math.min(...horasReales);
+                            
+                            // Si hay contratos, miramos también el límite inferior del contrato
+                            if (limites.length > 0) {
+                                const minLimits = limites.map(l => l[0]).filter(v => v > 0);
+                                if (minLimits.length > 0) {
+                                    minData = Math.min(minData, ...minLimits);
+                                }
+                            }
+
+                            // Redondeamos hacia abajo al múltiplo de 20 más cercano
+                            // Ej: 135 -> 120. Le restamos 20 extra para dar aire abajo.
+                            const roundedMin = Math.floor(minData / 20) * 20;
+                            return roundedMin > 20 ? (roundedMin - 20) : 0;
+                        },
+                        
+                        // 2. Forzamos los pasos de 20 en 20 (100, 120, 140...)
+                        ticks: {
+                            stepSize: 20
+                        },
+                        
+                        title: { display: true, text: 'Horas Totales' },
+                        grid: { color: 'rgba(0,0,0,0.05)' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            autoSkip: false, // Mostrar todos los nombres
+                            maxRotation: 45,
+                            minRotation: 45  // Forzar inclinación para que entren bien
+                        }
                     }
                 },
                 plugins: {
-                    legend: { display: false },
+                    legend: { display: true, position: 'top' },
                     tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.9)', // Fondo más oscuro para leer bien
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        footerFont: { size: 11, style: 'italic' },
                         callbacks: {
-                            footer: function() {
-                                return `Rango Ideal: ${rangoMin} - ${rangoMax} hs`;
+                            // TÍTULO: Nombre del Profesional
+                            title: function(context) {
+                                const idx = context[0].dataIndex;
+                                return nombresLargos[idx] || context[0].label;
+                            },
+                            // CUERPO: Muestra las líneas principales
+                            label: function(context) {
+                                // Truco: Devolvemos null aquí para manejar todo en 'afterBody'
+                                // o personalizamos cada línea.
+                                return null; 
+                            },
+                            // CONTENIDO PERSONALIZADO
+                            afterBody: function(context) {
+                                const idx = context[0].dataIndex;
+                                const valReal = horasReales[idx];
+                                const contrato = limites[idx];
+                                
+                                let lines = [];
+                                lines.push(`✅ Asignado: ${valReal} hs`);
+                                
+                                if (contrato) {
+                                    lines.push(`📄 Contrato:  ${contrato[0]} - ${contrato[1]} hs`);
+                                }
+                                
+                                // Separador visual
+                                lines.push(''); 
+                                
+                                if (rangoEquidad && rangoEquidad.length === 2) {
+                                    lines.push(`⚖️ Equidad Ideal: ${rangoEquidad[0]} - ${rangoEquidad[1]} hs`);
+                                }
+                                
+                                return lines;
                             }
                         }
                     }
                 }
-            },
-            plugins: [horizontalLinePlugin]
+            }
         });
     });
 </script>

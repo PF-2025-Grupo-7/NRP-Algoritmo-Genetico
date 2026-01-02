@@ -1,4 +1,5 @@
 import json
+import traceback
 import requests
 import os
 from datetime import timedelta, date
@@ -291,95 +292,157 @@ def consultar_resultado_ag(job_id):
         return {"status": "error", "error": str(e)}
 
 
+from datetime import timedelta, datetime, date
+import traceback
+from django.db import transaction
+from .models import Cronograma, Asignacion, TipoTurno, ConfiguracionAlgoritmo, Empleado
+
+from datetime import timedelta, datetime, date
+import traceback
+from django.db import transaction
+from .models import Cronograma, Asignacion, TipoTurno, ConfiguracionAlgoritmo, Empleado
+
 def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original, resultado, plantilla_demanda=None):
-    """
-    Guarda el cronograma e inyecta los nombres reales de los profesionales
-    en el reporte de análisis para visualización frontend.
-    """
-    # 1. Validaciones básicas
-    matriz_solucion = resultado.get('matriz_solucion') or resultado.get('solution')
-    if not matriz_solucion:
-        raise ValueError("La respuesta de la API no contiene una solución válida (matriz vacía).")
+    print("--- DEBUG: INICIANDO GUARDADO DB ---")
+    try:
+        # 1. Validaciones básicas
+        matriz_solucion = resultado.get('matriz_solucion') or resultado.get('solution')
+        if not matriz_solucion:
+            raise ValueError("Matriz vacía")
 
-    fitness = resultado.get('fitness', 0)
-    tiempo = resultado.get('tiempo_ejecucion', 0)
-    explicabilidad = resultado.get('explicabilidad', {})
+        fitness = resultado.get('fitness', 0)
+        tiempo = resultado.get('tiempo_ejecucion', 0)
+        explicabilidad = resultado.get('explicabilidad', {})
 
-    # 2. Configuración activa (para historial)
-    config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
+        # 2. Configuración activa
+        config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
 
-    # --- NUEVA LÓGICA: PREPARACIÓN DE NOMBRES PARA EL REPORTE ---
-    # Necesitamos hacer esto ANTES de crear el objeto Cronograma para actualizar el JSON
-    
-    # a. Recuperamos la lista original enviada al algoritmo
-    lista_empleados_payload = payload_original['datos_problema']['lista_profesionales']
-    
-    # b. Mapeamos Índice (0, 1, 2) -> ID Base de Datos (UUID/Int)
-    mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
-    
-    # c. Buscamos los nombres reales en la BD (Optimización: una sola query)
-    ids_a_buscar = list(mapa_idx_a_empleado_id.values())
-    empleados_db = Empleado.objects.filter(id__in=ids_a_buscar)
-    # Diccionario auxiliar: { id_empleado: "Apellido, Nombre" }
-    nombres_map = {e.id: str(e) for e in empleados_db}
-    
-    # d. Construimos la lista ordenada tal cual la usó el algoritmo
-    nombres_ordenados = []
-    for i in range(len(lista_empleados_payload)):
-        emp_id = mapa_idx_a_empleado_id.get(i)
-        # Usamos el nombre real, o un fallback si por algo raro no está
-        nombre_real = nombres_map.get(emp_id, f"Prof. {i+1}")
-        nombres_ordenados.append(nombre_real)
-
-    # e. Inyectamos los nombres en el JSON de explicabilidad
-    if 'datos_equidad' not in explicabilidad:
-        explicabilidad['datos_equidad'] = {}
-    
-    explicabilidad['datos_equidad']['nombres_profesionales'] = nombres_ordenados
-    # ------------------------------------------------------------
-
-    with transaction.atomic():
-        # 3. Crear Cronograma (Ahora incluye el JSON enriquecido con nombres)
-        cronograma = Cronograma.objects.create(
-            especialidad=especialidad,
-            fecha_inicio=fecha_inicio,
-            fecha_fin=fecha_fin,
-            estado=Cronograma.Estado.BORRADOR,
-            plantilla_demanda=plantilla_demanda,
-            configuracion_usada=config_activa,
-            fitness=fitness,
-            tiempo_ejecucion=tiempo,
-            reporte_analisis=explicabilidad 
-        )
-        
-        # 4. Preparar datos para Asignaciones
-        turnos_db = {t.id: t for t in TipoTurno.objects.filter(especialidad=especialidad)}
-        nuevas_asignaciones = []
-        
-        # 5. Recorrer Matriz y crear objetos
-        for i, fila_turnos in enumerate(matriz_solucion):
-            empleado_id = mapa_idx_a_empleado_id.get(i)
+        # --- LÓGICA DE NOMBRES Y LÍMITES ---
+        if 'datos_problema' not in payload_original:
+            raise KeyError("Falta 'datos_problema' en payload")
             
-            if not empleado_id:
-                continue 
-            
-            for j, turno_id_api in enumerate(fila_turnos):
-                # Validamos que sea un turno real y exista en la DB
-                if turno_id_api and turno_id_api in turnos_db:
-                    
-                    fecha_turno = fecha_inicio + timedelta(days=j)
-                    turno_obj = turnos_db[turno_id_api]
-                    
-                    asignacion = Asignacion(
-                        cronograma=cronograma,
-                        empleado_id=empleado_id, # Usamos _id directo para evitar query extra
-                        fecha=fecha_turno,
-                        tipo_turno=turno_obj
-                    )
-                    nuevas_asignaciones.append(asignacion)
+        lista_empleados_payload = payload_original['datos_problema']['lista_profesionales']
+        mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
+        ids_a_buscar = list(mapa_idx_a_empleado_id.values())
+        empleados_db = Empleado.objects.filter(id__in=ids_a_buscar)
+        empleados_map = {e.id: e for e in empleados_db}
+
+        # 1. OBTENER DURACIÓN DE REFERENCIA
+        turno_referencia = TipoTurno.objects.filter(especialidad=especialidad).first()
         
-        # 6. Insertar todas las asignaciones de golpe
-        if nuevas_asignaciones:
-            Asignacion.objects.bulk_create(nuevas_asignaciones)
+        duracion_horas = 0.0
+        if turno_referencia:
+            # ESTRATEGIA A: Campo explícito
+            if turno_referencia.duracion_horas and turno_referencia.duracion_horas > 0:
+                duracion_horas = float(turno_referencia.duracion_horas)
+                print(f"DEBUG: Duración desde DB: {duracion_horas}")
             
+            # ESTRATEGIA B: Diferencia horaria
+            elif turno_referencia.hora_inicio and turno_referencia.hora_fin:
+                h_ini = turno_referencia.hora_inicio
+                h_fin = turno_referencia.hora_fin
+                dummy_date = date(2000, 1, 1)
+                dt_ini = datetime.combine(dummy_date, h_ini)
+                dt_fin = datetime.combine(dummy_date, h_fin)
+                diff = dt_fin - dt_ini
+                if diff.total_seconds() < 0:
+                    diff += timedelta(days=1)
+                duracion_horas = diff.total_seconds() / 3600.0
+                print(f"DEBUG: Duración calculada por horas: {duracion_horas}")
+
+        if not duracion_horas: 
+            duracion_horas = 12.0
+            print("DEBUG: Duración fallback (12.0)")
+
+        nombres_cortos = []
+        nombres_largos = []
+        limites_contractuales = []
+
+        print(f"DEBUG: Procesando {len(lista_empleados_payload)} empleados...")
+
+        for i in range(len(lista_empleados_payload)):
+            emp_id = mapa_idx_a_empleado_id.get(i)
+            empleado = empleados_map.get(emp_id)
+        
+            if empleado:
+                full_name = getattr(empleado, 'nombre_completo', "").strip()
+                n_largo = full_name if full_name else f"Profesional {i+1}"
+                
+                partes = full_name.split()
+                if len(partes) >= 2:
+                    n_corto = f"{partes[-1]}, {partes[0][0].upper()}."
+                else:
+                    n_corto = full_name if full_name else f"P{i+1}"
+
+                # --- CÁLCULO DE LÍMITES ---
+                min_turnos = getattr(empleado, 'min_turnos_mensuales', 0) or 0
+                max_turnos = getattr(empleado, 'max_turnos_mensuales', 0) or 0
+                
+                # Convertimos a float
+                min_h = float(min_turnos) * duracion_horas
+                max_h = float(max_turnos) * duracion_horas
+                
+                limites = [min_h, max_h]
+                
+                # --- PRINT DE VERIFICACIÓN (Solo los primeros 3 para no saturar) ---
+                if i < 3:
+                    print(f"   > Emp: {n_corto} | Turnos: {min_turnos}-{max_turnos} | Dur: {duracion_horas} -> Limites: {limites}")
+                # ------------------------------------------------------------------
+
+            else:
+                n_corto = f"P{i+1}"
+                n_largo = f"Profesional {i+1}"
+                limites = [0.0, 0.0]
+
+            nombres_cortos.append(n_corto)
+            nombres_largos.append(n_largo)
+            limites_contractuales.append(limites)
+
+        # Inyectamos en el JSON
+        if 'datos_equidad' not in explicabilidad:
+            explicabilidad['datos_equidad'] = {}
+        
+        explicabilidad['datos_equidad']['nombres_profesionales'] = nombres_largos
+        explicabilidad['datos_equidad']['nombres_cortos'] = nombres_cortos
+        explicabilidad['datos_equidad']['limites_contractuales'] = limites_contractuales
+        
+        # --- GUARDADO EN BD ---
+        with transaction.atomic():
+            cronograma = Cronograma.objects.create(
+                especialidad=especialidad,
+                fecha_inicio=fecha_inicio,
+                fecha_fin=fecha_fin,
+                estado=Cronograma.Estado.BORRADOR,
+                plantilla_demanda=plantilla_demanda,
+                configuracion_usada=config_activa,
+                fitness=fitness,
+                tiempo_ejecucion=tiempo,
+                reporte_analisis=explicabilidad 
+            )
+            
+            turnos_db = {t.id: t for t in TipoTurno.objects.filter(especialidad=especialidad)}
+            nuevas_asignaciones = []
+            
+            for i, fila_turnos in enumerate(matriz_solucion):
+                empleado_id = mapa_idx_a_empleado_id.get(i)
+                if not empleado_id: continue 
+                
+                for j, turno_id_api in enumerate(fila_turnos):
+                    if turno_id_api and turno_id_api in turnos_db:
+                        nuevas_asignaciones.append(Asignacion(
+                            cronograma=cronograma,
+                            empleado_id=empleado_id,
+                            fecha=fecha_inicio + timedelta(days=j),
+                            tipo_turno=turnos_db[turno_id_api]
+                        ))
+            
+            if nuevas_asignaciones:
+                Asignacion.objects.bulk_create(nuevas_asignaciones)
+            
+        print("--- DEBUG: FIN GUARDADO EXITOSO ---")
         return cronograma
+
+    except Exception as e:
+        print("\n🔴 CRASH EN GUARDAR_SOLUCION")
+        print(traceback.format_exc()) 
+        raise e
