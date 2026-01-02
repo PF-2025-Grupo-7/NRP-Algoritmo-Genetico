@@ -48,9 +48,8 @@
                 <div class="card-body text-center">
                     <h6 class="text-muted text-uppercase mb-3">Promedio de Horas</h6>
                     <div class="display-4 fw-bold text-dark">
-                        {{ equidad.promedio_objetivo|default:"-" }}
+                        {{ equidad.promedio_objetivo|default:"-"|floatformat:2 }}
                     </div>
-                    <small class="text-muted">Objetivo ideal por persona</small>
                 </div>
             </div>
         </div>
