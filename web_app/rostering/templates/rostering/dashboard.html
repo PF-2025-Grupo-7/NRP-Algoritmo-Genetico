@@ -20,13 +20,13 @@
     <div class="row g-4 mb-4">
         <div class="col-md-4">
             <div class="card shadow-sm custom-kpi kpi-personal h-100">
-                <div class="card-body py-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="card-body py-3 d-flex flex-column">
+                    <div class="kpi-header">
                         <span class="text-uppercase fw-bold text-personal" style="font-size: 1.2rem; letter-spacing: 0.5px;">Personal Activo</span>
-                        <i class="bi bi-people text-personal opacity-50" style="font-size: 3rem;"></i>
+                        <i class="bi bi-people kpi-icon"></i>
                     </div>
                     <h1 class="fw-bold text-dark mb-2">{{ total_empleados|default:"0" }}</h1>
-                    <div class="pt-2 border-top">
+                    <div class="pt-2 border-top mt-auto">
                         <a href="{% url 'empleado_list' %}" class="text-decoration-none fw-bold text-personal">
                             Gestionar Personal <i class="bi bi-arrow-right ms-1"></i>
                         </a>
@@ -37,13 +37,13 @@
 
         <div class="col-md-4">
             <div class="card shadow-sm custom-kpi kpi-ausencias h-100">
-                <div class="card-body py-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="card-body py-3 d-flex flex-column">
+                    <div class="kpi-header">
                         <span class="text-uppercase fw-bold text-ausencias" style="font-size: 1.2rem; letter-spacing: 0.5px;">Ausencias</span>
-                        <i class="bi bi-calendar-x text-ausencias opacity-50" style="font-size: 3rem;"></i>
+                        <i class="bi bi-calendar-x kpi-icon"></i>
                     </div>
                     <h1 class="fw-bold text-dark mb-2">{{ total_ausencias|default:"0" }}</h1>
-                    <div class="pt-2 border-top">
+                    <div class="pt-2 border-top mt-auto">
                         <a href="{% url 'nodisponibilidad_list' %}" class="text-decoration-none fw-bold text-ausencias">
                             Gestionar Ausencias <i class="bi bi-arrow-right ms-1"></i>
                         </a>
@@ -54,13 +54,13 @@
 
         <div class="col-md-4">
             <div class="card shadow-sm custom-kpi kpi-preferencias h-100">
-                <div class="card-body py-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="card-body py-3 d-flex flex-column">
+                    <div class="kpi-header">
                         <span class="text-uppercase fw-bold text-preferencias" style="font-size: 1.2rem; letter-spacing: 0.5px;">Preferencias</span>
-                        <i class="bi bi-heart text-preferencias opacity-50" style="font-size: 3rem;"></i>
+                        <i class="bi bi-calendar-check kpi-icon"></i>
                     </div>
                     <h1 class="fw-bold text-dark mb-2">{{ total_preferencias|default:"0" }}</h1>
-                    <div class="pt-2 border-top">
+                    <div class="pt-2 border-top mt-auto">
                         <a href="{% url 'preferencia_list' %}" class="text-decoration-none fw-bold text-preferencias">
                             Gestionar Preferencias <i class="bi bi-arrow-right ms-1"></i>
                         </a>
@@ -159,17 +159,14 @@
 </div>
 
 <style>
-    /* Fondo un poco más oscuro y profesional */
-    body { font-size: 1rem; background-color: #f2f4f7 !important; }
+    body { font-size: 1rem; background-color: #edf1f7e2; }
 
     /* Estilo para que todas las cards tengan la misma altura */
     .h-100 { height: 100% !important; }
-
+    
     /* KPI Cards - Ajustes de iconos para evitar amontonamiento */
     .custom-kpi { position: relative; overflow: hidden; }
-    
-    .small-label { font-size: 0.85rem; letter-spacing: 0.5px; z-index: 2; position: relative; }
-    
+
     .kpi-icon {
         position: absolute;
         top: 15px;
@@ -181,36 +178,41 @@
     }
 
     .custom-kpi:hover .kpi-icon { transform: scale(1.1); }
-
     .custom-kpi h1 { position: relative; z-index: 2; margin-bottom: 0; font-weight: 800; }
 
-    /* Colores específicos de tus KPIs */
+    /* Tarjetas KPI con fondo translúcido (Opacidad al 15%) */
     .kpi-personal { 
-        background-color: rgba(5, 85, 155, 0.15) !important; 
-        border: 1px solid rgba(0, 85, 155, 0.4) !important;
+        background-color: rgba(5, 85, 155, 0.325) !important; 
+        border: 1px solid rgba(0, 85, 155, 0.625) !important;
     }
-    .kpi-personal h1, .kpi-personal .kpi-icon { color: #06559a !important; }
-    .kpi-personal .border-top { border-top: 1px solid rgba(5, 85, 155, 0.3) !important; }
+    .kpi-personal h1 { color: rgb(52, 109, 159) !important; } 
+    .kpi-personal .border-top { border-top-color: rgba(5, 85, 155, 0.625) !important; }
 
     .kpi-ausencias { 
-        background-color: rgba(75, 155, 225, 0.15) !important; 
-        border: 1px solid rgba(75, 155, 225, 0.4) !important;
+        background-color: rgba(75, 155, 225, 0.325) !important; 
+        border: 1px solid rgba(75, 155, 225, 0.625) !important;
     }
-    .kpi-ausencias h1, .kpi-ausencias .kpi-icon { color: #1a7ec1 !important; }
-    .kpi-ausencias .border-top { border-top: 1px solid rgba(75, 155, 225, 0.3) !important; }
+    .kpi-ausencias h1 { color: #3e92cb !important; } 
+    .kpi-ausencias .border-top { border-top-color: rgba(75, 155, 225, 0.625) !important; }
 
     .kpi-preferencias { 
-        background-color: rgba(135, 195, 255, 0.2) !important; 
-        border: 1px solid rgba(135, 195, 255, 0.4) !important;
+        background-color: rgba(135, 195, 255, 0.325) !important; 
+        border: 1px solid rgba(135, 195, 255, 0.625) !important;
     }
-    .kpi-preferencias h1, .kpi-preferencias .kpi-icon { color: #0073D8 !important; }
-    .kpi-preferencias .border-top { border-top: 1px solid rgba(135, 195, 255, 0.3) !important; }
+    .kpi-preferencias h1 { color: #68b2d6 !important; } 
+    .kpi-preferencias .border-top { border-top-color: rgba(135, 195, 255, 0.625) !important; }
 
-    .text-personal, .text-ausencias, .text-preferencias { color: #2f3e4c !important; }
+    /* Forzar que el texto de los títulos también use el color de categoría */
+    .text-personal { color: #2f3e4c !important; }
+    .text-ausencias { color: #2f3e4c !important; }
+    .text-preferencias { color: #2f3e4c !important; }
 
-    /* Resto de estilos (Cards blancas, badges, etc) */
+    /* Eliminamos el ajuste global anterior del h1 para que tomen el color específico */
+    .custom-kpi h1 { margin-bottom: 0; font-weight: 800; }
+
+    /* Estilos generales de tarjetas */
     .card { 
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05) !important; 
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important; 
         border: none !important;
         border-radius: 12px;
     }
@@ -226,16 +228,27 @@
         border-radius: 6px;
     }
 
-    .bg-success-subtle-custom { background-color: #d1e7dd !important; color: #678d7b !important; }
-    .bg-warning-subtle-custom { background-color: #fff3cd !important; color: #928560 !important; }
+    .bg-success-subtle-custom { 
+        background-color: #d1e7dd !important; 
+        color: #678d7b !important; 
+    }
+    
+    .bg-warning-subtle-custom { 
+        background-color: #fff3cd !important; 
+        color: #928560 !important; 
+    }
 
     .custom-kpi:hover, .card-hover-action:hover { 
         transform: translateY(-4px);
-        box-shadow: 0 1rem 2rem rgba(0,0,0,0.08) !important;
+        box-shadow: 0 1rem 2rem rgba(0,0,0,0.12) !important;
         transition: all 0.3s ease;
     }
     
-    .btn-historial { color: #495057; font-weight: 600; transition: color 0.2s; }
+    .btn-historial {
+        color: #495057;
+        font-weight: 600;
+        transition: color 0.2s;
+    }
     .btn-historial:hover { color: #535252; }
 </style>
 {% endblock %}
