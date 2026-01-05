@@ -36,6 +36,8 @@ urlpatterns = [
 
     # Exportar como PDF
     path('cronograma/<int:cronograma_id>/exportar/pdf/', views.exportar_cronograma_pdf, name='exportar_pdf'),
+    # Exportar a Excel
+    path('cronograma/<int:cronograma_id>/exportar/excel/', views.exportar_cronograma_excel, name='exportar_excel'),
 
     # ==========================================================================
     # GESTIÓN DE EMPLEADOS
