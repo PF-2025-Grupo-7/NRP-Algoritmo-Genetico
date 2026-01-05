@@ -707,7 +707,7 @@ def exportar_cronograma_pdf(request, cronograma_id):
     response = HttpResponse(pdf_file, content_type='application/pdf')
     filename = f"Cronograma_{cronograma.id}_{cronograma.fecha_inicio.strftime('%Y%m')}.pdf"
     response['Content-Disposition'] = f'inline; filename="{filename}"'
-    
+    return response
 
 import openpyxl
 from datetime import timedelta 
