@@ -731,7 +731,13 @@ def exportar_cronograma_excel(request, cronograma_id):
 
     # 6. Devolver respuesta HTTP
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    filename = f"Cronograma_{cronograma.fecha_inicio.strftime('%Y-%m')}.xlsx"
+    
+    # CAMBIO: Usamos fecha inicio Y fin para que sea único
+    f_inicio = cronograma.fecha_inicio.strftime('%Y-%m-%d')
+    f_fin = cronograma.fecha_fin.strftime('%Y-%m-%d')
+    
+    filename = f"Cronograma_{f_inicio}_al_{f_fin}.xlsx"
+    
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     wb.save(response)
