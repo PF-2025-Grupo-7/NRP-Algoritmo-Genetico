@@ -54,8 +54,8 @@ from .services import (
 def dashboard(request):
     """Vista principal: KPIs, accesos rápidos y estado actual del sistema."""
     total_empleados = Empleado.objects.count()
-    borradores_pendientes = Cronograma.objects.filter(estado=Cronograma.Estado.BORRADOR).count()
-    ultimo_cronograma = Cronograma.objects.order_by('-fecha_creacion').first()
+    total_ausencias = NoDisponibilidad.objects.count()
+    total_preferencias = Preferencia.objects.count()
     recientes = Cronograma.objects.all().order_by('-fecha_creacion')[:5]
 
     hoy = timezone.now().date()
@@ -69,10 +69,9 @@ def dashboard(request):
 
     context = {
         'total_empleados': total_empleados,
-        'borradores': borradores_pendientes,
-        'ultimo': ultimo_cronograma,
+        'total_ausencias': total_ausencias,
+        'total_preferencias': total_preferencias,
         'recientes': recientes,
-        'existe_proximo': existe_proximo,
         'mes_objetivo': nombre_mes_objetivo,
     }
     return render(request, 'rostering/dashboard.html', context)
