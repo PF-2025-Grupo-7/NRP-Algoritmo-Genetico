@@ -6,7 +6,7 @@
     <style>
         @page {
             size: A4 landscape;
-            margin: 0.8cm; /* Margen reducido para ganar ancho */
+            margin: 0.8cm;
             @bottom-right {
                 content: "Pág. " counter(page) " de " counter(pages);
                 font-size: 9px; color: #666;
@@ -15,7 +15,7 @@
         
         body { font-family: 'Helvetica', sans-serif; color: #333; }
         
-        /* Encabezado Compacto */
+        /* Header */
         .header { 
             border-bottom: 2px solid #0d6efd; 
             padding-bottom: 10px; margin-bottom: 15px; 
@@ -25,37 +25,24 @@
         .subtitulo { font-size: 11px; color: #555; margin-top: 2px; }
         .meta-info { font-size: 9px; color: #777; text-align: right; margin-top: 5px; }
 
-        /* Tabla Principal */
+        /* Tablas */
         table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            font-size: 9px; /* Fuente pequeña para que entre todo */
-            table-layout: fixed; /* Fuerza columnas iguales */
+            width: 100%; border-collapse: collapse; 
+            font-size: 9px; table-layout: fixed; 
         }
-        
         th, td { 
-            border: 1px solid #ccc; 
-            padding: 3px 1px; /* Padding mínimo */
-            text-align: center; 
-            vertical-align: middle;
-            height: 18px;
+            border: 1px solid #ccc; padding: 3px 1px; 
+            text-align: center; vertical-align: middle; height: 18px;
         }
-        
-        /* Encabezados */
         th { background-color: #f1f3f5; color: #333; font-weight: bold; }
         
-        /* Columna de Nombres (Fija a la izquierda) */
         th.col-nombre, td.col-nombre { 
-            width: 140px; /* Ancho fijo para el nombre */
-            text-align: left; 
-            padding-left: 5px; 
+            width: 140px; text-align: left; padding-left: 5px; 
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-
-        /* Días de Fin de Semana (Visualmente distintos) */
         th.finde, td.finde { background-color: #fafafa; }
 
-        /* BADGES (CIRCULITOS) DE TURNOS */
+        /* BADGES */
         .turno-badge { 
             display: block; margin: 0 auto;
             width: 16px; height: 16px; line-height: 16px; 
@@ -64,27 +51,18 @@
             text-transform: uppercase;
         }
 
-        /* COLORES ESPECÍFICOS */
-        /* Mañana (Amarillo/Dorado) */
+        /* Colores basados en clases auxiliares */
         .bg-M { background-color: #ffc107; color: #000; border: 1px solid #e0a800; }
-        
-        /* Tarde (Naranja) */
         .bg-T { background-color: #fd7e14; border: 1px solid #e86b02; }
-        
-        /* Noche (Azul) */
         .bg-N { background-color: #0d6efd; border: 1px solid #0a58ca; }
-        
-        /* Guardia 24hs o General (Verde) */
-        .bg-G { background-color: #198754; border: 1px solid #146c43; }
-        
-        /* Enfermería / Otros (Violeta o Gris Oscuro para diferenciarse) */
-        .bg-E { background-color: #6f42c1; border: 1px solid #59359a; }
-        
-        /* Franco (Gris suave) */
-        .bg-F { background-color: #e9ecef; color: #999; }
-        
-        /* Salto de página */
+        .bg-G { background-color: #198754; border: 1px solid #146c43; } /* Verde para Guardia */
+        .bg-X { background-color: #6c757d; border: 1px solid #555; } /* Default */
+
         .page-break { page-break-before: always; }
+        
+        /* Referencias */
+        .ref-item { display: inline-block; margin-right: 15px; font-size: 9px; color: #555; }
+        .ref-badge { display: inline-block; width: 10px; height: 10px; line-height: 10px; margin-right: 4px; }
     </style>
 </head>
 <body>
@@ -98,7 +76,6 @@
         </div>
         <div class="meta-info">
             <div><strong>Creado:</strong> {{ cronograma.fecha_creacion|date:"d/m/Y H:i" }}</div>
-            <div><strong>Impreso:</strong> {{ fecha_impresion|date:"d/m/Y H:i" }}</div>
             <div>Ref: #{{ cronograma.id }}</div>
         </div>
     </div>
@@ -117,30 +94,24 @@
         <tbody>
             {% for fila in filas %}
             <tr>
-                <td class="col-nombre">
-                    <strong>{{ fila.empleado.nombre_corto }}</strong>
-                </td>
+                <td class="col-nombre"><strong>{{ fila.empleado.nombre_corto }}</strong></td>
                 
                 {% for celda in fila.celdas %}
                     <td>
                         {% if celda %}
-                            {% with nombre_t=celda.tipo_turno.nombre %}
-                                {% if "Noche" in nombre_t %}
-                                    <span class="turno-badge bg-N">N</span>
-                                {% elif "Tarde" in nombre_t %}
-                                    <span class="turno-badge bg-T">T</span>
-                                {% elif "Mañana" in nombre_t %}
+                            {% with nombre=celda.tipo_turno.nombre %}
+                                {% if "Mañana" in nombre %}
                                     <span class="turno-badge bg-M">M</span>
-                                {% elif "Enferme" in nombre_t %}
-                                    <span class="turno-badge bg-E">E</span>
-                                {% elif "Guardia" in nombre_t %}
+                                {% elif "Tarde" in nombre %}
+                                    <span class="turno-badge bg-T">T</span>
+                                {% elif "Noche" in nombre %}
+                                    <span class="turno-badge bg-N">N</span>
+                                {% elif "Guardia" in nombre %}
                                     <span class="turno-badge bg-G">G</span>
                                 {% else %}
-                                    <span class="turno-badge bg-G">{{ nombre_t|slice:":1" }}</span>
+                                    <span class="turno-badge bg-X">{{ nombre|slice:":1" }}</span>
                                 {% endif %}
                             {% endwith %}
-                        {% else %}
-                            <span style="color: #eee;">.</span>
                         {% endif %}
                     </td>
                 {% endfor %}
@@ -149,25 +120,36 @@
         </tbody>
     </table>
 
-    <div style="margin-top:10px; font-size:9px; color:#666;">
-        <strong>Referencias:</strong>
-        <span class="turno-badge bg-M" style="display:inline-block; width:10px; height:10px; line-height:10px;">M</span> Mañana
-        <span class="turno-badge bg-T" style="display:inline-block; width:10px; height:10px; line-height:10px; margin-left:5px;">T</span> Tarde
-        <span class="turno-badge bg-N" style="display:inline-block; width:10px; height:10px; line-height:10px; margin-left:5px;">N</span> Noche
-        <span class="turno-badge bg-E" style="display:inline-block; width:10px; height:10px; line-height:10px; margin-left:5px;">E</span> Enfermería
-        <span class="turno-badge bg-G" style="display:inline-block; width:10px; height:10px; line-height:10px; margin-left:5px;">G</span> Guardia
+    <div style="margin-top: 15px; padding-top: 5px; border-top: 1px dotted #ccc;">
+        <strong>Referencias:</strong><br>
+        {% for turno in tipos_turno %}
+            <span class="ref-item">
+                {% with n=turno.nombre %}
+                    {% if "Mañana" in n %}
+                        <span class="turno-badge ref-badge bg-M">M</span>
+                    {% elif "Tarde" in n %}
+                        <span class="turno-badge ref-badge bg-T">T</span>
+                    {% elif "Noche" in n %}
+                        <span class="turno-badge ref-badge bg-N">N</span>
+                    {% elif "Guardia" in n %}
+                        <span class="turno-badge ref-badge bg-G">G</span>
+                    {% else %}
+                        <span class="turno-badge ref-badge bg-X">{{ n|slice:":1" }}</span>
+                    {% endif %}
+                    {{ n }} {% endwith %}
+            </span>
+        {% endfor %}
     </div>
 
     <div class="page-break"></div>
-    
-    <h3>Análisis de Equidad y Carga Horaria</h3>
+
+    <h3>Análisis de Carga Horaria</h3>
     <table>
         <thead>
             <tr>
                 <th class="text-start" style="width: 200px;">Profesional</th>
-                <th>Horas Totales</th>
+                <th>Horas Asignadas</th>
                 <th>Objetivo</th>
-                <th>Diferencia</th>
                 <th>Estado</th>
             </tr>
         </thead>
@@ -177,24 +159,13 @@
                 <td class="text-start">{{ fila.empleado.nombre_completo }}</td>
                 <td>{{ fila.horas_totales }} hs</td>
                 <td>{{ fila.horas_min|floatformat:0 }} - {{ fila.horas_max|floatformat:0 }}</td>
-                
                 <td>
                     {% if fila.horas_totales < fila.horas_min %}
-                        {{ fila.horas_totales|add:"-"|add:fila.horas_min }} 
+                        <span style="color:#dc3545;">Subasignado</span>
                     {% elif fila.horas_totales > fila.horas_max %}
-                        +{{ fila.horas_totales|add:"-"|add:fila.horas_max }}
+                        <span style="color:#dc3545;">Sobreasignado</span>
                     {% else %}
-                        OK
-                    {% endif %}
-                </td>
-
-                <td>
-                    {% if fila.horas_totales < fila.horas_min %}
-                        <span style="color:#dc3545; font-weight:bold;">Subasignado</span>
-                    {% elif fila.horas_totales > fila.horas_max %}
-                        <span style="color:#dc3545; font-weight:bold;">Sobreasignado</span>
-                    {% else %}
-                        <span style="color:#198754; font-weight:bold;">Óptimo</span>
+                        <span style="color:#198754;">Óptimo</span>
                     {% endif %}
                 </td>
             </tr>

@@ -686,15 +686,21 @@ def exportar_cronograma_pdf(request, cronograma_id):
                 duracion = asig.tipo_turno.duracion_horas if asig.tipo_turno.duracion_horas else 12
                 mapa_empleados[asig.empleado.id]['horas_totales'] += float(duracion)
 
-    # 4. Renderizar
+    # 1. Obtener los IDs de tipos de turno que REALMENTE hay en las asignaciones
+    # (Esto evita mostrar referencias que no se usaron)
+    ids_turnos_usados = asignaciones.values_list('tipo_turno', flat=True).distinct()
+    tipos_turno_usados = TipoTurno.objects.filter(id__in=ids_turnos_usados).order_by('nombre')
+
+    # Renderizar
     html_string = render_to_string('rostering/reporte_pdf.html', {
         'cronograma': cronograma,
         'dias_encabezado': dias_encabezado,
-        'filas': filas, # Tu lista de filas con empleados y celdas
-        'fecha_impresion': timezone.now(), # Para mostrar cuándo se imprimió
+        'filas': filas,
+        'tipos_turno': tipos_turno_usados,  # <--- AGREGAR ESTO
+        'fecha_impresion': timezone.now(),
         'base_url': request.build_absolute_uri('/')
     })
-
+    
     html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
     pdf_file = html.write_pdf()
 
