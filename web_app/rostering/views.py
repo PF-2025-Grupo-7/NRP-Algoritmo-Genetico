@@ -608,11 +608,19 @@ from weasyprint import HTML
 def exportar_cronograma_pdf(request, cronograma_id):
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
     
-    # 1. Preparar rango de fechas (columnas)
+    # 1. Generar encabezado de días en ESPAÑOL manual
+    # Python: 0=Lunes, 6=Domingo
+    letras_dias = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+    
     dias_encabezado = []
     fecha_iter = cronograma.fecha_inicio
+    
     while fecha_iter <= cronograma.fecha_fin:
-        dias_encabezado.append({'fecha': fecha_iter})
+        dias_encabezado.append({
+            'fecha': fecha_iter,
+            'letra': letras_dias[fecha_iter.weekday()], # Forzamos la letra en español
+            'dia_num': fecha_iter.day
+        })
         fecha_iter += timedelta(days=1)
     
     num_dias = len(dias_encabezado)
@@ -678,18 +686,19 @@ def exportar_cronograma_pdf(request, cronograma_id):
                 duracion = asig.tipo_turno.duracion_horas if asig.tipo_turno.duracion_horas else 12
                 mapa_empleados[asig.empleado.id]['horas_totales'] += float(duracion)
 
-    # 4. Renderizar PDF
+    # 4. Renderizar
     html_string = render_to_string('rostering/reporte_pdf.html', {
         'cronograma': cronograma,
         'dias_encabezado': dias_encabezado,
-        'filas': filas,
-        'base_url': request.build_absolute_uri('/') # Para imágenes si las hubiera
+        'filas': filas, # Tu lista de filas con empleados y celdas
+        'fecha_impresion': timezone.now(), # Para mostrar cuándo se imprimió
+        'base_url': request.build_absolute_uri('/')
     })
 
     html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
     pdf_file = html.write_pdf()
 
     response = HttpResponse(pdf_file, content_type='application/pdf')
-    filename = f"Cronograma_{cronograma.fecha_inicio.strftime('%Y-%m')}_{cronograma.id}.pdf"
-    response['Content-Disposition'] = f'inline; filename="{filename}"' # 'attachment' para forzar descarga
+    filename = f"Cronograma_{cronograma.id}_{cronograma.fecha_inicio.strftime('%Y%m')}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
     return response
