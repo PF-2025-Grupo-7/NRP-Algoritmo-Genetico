@@ -596,3 +596,100 @@ class ConfiguracionAvanzadaView(SuperUserRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Parámetros avanzados guardados.")
         return super().form_valid(form)
+        
+
+# Imports necesarios para PDF
+from django.template.loader import render_to_string
+from django.http import HttpResponse
+from django.db.models import Sum
+from datetime import timedelta
+from weasyprint import HTML
+
+def exportar_cronograma_pdf(request, cronograma_id):
+    cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
+    
+    # 1. Preparar rango de fechas (columnas)
+    dias_encabezado = []
+    fecha_iter = cronograma.fecha_inicio
+    while fecha_iter <= cronograma.fecha_fin:
+        dias_encabezado.append({'fecha': fecha_iter})
+        fecha_iter += timedelta(days=1)
+    
+    num_dias = len(dias_encabezado)
+
+    # 2. Obtener Asignaciones
+    asignaciones = Asignacion.objects.filter(
+        cronograma=cronograma
+    ).select_related('empleado', 'tipo_turno').order_by('empleado__id', 'fecha')
+
+    # 3. Estructurar Matriz (Filas por empleado)
+    # Agrupamos asignaciones por empleado
+    mapa_empleados = {} # id -> {empleado_obj, celdas: [None]*dias, horas: 0}
+    
+    # Pre-cargar empleados involucrados (aunque no tengan turno, deberían aparecer si están en la lista original, 
+    # pero por simplicidad usamos los que tienen asignación o buscamos los activos de la especialidad)
+    # Aquí buscamos todos los activos de la especialidad para que aparezcan aunque no tengan turnos
+    empleados_base = Empleado.objects.filter(especialidad=cronograma.especialidad, activo=True).order_by('nombre_completo')
+
+    # Extraemos info de límites del reporte JSON guardado, si existe
+    datos_reporte = cronograma.reporte_analisis.get('datos_equidad', {})
+    nombres_cortos = datos_reporte.get('nombres_cortos', [])
+    nombres_largos = datos_reporte.get('nombres_profesionales', [])
+    limites = datos_reporte.get('limites_contractuales', [])
+    
+    # Mapa auxiliar nombre -> limites
+    mapa_limites = {nom: lim for nom, lim in zip(nombres_largos, limites)}
+
+    filas = []
+    
+    for emp in empleados_base:
+        # Recuperar limites guardados o calcular al vuelo
+        lims = mapa_limites.get(emp.nombre_completo, [0, 0])
+        if lims == [0, 0]: # Fallback si no está en el reporte json
+             # Lógica simplificada de fallback
+             factor = num_dias / 30
+             lims = [emp.min_turnos_mensuales*12*factor, emp.max_turnos_mensuales*12*factor]
+
+        # Nombre corto para la tabla (Generación simple)
+        partes = emp.nombre_completo.split()
+        n_corto = f"{partes[-1]}, {partes[0][0]}." if len(partes) > 1 else emp.nombre_completo
+
+        # Le inyectamos el atributo temporalmente
+        emp.nombre_corto = n_corto
+        
+        fila = {
+            'empleado': emp,
+            'celdas': [None] * num_dias,
+            'horas_totales': 0,
+            'horas_min': lims[0],
+            'horas_max': lims[1]
+        }
+        filas.append(fila)
+        mapa_empleados[emp.id] = fila
+
+    # Rellenar celdas
+    for asig in asignaciones:
+        if asig.empleado.id in mapa_empleados:
+            # Calcular índice del día
+            delta = (asig.fecha - cronograma.fecha_inicio).days
+            if 0 <= delta < num_dias:
+                mapa_empleados[asig.empleado.id]['celdas'][delta] = asig
+                # Sumar horas (si existe duración, sino 12 por defecto)
+                duracion = asig.tipo_turno.duracion_horas if asig.tipo_turno.duracion_horas else 12
+                mapa_empleados[asig.empleado.id]['horas_totales'] += float(duracion)
+
+    # 4. Renderizar PDF
+    html_string = render_to_string('rostering/reporte_pdf.html', {
+        'cronograma': cronograma,
+        'dias_encabezado': dias_encabezado,
+        'filas': filas,
+        'base_url': request.build_absolute_uri('/') # Para imágenes si las hubiera
+    })
+
+    html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
+    pdf_file = html.write_pdf()
+
+    response = HttpResponse(pdf_file, content_type='application/pdf')
+    filename = f"Cronograma_{cronograma.fecha_inicio.strftime('%Y-%m')}_{cronograma.id}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"' # 'attachment' para forzar descarga
+    return response
