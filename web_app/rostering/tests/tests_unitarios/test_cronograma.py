@@ -1,12 +1,13 @@
 from django.test import TestCase # type: ignore
 from django.core.exceptions import ValidationError # type: ignore
 from rostering.models import Cronograma, Empleado, PlantillaDemanda, ConfiguracionAlgoritmo
-from datetime import date
+from datetime import date, timedelta
 
 class TestCronograma(TestCase):
 
     def setUp(self):
         self.especialidad_medico = Empleado.TipoEspecialidad.MEDICO
+        self.especialidad_enfermero = Empleado.TipoEspecialidad.ENFERMERO
 
         self.fecha_inicio = date(2026, 1, 1)
         self.fecha_fin = date(2026, 1, 31)
@@ -18,11 +19,15 @@ class TestCronograma(TestCase):
 
         self.plantilla_enfermero = PlantillaDemanda.objects.create(
             nombre="Demanda Enfermeros Enero",
-            especialidad= Empleado.TipoEspecialidad.ENFERMERO
+            especialidad= self.especialidad_enfermero
         )
 
         self.configuracion = ConfiguracionAlgoritmo.objects.create(
             nombre="Config Test"
+        )
+
+        self.configuracion2 = ConfiguracionAlgoritmo.objects.create(
+            nombre="Config Test2"
         )
 
     def crear_cronograma(self, **custom_data):
@@ -103,3 +108,80 @@ class TestCronograma(TestCase):
 
         cronograma = Cronograma.objects.get(especialidad=self.especialidad_medico)
         self.assertIsNotNone(cronograma.fecha_creacion)
+
+    def test_cuando_se_edita_cronograma_con_datos_validos_deberia_actualizarse(self):
+        cronograma = self.crear_cronograma()
+
+        nueva_fecha_inicio = date(2026, 2, 1)
+        nueva_fecha_fin = date(2026, 2, 28)
+
+        nuevo_reporte = {
+            "violaciones": {
+                "preferencias_no_respetadas": 5,
+                "descansos_insuficientes": 1
+            },
+            "equidad": {
+                "desvio": 0.9,
+                "max_diff": 2
+            }
+        }
+
+        cronograma.especialidad = self.especialidad_enfermero
+        cronograma.fecha_inicio = nueva_fecha_inicio
+        cronograma.fecha_fin = nueva_fecha_fin
+        cronograma.estado = Cronograma.Estado.PUBLICADO
+        cronograma.plantilla_demanda = self.plantilla_enfermero
+        cronograma.configuracion_usada = self.configuracion2
+        cronograma.fitness = 2.35
+        cronograma.tiempo_ejecucion = 98.4
+        cronograma.reporte_analisis = nuevo_reporte
+
+        cronograma.full_clean()
+        cronograma.save()
+
+        cronograma_editado = Cronograma.objects.get(pk=cronograma.pk)
+        self.assertEqual(self.especialidad_enfermero, cronograma_editado.especialidad)
+        self.assertEqual(nueva_fecha_inicio, cronograma_editado.fecha_inicio)
+        self.assertEqual(nueva_fecha_fin, cronograma_editado.fecha_fin)
+        self.assertEqual(Cronograma.Estado.PUBLICADO, cronograma_editado.estado)
+        self.assertEqual(self.plantilla_enfermero, cronograma_editado.plantilla_demanda)
+        self.assertEqual(self.configuracion2, cronograma_editado.configuracion_usada)
+        self.assertEqual(2.35, cronograma_editado.fitness)
+        self.assertEqual(98.4, cronograma_editado.tiempo_ejecucion)
+        self.assertEqual(nuevo_reporte, cronograma_editado.reporte_analisis)
+
+    def test_cuando_se_edita_fecha_fin_anterior_a_inicio_deberia_fallar(self):
+        cronograma = self.crear_cronograma()
+
+        cronograma.fecha_inicio = date(2026, 3, 10)
+        cronograma.fecha_fin = date(2026, 3, 1)
+
+        with self.assertRaises(ValidationError):
+            cronograma.full_clean()
+
+    def test_cuando_se_edita_plantilla_con_especialidad_incorrecta_deberia_fallar(self):
+        cronograma = self.crear_cronograma()
+
+        cronograma.plantilla_demanda = self.plantilla_enfermero
+
+        with self.assertRaises(ValidationError):
+            cronograma.full_clean()
+
+    def test_cuando_se_quita_plantilla_demanda_deberia_ser_valido(self):
+        cronograma = self.crear_cronograma()
+
+        cronograma.plantilla_demanda = None
+        cronograma.full_clean()
+        cronograma.save()
+
+        cronograma_editado = Cronograma.objects.get(pk=cronograma.pk)
+        self.assertIsNone(cronograma_editado.plantilla_demanda)
+
+    def test_cuando_se_edita_cronograma_la_fecha_de_creacion_no_deberia_cambiar(self):
+        self.crear_cronograma()
+        cronograma = Cronograma.objects.get(especialidad=self.especialidad_medico)
+
+        cronograma.fecha_fin = cronograma.fecha_inicio + timedelta(days=1)
+
+        cronograma_editado = Cronograma.objects.get(pk = cronograma.pk)
+        self.assertEqual(cronograma_editado.fecha_creacion, cronograma.fecha_creacion)

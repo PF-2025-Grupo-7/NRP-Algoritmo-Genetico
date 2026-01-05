@@ -55,3 +55,42 @@ class TestPlantillaDemanda(TestCase):
 
         plantilla = PlantillaDemanda.objects.get(nombre=nombre_default)
         self.assertEqual(plantilla.descripcion, "")
+
+    def test_cuando_se_edita_plantilla_demanda_con_datos_validos_deberia_actualizarse(self):
+        plantilla = self.crear_plantilla_demanda()
+
+        nuevo_nombre = "Demanda Invierno"
+        nueva_especialidad = Empleado.TipoEspecialidad.ENFERMERO
+        nueva_descripcion = "Plantilla ajustada para temporada invernal"
+
+        plantilla.nombre = nuevo_nombre
+        plantilla.especialidad = nueva_especialidad
+        plantilla.descripcion = nueva_descripcion
+
+        plantilla.full_clean()
+        plantilla.save()
+
+        plantilla_actualizada = PlantillaDemanda.objects.get(pk=plantilla.pk)
+
+        self.assertEqual(nuevo_nombre, plantilla_actualizada.nombre)
+        self.assertEqual(nueva_especialidad, plantilla_actualizada.especialidad)
+        self.assertEqual(nueva_descripcion, plantilla_actualizada.descripcion)
+
+    def test_cuando_se_edita_nombre_a_uno_existente_deberia_fallar(self):
+        self.crear_plantilla_demanda(nombre="Demanda Base")
+        plantilla = self.crear_plantilla_demanda(nombre="Demanda Alternativa")
+
+        plantilla.nombre = "Demanda Base"
+
+        with self.assertRaises(ValidationError):
+            plantilla.full_clean()
+
+    def test_cuando_se_edita_descripcion_a_vacia_deberia_actualizarse(self):
+        plantilla = self.crear_plantilla_demanda(descripcion="Descripción inicial")
+
+        plantilla.descripcion = ""
+        plantilla.full_clean()
+        plantilla.save()
+
+        plantilla_actualizada = PlantillaDemanda.objects.get(pk=plantilla.pk)
+        self.assertEqual("", plantilla_actualizada.descripcion)
