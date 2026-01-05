@@ -596,3 +596,143 @@ class ConfiguracionAvanzadaView(SuperUserRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Parámetros avanzados guardados.")
         return super().form_valid(form)
+    
+
+import openpyxl
+from datetime import timedelta 
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+# Asegurate de tener tus modelos importados
+from .models import Cronograma, Asignacion, Empleado, TipoTurno
+
+def exportar_cronograma_excel(request, cronograma_id):
+    cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
+    
+    # 1. Crear el libro y la hoja
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"Cronograma {cronograma.id}"
+
+    # --- ESTILOS ---
+    font_bold = Font(bold=True)
+    align_center = Alignment(horizontal='center', vertical='center')
+    border_thin = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                         top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    # Colores de fondo (Fills)
+    fill_manana = PatternFill(start_color="FFC107", end_color="FFC107", fill_type="solid") # Amarillo
+    fill_tarde = PatternFill(start_color="FD7E14", end_color="FD7E14", fill_type="solid")  # Naranja
+    fill_noche = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")  # Azul
+    fill_guardia = PatternFill(start_color="198754", end_color="198754", fill_type="solid") # Verde
+    fill_enfermeria = PatternFill(start_color="6F42C1", end_color="6F42C1", fill_type="solid") # Violeta
+    fill_franco = PatternFill(start_color="E9ECEF", end_color="E9ECEF", fill_type="solid") # Gris claro
+    
+    # 2. Encabezado Principal
+    # CORRECCIÓN: Generamos el nombre dinámicamente con los datos que SÍ existen
+    titulo_plan = f"Plan {cronograma.get_especialidad_display()}"
+    periodo_str = f"Período: {cronograma.fecha_inicio.strftime('%d/%m/%Y')} al {cronograma.fecha_fin.strftime('%d/%m/%Y')}"
+    
+    ws.merge_cells('A1:E1')
+    ws['A1'] = titulo_plan
+    ws['A1'].font = Font(size=14, bold=True, color="0D6EFD")
+    
+    ws.merge_cells('A2:E2')
+    ws['A2'] = periodo_str
+    
+    # 3. Fila de Días (Encabezados de Tabla)
+    ws.cell(row=4, column=1, value="Profesional").font = font_bold
+    ws.column_dimensions['A'].width = 25 
+
+    dias = []
+    fecha_iter = cronograma.fecha_inicio
+    col_idx = 2 
+    
+    letras_dias = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+
+    while fecha_iter <= cronograma.fecha_fin:
+        letra = letras_dias[fecha_iter.weekday()]
+        dia_str = f"{letra}\n{fecha_iter.day}"
+        
+        cell = ws.cell(row=4, column=col_idx, value=dia_str)
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.font = font_bold
+        cell.border = border_thin
+        
+        # Color gris si es finde
+        if fecha_iter.weekday() >= 5: 
+            cell.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+
+        col_letter = get_column_letter(col_idx)
+        ws.column_dimensions[col_letter].width = 5 
+        
+        dias.append(fecha_iter)
+        fecha_iter += timedelta(days=1) # Ahora sí funciona timedelta
+        col_idx += 1
+
+    # 4. Cargar Datos
+    asignaciones = Asignacion.objects.filter(
+        cronograma=cronograma
+    ).select_related('empleado', 'tipo_turno')
+
+    mapa_turnos = {}
+    for a in asignaciones:
+        mapa_turnos[(a.empleado.id, a.fecha)] = a.tipo_turno
+
+    empleados = Empleado.objects.filter(especialidad=cronograma.especialidad, activo=True).order_by('id')
+
+    # 5. Escribir Filas
+    row_idx = 5
+    for emp in empleados:
+        # Nombre del empleado
+        cell_name = ws.cell(row=row_idx, column=1, value=emp.nombre_completo)
+        cell_name.border = border_thin
+        
+        # Turnos
+        current_col = 2
+        for fecha in dias:
+            turno = mapa_turnos.get((emp.id, fecha))
+            cell = ws.cell(row=row_idx, column=current_col)
+            cell.border = border_thin
+            cell.alignment = align_center
+            
+            if turno:
+                nombre_t = turno.nombre
+                # Lógica visual de colores (Igual que en PDF)
+                sigla = nombre_t[0] 
+                fill_to_use = fill_guardia 
+                font_color = "FFFFFF" 
+                
+                if "Mañana" in nombre_t:
+                    sigla = "M"
+                    fill_to_use = fill_manana
+                    font_color = "000000"
+                elif "Tarde" in nombre_t:
+                    sigla = "T"
+                    fill_to_use = fill_tarde
+                elif "Noche" in nombre_t:
+                    sigla = "N"
+                    fill_to_use = fill_noche
+                elif "Enferme" in nombre_t:
+                    sigla = "E"
+                    fill_to_use = fill_enfermeria
+                
+                cell.value = sigla
+                cell.fill = fill_to_use
+                cell.font = Font(color=font_color, bold=True)
+            else:
+                cell.value = "-"
+                cell.font = Font(color="CCCCCC")
+
+            current_col += 1
+        
+        row_idx += 1
+
+    # 6. Devolver respuesta HTTP
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f"Cronograma_{cronograma.fecha_inicio.strftime('%Y-%m')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    wb.save(response)
+    return response

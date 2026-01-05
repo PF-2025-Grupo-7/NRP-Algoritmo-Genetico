@@ -13,6 +13,11 @@
         <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Volver al listado
         </a>
+        <div class="btn-group shadow-sm">
+            <a href="{% url 'exportar_excel' cronograma.id %}" class="btn btn-success">
+                <i class="bi bi-file-excel"></i> Excel
+            </a>
+        </div>
     </div>
 
     <div class="row g-4 mb-4">
