@@ -308,27 +308,39 @@
                 
                 <div class="text-center mb-4">
                     <h4 class="text-danger fw-bold">Imposible Generar Cronograma</h4>
-                    <p class="text-muted">La demanda requerida por la plantilla supera la capacidad operativa de los empleados activos.</p>
+                    <p class="text-muted">La demanda requerida supera la capacidad máxima teórica del personal activo.</p>
                 </div>
 
-                <div class="mb-4">
+                <div class="mb-3">
                     <div class="d-flex justify-content-between small fw-bold mb-1">
-                        <span>Capacidad Actual (<span id="txt-oferta">0</span> hs)</span>
-                        <span class="text-danger">Requerido (<span id="txt-demanda">0</span> hs)</span>
+                        <span>Oferta Actual (<span id="txt-oferta">0</span> hs)</span>
+                        <span class="text-danger">Demanda (<span id="txt-demanda">0</span> hs)</span>
                     </div>
                     <div class="progress" style="height: 25px; background-color: #e9ecef;">
-                        <div id="bar-capacidad" class="progress-bar bg-success" role="progressbar" style="width: 0%">
+                        <div id="bar-capacidad" class="progress-bar bg-danger" role="progressbar" style="width: 0%">
                             <span id="txt-porcentaje" class="fw-bold text-white drop-shadow">0%</span>
                         </div>
-                        </div>
-                    <div class="text-center mt-3">
-                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger p-2">
-                            <i class="bi bi-graph-down-arrow"></i> Faltan cubrir aprox. <span id="txt-deficit" class="fw-bold fs-6">0</span> horas
+                    </div>
+                    <div class="text-center mt-2">
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger">
+                            Faltan cubrir <span id="txt-deficit" class="fw-bold">0</span> horas (aprox)
                         </span>
                     </div>
                 </div>
 
-                <div class="card bg-light border-0">
+                <div class="alert alert-warning d-flex align-items-start small" role="alert">
+                    <i class="bi bi-info-circle-fill fs-5 me-2"></i>
+                    <div>
+                        <strong>Nota importante sobre capacidad:</strong><br>
+                        Para garantizar una cobertura saludable, la capacidad del personal debería ser 
+                        <strong>al menos un 15% superior</strong> a la demanda. Esto es necesario para cubrir francos obligatorios, 
+                        preferencias, indisponibilidades y evitar la fatiga del equipo.
+                        <br>
+                        <em>Incluso si los números fueran iguales, el algoritmo no podría cubrir todos los turnos debido a estas restricciones.</em>
+                    </div>
+                </div>
+
+                <div class="card bg-light border-0 mt-3">
                     <div class="card-body">
                         <h6 class="fw-bold text-dark mb-3"><i class="bi bi-lightbulb-fill text-warning"></i> Acciones Sugeridas</h6>
                         <ul class="mb-0 text-muted small ps-3">
@@ -336,10 +348,7 @@
                                 <strong>Revisar Personal:</strong> Actualmente hay <strong id="txt-empleados" class="text-dark">0</strong> empleados activos. Verifica si hay personal inactivo o licencias mal cargadas.
                             </li>
                             <li class="mb-2">
-                                <strong>Ajustar Plantilla:</strong> Reduce la cantidad de profesionales requeridos por turno en la configuración de la Plantilla de Demanda.
-                            </li>
-                            <li class="mb-0">
-                                <strong>Reducir Periodo:</strong> Intenta planificar una quincena en lugar del mes completo.
+                                <strong>Ajustar Plantilla:</strong> Reducí la cantidad de profesionales requeridos por turno en la configuración de la Plantilla de Demanda.
                             </li>
                         </ul>
                     </div>
@@ -348,7 +357,7 @@
             </div>
             <div class="modal-footer bg-light">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Entendido</button>
-                <a href="#" class="btn btn-primary" onclick="alert('Funcionalidad pendiente: Redirigir a editar plantilla')">
+                <a href="#" class="btn btn-primary" onclick="alert('Redirigiendo a edición de plantilla...')">
                     <i class="bi bi-pencil-square"></i> Modificar Plantilla
                 </a>
             </div>
