@@ -86,8 +86,6 @@ def registrar_usuario(request):
             login(request, user)
             messages.success(request, "¡Registro exitoso! Bienvenido.")
             return redirect('dashboard')
-        else:
-            messages.error(request, "Por favor corrige los errores abajo.")
     else:
         form = UserCreationForm()
     return render(request, 'registration/register.html', {'form': form})

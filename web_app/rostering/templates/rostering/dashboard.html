@@ -19,52 +19,40 @@
 
     <div class="row g-4 mb-4">
         <div class="col-md-4">
-            <div class="card shadow-sm custom-kpi kpi-personal h-100">
-                <div class="card-body py-3 d-flex flex-column">
-                    <div class="kpi-header">
-                        <span class="text-uppercase fw-bold text-personal" style="font-size: 1.2rem; letter-spacing: 0.5px;">Personal Activo</span>
-                        <i class="bi bi-people kpi-icon"></i>
-                    </div>
-                    <h1 class="fw-bold text-dark mb-2">{{ total_empleados|default:"0" }}</h1>
-                    <div class="pt-2 border-top mt-auto">
-                        <a href="{% url 'empleado_list' %}" class="text-decoration-none fw-bold text-personal">
-                            Gestionar Personal <i class="bi bi-arrow-right ms-1"></i>
-                        </a>
-                    </div>
+            <div class="card mb-2 h-100 card-soft kpi-card">
+                <div class="card-header bg-white border-bottom-0">Personal Activo</div>
+                <div class="card-body">
+                    <div class="kpi-metric">{{ total_empleados|default:"0" }}</div>
+                    <div class="kpi-divider"></div>
+                    <p class="card-text mb-0 kpi-link-wrap">
+                        <a href="{% url 'empleado_list' %}" class="text-decoration-none fw-bold kpi-link">Gestionar Personal <i class="bi bi-arrow-right ms-1"></i></a>
+                    </p>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm custom-kpi kpi-ausencias h-100">
-                <div class="card-body py-3 d-flex flex-column">
-                    <div class="kpi-header">
-                        <span class="text-uppercase fw-bold text-ausencias" style="font-size: 1.2rem; letter-spacing: 0.5px;">Ausencias</span>
-                        <i class="bi bi-calendar-x kpi-icon"></i>
-                    </div>
-                    <h1 class="fw-bold text-dark mb-2">{{ total_ausencias|default:"0" }}</h1>
-                    <div class="pt-2 border-top mt-auto">
-                        <a href="{% url 'nodisponibilidad_list' %}" class="text-decoration-none fw-bold text-ausencias">
-                            Gestionar Ausencias <i class="bi bi-arrow-right ms-1"></i>
-                        </a>
-                    </div>
+            <div class="card mb-2 h-100 card-soft kpi-card">
+                <div class="card-header bg-white border-bottom-0">Ausencias</div>
+                <div class="card-body">
+                    <div class="kpi-metric">{{ total_ausencias|default:"0" }}</div>
+                    <div class="kpi-divider"></div>
+                    <p class="card-text mb-0 kpi-link-wrap">
+                        <a href="{% url 'nodisponibilidad_list' %}" class="text-decoration-none fw-bold kpi-link">Gestionar Ausencias <i class="bi bi-arrow-right ms-1"></i></a>
+                    </p>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm custom-kpi kpi-preferencias h-100">
-                <div class="card-body py-3 d-flex flex-column">
-                    <div class="kpi-header">
-                        <span class="text-uppercase fw-bold text-preferencias" style="font-size: 1.2rem; letter-spacing: 0.5px;">Preferencias</span>
-                        <i class="bi bi-calendar-check kpi-icon"></i>
-                    </div>
-                    <h1 class="fw-bold text-dark mb-2">{{ total_preferencias|default:"0" }}</h1>
-                    <div class="pt-2 border-top mt-auto">
-                        <a href="{% url 'preferencia_list' %}" class="text-decoration-none fw-bold text-preferencias">
-                            Gestionar Preferencias <i class="bi bi-arrow-right ms-1"></i>
-                        </a>
-                    </div>
+            <div class="card mb-2 h-100 card-soft kpi-card">
+                <div class="card-header bg-white border-bottom-0">Preferencias</div>
+                <div class="card-body">
+                    <div class="kpi-metric">{{ total_preferencias|default:"0" }}</div>
+                    <div class="kpi-divider"></div>
+                    <p class="card-text mb-0 kpi-link-wrap">
+                        <a href="{% url 'preferencia_list' %}" class="text-decoration-none fw-bold kpi-link">Gestionar Preferencias <i class="bi bi-arrow-right ms-1"></i></a>
+                    </p>
                 </div>
             </div>
         </div>
@@ -103,7 +91,7 @@
                                 </td>
                                 <td class="text-center">{{ c.fecha_creacion|date:"d/m/Y" }}</td>
                                 <td class="text-center">
-                                    <a href="{% url 'cronograma_analisis' c.id %}" class="btn btn-historial text-primary p-0 action-view" title="Ver Análisis">
+                                    <a href="{% url 'cronograma_analisis' c.id %}" class="btn btn-historial text-primary p-0 action-view" data-bs-toggle="tooltip" data-bs-title="Ver Análisis">
                                         <i class="bi bi-eye-fill fs-4"></i>
                                     </a>
                                 </td>
@@ -133,7 +121,7 @@
                         </div>
                     </div>
                     <h6 class="fw-bold text-uppercase mb-4" style="letter-spacing: 1px; color: #5a5c69;">Tips de Gestión</h6>
-                    
+
                     <div id="tipsCarousel" class="carousel slide" data-bs-ride="carousel">
                         <div class="carousel-inner">
                             <div class="carousel-item active">
@@ -161,61 +149,78 @@
 <style>
     body { font-size: 1rem; background-color: #edf1f7e2; }
 
+    /* Ajuste de header y tipografía */
+    .card-header {
+        padding: 0.75rem 1.25rem;
+        letter-spacing: 0.5px;
+    }
     /* Estilo para que todas las cards tengan la misma altura */
     .h-100 { height: 100% !important; }
-    
-    /* KPI Cards - Ajustes de iconos para evitar amontonamiento */
-    .custom-kpi { position: relative; overflow: hidden; }
-
-    .kpi-icon {
-        position: absolute;
-        top: 15px;
-        right: 15px;
-        font-size: 3rem;
-        opacity: 0.4;
-        z-index: 1;
-        transition: transform 0.3s ease;
-    }
-
-    .custom-kpi:hover .kpi-icon { transform: scale(1.1); }
-    .custom-kpi h1 { position: relative; z-index: 2; margin-bottom: 0; font-weight: 800; }
-
-    /* Tarjetas KPI con fondo translúcido (Opacidad al 15%) */
-    .kpi-personal { 
-        background-color: rgba(5, 85, 155, 0.325) !important; 
-        border: 1px solid rgba(0, 85, 155, 0.625) !important;
-    }
-    .kpi-personal h1 { color: rgb(52, 109, 159) !important; } 
-    .kpi-personal .border-top { border-top-color: rgba(5, 85, 155, 0.625) !important; }
-
-    .kpi-ausencias { 
-        background-color: rgba(75, 155, 225, 0.325) !important; 
-        border: 1px solid rgba(75, 155, 225, 0.625) !important;
-    }
-    .kpi-ausencias h1 { color: #3e92cb !important; } 
-    .kpi-ausencias .border-top { border-top-color: rgba(75, 155, 225, 0.625) !important; }
-
-    .kpi-preferencias { 
-        background-color: rgba(135, 195, 255, 0.325) !important; 
-        border: 1px solid rgba(135, 195, 255, 0.625) !important;
-    }
-    .kpi-preferencias h1 { color: #68b2d6 !important; } 
-    .kpi-preferencias .border-top { border-top-color: rgba(135, 195, 255, 0.625) !important; }
-
-    /* Forzar que el texto de los títulos también use el color de categoría */
-    .text-personal { color: #2f3e4c !important; }
-    .text-ausencias { color: #2f3e4c !important; }
-    .text-preferencias { color: #2f3e4c !important; }
-
-    /* Eliminamos el ajuste global anterior del h1 para que tomen el color específico */
-    .custom-kpi h1 { margin-bottom: 0; font-weight: 800; }
 
     /* Estilos generales de tarjetas */
     .card { 
         box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important; 
-        border: none !important;
         border-radius: 12px;
     }
+
+    /* Softer card variant to match Tips style */
+    .card-soft { 
+        border: none !important;
+        background-color: #ffffff !important;
+    }
+
+    /* KPI Card styling */
+    .kpi-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 0.75rem 1.25rem rgba(0,0,0,0.1) !important; }
+
+    .kpi-card .card-header {
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 1.1rem;
+        color: #5a5c69; /* same tone as Tips header */
+        padding: 0.6rem 1.25rem; /* compact header spacing for KPI */
+    }
+
+    .kpi-metric {
+        font-size: 2.6rem; /* more compact metric */
+        font-weight: 800;
+        line-height: 1.1;
+        color: #212529;
+    }
+
+    .kpi-divider {
+        height: 2px;
+        background: #e9ecef;
+        margin: 0.75rem 0 0.75rem 0; /* equal left and right margins */
+        border-radius: 2px;
+        transform-origin: center; /* shrink equally from both sides */
+        transform: scaleX(0.98); /* extend closer to card edges */
+        transition: background-color 0.2s ease, transform 0.2s ease;
+    }
+    .kpi-card:hover .kpi-divider { background-color: #0d6efd; transform: scaleX(1); }
+
+    .kpi-link { color: #0d6efd; }
+    .kpi-link:hover { color: #0b5ed7; }
+    .kpi-link-wrap { margin-top: 0.4rem; }
+
+    /* Slightly more right padding for card content */
+    .kpi-card .card-body { padding: 0.9rem 1.25rem 0.95rem 1.5rem; }
+
+    /* Subtle light tooltip for action eye icon */
+    .tooltip { --bs-tooltip-bg: #ffffff; --bs-tooltip-color: #5a5c69; }
+    .tooltip .tooltip-inner {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 0.35rem 0.6rem;
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.06);
+        font-size: 0.85rem;
+    }
+
+    /* Table body text harmonized with Tips body */
+    .table tbody td { color: #6c757d; }
+    /* Table headers keep original format, only color like Tips header */
+    .table thead th { color: #5a5c69 !important; }
 
     .badge-status {
         display: inline-block;
@@ -251,4 +256,17 @@
     }
     .btn-historial:hover { color: #535252; }
 </style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('.action-view'));
+        tooltipTriggerList.forEach(function (el) {
+            try {
+                new bootstrap.Tooltip(el, { delay: { show: 450, hide: 120 }, placement: 'top' });
+            } catch (e) {
+                // Bootstrap may already be initialized elsewhere; fail silently
+            }
+        });
+    });
+</script>
 {% endblock %}
