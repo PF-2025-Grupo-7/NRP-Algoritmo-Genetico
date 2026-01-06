@@ -121,19 +121,16 @@ def iniciar_planificacion(request):
         # Delegamos TODA la lógica pesada al servicio
         job_id = iniciar_proceso_optimizacion(data)
 
-        return JsonResponse({
-            'status': 'started',
-            'job_id': job_id,
-            'mensaje': 'Optimización iniciada correctamente.'
-        })
+        return JsonResponse({'status': 'started', 'job_id': job_id})
 
-    except (ValidationError, ValueError) as e:
+    except ValidationError as e:
+        # Aquí capturamos el mensaje de "Imposible planificar"
+        return JsonResponse({'error': str(e.message if hasattr(e, 'message') else e)}, status=400)
+        
+    except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)
-    except ConnectionError as e:
-        return JsonResponse({'error': str(e)}, status=503)
     except Exception as e:
-        print(f"Error 500: {e}")
-        return JsonResponse({'error': f"Error interno: {str(e)}"}, status=500)
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @csrf_exempt

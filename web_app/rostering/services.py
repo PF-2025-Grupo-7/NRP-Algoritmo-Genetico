@@ -15,6 +15,111 @@ from .models import (
     Cronograma, Asignacion, TrabajoPlanificacion
 )
 
+def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantilla):
+    """
+    RF04: Verifica si la capacidad total de horas de los empleados alcanza
+    para cubrir la demanda teórica de la plantilla.
+    Retorna (False, mensaje) si falta gente, o (True, "OK") si alcanza.
+    """
+    print(f"\n🔍 --- INICIO VALIDACIÓN DOTACIÓN (RF04) ---")
+    
+    dias_totales = (fecha_fin - fecha_inicio).days + 1
+    print(f"📅 Periodo: {fecha_inicio} al {fecha_fin} ({dias_totales} días)")
+
+    # 1. CALCULAR OFERTA (Horas Disponibles)
+    horas_oferta = 0.0
+    factor_periodo = dias_totales / 30.0 
+    
+    # Cacheamos duraciones
+    turnos = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
+    mapa_duraciones = {t.id: (float(t.duracion_horas) if t.duracion_horas else 12.0) for t in turnos}
+    
+    if mapa_duraciones:
+        duracion_promedio = sum(mapa_duraciones.values()) / len(mapa_duraciones)
+    else:
+        duracion_promedio = 12.0
+
+    count_emps = 0
+    for emp in empleados_qs:
+        t_max = float(emp.max_turnos_mensuales or 0)
+        horas_capacidad = t_max * duracion_promedio * factor_periodo
+        horas_oferta += horas_capacidad
+        count_emps += 1
+        
+    print(f"👥 Oferta: {count_emps} empleados activos. Total Horas Disponibles: {int(horas_oferta)}")
+
+    # 2. CALCULAR DEMANDA (Horas Requeridas)
+    horas_demanda = 0.0
+    
+    # Usamos filter directo para evitar problemas de atributos
+    reglas = ReglaDemandaSemanal.objects.filter(plantilla=plantilla).select_related('turno')
+    
+    # IMPRIMIR REGLAS PARA DEBUG
+    print(f"📋 Reglas encontradas en BD para la plantilla: {reglas.count()}")
+    
+    # MAPA SEGURO: Usamos los valores reales del ENUM DiaSemana
+    # Orden de weekday(): 0=Lunes, 6=Domingo
+    mapa_dias = [
+        DiaSemana.LUNES, DiaSemana.MARTES, DiaSemana.MIERCOLES, 
+        DiaSemana.JUEVES, DiaSemana.VIERNES, DiaSemana.SABADO, DiaSemana.DOMINGO
+    ]
+    
+    fecha_iter = fecha_inicio
+    while fecha_iter <= fecha_fin:
+        # Obtenemos el valor correcto del Enum para este día
+        dia_enum_val = mapa_dias[fecha_iter.weekday()]
+        
+        # Excepciones (Días pico)
+        es_pico = False
+        excepciones = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter)
+        
+        if excepciones.exists():
+            es_pico = True
+            for ex in excepciones:
+                cant = ex.cantidad_junior + ex.cantidad_senior
+                dur = float(ex.turno.duracion_horas) if ex.turno and ex.turno.duracion_horas else duracion_promedio
+                horas_demanda += (cant * dur)
+        
+        # Si no es pico, usamos regla semanal
+        if not es_pico:
+            # Comparamos contra el valor del Enum, no contra un string hardcodeado
+            reglas_dia = [r for r in reglas if r.dia == dia_enum_val]
+            
+            for r in reglas_dia:
+                cant = r.cantidad_junior + r.cantidad_senior
+                dur = float(r.turno.duracion_horas) if r.turno and r.turno.duracion_horas else duracion_promedio
+                horas_demanda += (cant * dur)
+            
+        fecha_iter += timedelta(days=1)
+
+    print(f"📉 Demanda Calculada: {int(horas_demanda)} horas necesarias.")
+
+    # 3. COMPARACIÓN
+    balance = horas_oferta - horas_demanda
+    print(f"⚖️ Balance: {int(balance)} horas.")
+
+    # Si la demanda es 0, algo anda mal con la configuración (o no cargó reglas)
+    if horas_demanda == 0:
+        print("⚠️ ALERTA: La demanda calculada es 0. Revisar si la plantilla tiene reglas cargadas.")
+        # Opcional: Retornar error si consideras que demanda 0 no es válida
+        # return False, "Error de Configuración: La plantilla no tiene demanda cargada (0 horas requeridas)."
+
+    margen_error = horas_demanda * 0.10 
+    
+    if balance < -margen_error:
+        deficit = abs(int(balance))
+        msg = (
+            f"⚠️ Imposible planificar: La demanda requiere aprox. {int(horas_demanda)} horas, "
+            f"pero el personal activo solo cubre {int(horas_oferta)} horas. "
+            f"(Déficit crítico de {deficit} hs)."
+        )
+        print(f"❌ RECHAZADO: {msg}")
+        return False, msg
+    
+    print("✅ APROBADO: Cobertura suficiente.")
+    return True, "Cobertura suficiente"
+
+
 # ==============================================================================
 # LÓGICA DE ORQUESTACIÓN Y NEGOCIO (NUEVO)
 # ==============================================================================
@@ -45,6 +150,19 @@ def iniciar_proceso_optimizacion(data):
     if not inicio or not fin:
         raise ValueError('Formato de fecha inválido. Usar YYYY-MM-DD.')
 
+    # --- AGREGAR ESTO ---
+    # Validación RF04: Detección temprana de falta de personal
+    plantilla = PlantillaDemanda.objects.get(pk=plantilla_id)
+    empleados_qs = Empleado.objects.filter(especialidad=especialidad, activo=True)
+    
+    es_viable, mensaje_error = validar_cobertura_suficiente(inicio, fin, empleados_qs, plantilla)
+    
+    if not es_viable:
+        # Lanzamos un error que la vista pueda capturar y mostrar lindo
+        # Usamos ValidationError de Django que es estándar
+        raise ValidationError(mensaje_error)
+    # --------------------
+    
     # 2. Generar el Payload (Aquí ocurren las validaciones de negocio como uniformidad de turnos)
     payload = generar_payload_ag(inicio, fin, especialidad, plantilla_id)
 
