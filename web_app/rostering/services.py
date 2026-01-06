@@ -96,28 +96,22 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
 
     # 3. COMPARACIÓN
     balance = horas_oferta - horas_demanda
-    print(f"⚖️ Balance: {int(balance)} horas.")
-
-    # Si la demanda es 0, algo anda mal con la configuración (o no cargó reglas)
-    if horas_demanda == 0:
-        print("⚠️ ALERTA: La demanda calculada es 0. Revisar si la plantilla tiene reglas cargadas.")
-        # Opcional: Retornar error si consideras que demanda 0 no es válida
-        # return False, "Error de Configuración: La plantilla no tiene demanda cargada (0 horas requeridas)."
-
     margen_error = horas_demanda * 0.10 
     
     if balance < -margen_error:
         deficit = abs(int(balance))
-        msg = (
-            f"⚠️ Imposible planificar: La demanda requiere aprox. {int(horas_demanda)} horas, "
-            f"pero el personal activo solo cubre {int(horas_oferta)} horas. "
-            f"(Déficit crítico de {deficit} hs)."
-        )
-        print(f"❌ RECHAZADO: {msg}")
-        return False, msg
+        
+        # CAMBIO: Devolvemos un diccionario con DATOS, no solo texto
+        datos_error = {
+            "horas_necesarias": int(horas_demanda),
+            "horas_disponibles": int(horas_oferta),
+            "deficit": deficit,
+            "porcentaje_cobertura": int((horas_oferta / horas_demanda) * 100) if horas_demanda > 0 else 0,
+            "empleados_activos": empleados_qs.count()
+        }
+        return False, datos_error
     
-    print("✅ APROBADO: Cobertura suficiente.")
-    return True, "Cobertura suficiente"
+    return True, None
 
 
 # ==============================================================================
@@ -150,18 +144,19 @@ def iniciar_proceso_optimizacion(data):
     if not inicio or not fin:
         raise ValueError('Formato de fecha inválido. Usar YYYY-MM-DD.')
 
-    # --- AGREGAR ESTO ---
-    # Validación RF04: Detección temprana de falta de personal
+    # Validación RF04
     plantilla = PlantillaDemanda.objects.get(pk=plantilla_id)
     empleados_qs = Empleado.objects.filter(especialidad=especialidad, activo=True)
     
-    es_viable, mensaje_error = validar_cobertura_suficiente(inicio, fin, empleados_qs, plantilla)
+    es_viable, datos_error = validar_cobertura_suficiente(inicio, fin, empleados_qs, plantilla)
     
     if not es_viable:
-        # Lanzamos un error que la vista pueda capturar y mostrar lindo
-        # Usamos ValidationError de Django que es estándar
-        raise ValidationError(mensaje_error)
-    # --------------------
+        # Lanzamos ValidationError pasando el diccionario. 
+        # Django permite pasar dicts o listas en ValidationError.
+        raise ValidationError(
+            message="Imposible cubrir la demanda con la dotación actual.",
+            params=datos_error # Adjuntamos los datos técnicos aquí
+        )
     
     # 2. Generar el Payload (Aquí ocurren las validaciones de negocio como uniformidad de turnos)
     payload = generar_payload_ag(inicio, fin, especialidad, plantilla_id)

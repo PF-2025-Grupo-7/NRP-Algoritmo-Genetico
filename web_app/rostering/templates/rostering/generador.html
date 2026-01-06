@@ -108,7 +108,7 @@
     document.addEventListener('DOMContentLoaded', cargarPlantillas);
 
 
-    // 4. ACTUALIZAR LA FUNCIÓN DE INICIO PARA ENVIAR EL ID DE LA PLANTILLA
+    // 4. ACTUALIZAR LA FUNCIÓN DE INICIO PARA DETECTAR EL ERROR RF04
     async function iniciarGeneracion() {
         const btn = document.getElementById('btn-accion');
         const container = document.getElementById('resultado-container');
@@ -127,17 +127,18 @@
             fecha_inicio: document.getElementById('fecha_inicio').value,
             fecha_fin: document.getElementById('fecha_fin').value,
             especialidad: selectEspecialidad.value,
-            plantilla_id: plantillaId // <--- AQUI ENVIAMOS EL DATO NUEVO
+            plantilla_id: plantillaId
         };
 
         // UI Loading
         btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Enviando...`;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Verificando y Enviando...`;
         container.classList.remove('d-none', 'alert-success', 'alert-danger');
         container.classList.add('alert-info');
         badge.className = 'badge bg-info text-dark';
-        badge.innerText = 'Encolado';
+        badge.innerText = 'Validando...';
         spinner.classList.remove('d-none');
+        msg.innerText = "Verificando dotación y enviando al motor...";
 
         try {
             const response = await fetch('/api/planificar/iniciar/', {
@@ -152,15 +153,71 @@
             const data = await response.json();
 
             if (response.ok) {
+                // ÉXITO (200)
                 msg.innerText = `Job ID: ${data.job_id}. Optimizando...`;
-                pollEstado(data.job_id); // Reutilizamos tu función pollEstado existente
+                badge.innerText = 'Encolado';
+                pollEstado(data.job_id);
             } else {
-                mostrarError("Error al iniciar: " + (data.error || "Desconocido"));
+                // ERROR (400, 422, 500)
+                
+                // --- DETECCIÓN DE ERROR RF04 ---
+                if (data.tipo_error === 'FALTA_DOTACION') {
+                    // Ocultamos el spinner de carga porque no vamos a reintentar automáticamente
+                    resetUIState();
+                    // Mostramos el Modal Amigable
+                    mostrarModalDotacion(data.detalles);
+                } else {
+                    // Error genérico
+                    mostrarError("Error al iniciar: " + (data.error || "Desconocido"));
+                }
             }
         } catch (error) {
             console.error(error);
             mostrarError("Error de conexión con el servidor.");
         }
+    }
+
+    // --- NUEVA FUNCIÓN PARA EL MODAL ---
+    function mostrarModalDotacion(detalles) {
+        // 1. Llenar datos numéricos
+        document.getElementById('txt-oferta').innerText = detalles.horas_disponibles;
+        document.getElementById('txt-demanda').innerText = detalles.horas_necesarias;
+        document.getElementById('txt-deficit').innerText = detalles.deficit;
+        document.getElementById('txt-porcentaje').innerText = detalles.porcentaje_cobertura + "%";
+        document.getElementById('txt-empleados').innerText = detalles.empleados_activos;
+
+        // 2. Configurar Barra de Progreso Visual
+        let porcentaje = Math.min(detalles.porcentaje_cobertura, 100);
+        let barra = document.getElementById('bar-capacidad');
+        
+        barra.style.width = porcentaje + '%';
+        
+        // Cambiar color según gravedad
+        barra.className = 'progress-bar'; // Reset
+        if(porcentaje < 30) {
+            barra.classList.add('bg-danger'); // Rojo si es muy crítico
+        } else if (porcentaje < 80) {
+            barra.classList.add('bg-warning', 'text-dark'); // Amarillo
+        } else {
+            barra.classList.add('bg-success'); // Verde (aunque si saltó el error, dudo que llegue acá)
+        }
+
+        // 3. Abrir Modal (Usando Bootstrap 5 API)
+        const modalEl = document.getElementById('modalErrorDotacion');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+
+    // Función auxiliar para resetear el botón si abre el modal (para que no quede cargando)
+    function resetUIState() {
+        const btn = document.getElementById('btn-accion');
+        const container = document.getElementById('resultado-container');
+        
+        btn.disabled = false;
+        btn.innerHTML = `🚀 Ejecutar Algoritmo Genético`;
+        
+        // Ocultamos la caja de estado "Validando..."
+        container.classList.add('d-none');
     }
 
     // ... (Tu función pollEstado y mostrarError siguen igual) ...
@@ -237,4 +294,65 @@
         btn.onclick = iniciarGeneracion; 
     }
 </script>
+<div class="modal fade" id="modalErrorDotacion" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Validación de Dotación Fallida
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                
+                <div class="text-center mb-4">
+                    <h4 class="text-danger fw-bold">Imposible Generar Cronograma</h4>
+                    <p class="text-muted">La demanda requerida por la plantilla supera la capacidad operativa de los empleados activos.</p>
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between small fw-bold mb-1">
+                        <span>Capacidad Actual (<span id="txt-oferta">0</span> hs)</span>
+                        <span class="text-danger">Requerido (<span id="txt-demanda">0</span> hs)</span>
+                    </div>
+                    <div class="progress" style="height: 25px; background-color: #e9ecef;">
+                        <div id="bar-capacidad" class="progress-bar bg-success" role="progressbar" style="width: 0%">
+                            <span id="txt-porcentaje" class="fw-bold text-white drop-shadow">0%</span>
+                        </div>
+                        </div>
+                    <div class="text-center mt-3">
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger p-2">
+                            <i class="bi bi-graph-down-arrow"></i> Faltan cubrir aprox. <span id="txt-deficit" class="fw-bold fs-6">0</span> horas
+                        </span>
+                    </div>
+                </div>
+
+                <div class="card bg-light border-0">
+                    <div class="card-body">
+                        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-lightbulb-fill text-warning"></i> Acciones Sugeridas</h6>
+                        <ul class="mb-0 text-muted small ps-3">
+                            <li class="mb-2">
+                                <strong>Revisar Personal:</strong> Actualmente hay <strong id="txt-empleados" class="text-dark">0</strong> empleados activos. Verifica si hay personal inactivo o licencias mal cargadas.
+                            </li>
+                            <li class="mb-2">
+                                <strong>Ajustar Plantilla:</strong> Reduce la cantidad de profesionales requeridos por turno en la configuración de la Plantilla de Demanda.
+                            </li>
+                            <li class="mb-0">
+                                <strong>Reducir Periodo:</strong> Intenta planificar una quincena en lugar del mes completo.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Entendido</button>
+                <a href="#" class="btn btn-primary" onclick="alert('Funcionalidad pendiente: Redirigir a editar plantilla')">
+                    <i class="bi bi-pencil-square"></i> Modificar Plantilla
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
