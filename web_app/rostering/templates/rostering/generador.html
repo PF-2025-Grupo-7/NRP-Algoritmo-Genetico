@@ -202,6 +202,28 @@
             barra.classList.add('bg-success'); // Verde (aunque si saltó el error, dudo que llegue acá)
         }
 
+        // -------------------------------------------------------
+        // NUEVO: Configurar el botón "Modificar Plantilla"
+        // -------------------------------------------------------
+        const plantillaSelect = document.getElementById('plantilla');
+        const plantillaId = plantillaSelect.value;
+        const btnIr = document.getElementById('btn-ir-plantilla');
+
+        if (plantillaId) {
+            // Generamos la URL base con Django usando un ID placeholder (0)
+            // y luego lo reemplazamos por el ID real en Javascript.
+            const urlBase = "{% url 'plantilla_detail' 0 %}";
+            const urlFinal = urlBase.replace('0', plantillaId);
+            
+            btnIr.href = urlFinal;
+            btnIr.classList.remove('disabled');
+        } else {
+            // Por seguridad, si no hay ID, deshabilitamos
+            btnIr.href = "#";
+            btnIr.classList.add('disabled');
+        }
+        // -------------------------------------------------------
+
         // 3. Abrir Modal (Usando Bootstrap 5 API)
         const modalEl = document.getElementById('modalErrorDotacion');
         const modal = new bootstrap.Modal(modalEl);
@@ -357,7 +379,7 @@
             </div>
             <div class="modal-footer bg-light">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Entendido</button>
-                <a href="#" class="btn btn-primary" onclick="alert('Redirigiendo a edición de plantilla...')">
+                <a href="#" id="btn-ir-plantilla" class="btn btn-primary">
                     <i class="bi bi-pencil-square"></i> Modificar Plantilla
                 </a>
             </div>
