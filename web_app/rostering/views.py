@@ -1,4 +1,5 @@
 import json
+import traceback
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.urls import reverse_lazy
@@ -176,8 +177,10 @@ def verificar_estado_planificacion(request, job_id):
                     'mensaje': 'Planificación guardada con éxito.'
                 })
             except Exception as e:
-                print(f"Error guardando DB: {e}")
-                return JsonResponse({'error': f"Error guardando: {str(e)}"}, status=500)
+                # Esto imprimirá el error real en tu consola de Docker
+                print("🔴 ERROR CRÍTICO EN POLLING/GUARDADO:")
+                print(traceback.format_exc()) 
+                return JsonResponse({'error': f"Error interno: {str(e)}"}, status=500)
 
         return JsonResponse({'status': 'running'})
 
@@ -239,9 +242,17 @@ class CronogramaAnalisisView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         reporte = self.object.reporte_analisis or {}
+        
         context['metricas'] = reporte.get('metricas', {})
+        
+        # Ensure we pass the dictionaries even if empty, so the template loop works
+        violaciones = reporte.get('violaciones_blandas', {})
+        context['violaciones_blandas'] = {
+            'preferencia_libre_incumplida': violaciones.get('preferencia_libre_incumplida', []),
+            'preferencia_turno_incumplida': violaciones.get('preferencia_turno_incumplida', [])
+        }
+        
         context['violaciones_duras'] = reporte.get('violaciones_duras', {})
-        context['violaciones_blandas'] = reporte.get('violaciones_blandas', {})
         context['equidad'] = reporte.get('datos_equidad', {})
         return context
 

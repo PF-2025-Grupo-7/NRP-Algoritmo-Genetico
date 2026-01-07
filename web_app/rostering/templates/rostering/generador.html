@@ -108,7 +108,7 @@
     document.addEventListener('DOMContentLoaded', cargarPlantillas);
 
 
-    // 4. ACTUALIZAR LA FUNCIÓN DE INICIO PARA ENVIAR EL ID DE LA PLANTILLA
+    // 4. ACTUALIZAR LA FUNCIÓN DE INICIO PARA VALIDAR FECHAS (FIX LÍMITE 31 DÍAS)
     async function iniciarGeneracion() {
         const btn = document.getElementById('btn-accion');
         const container = document.getElementById('resultado-container');
@@ -123,11 +123,37 @@
             return;
         }
 
+        // --- NUEVO: VALIDACIÓN DE FECHAS EN FRONTEND ---
+        const fechaInicioVal = document.getElementById('fecha_inicio').value;
+        const fechaFinVal = document.getElementById('fecha_fin').value;
+
+        if (!fechaInicioVal || !fechaFinVal) {
+            mostrarError("Debes seleccionar ambas fechas.");
+            return;
+        }
+
+        const fInicio = new Date(fechaInicioVal);
+        const fFin = new Date(fechaFinVal);
+        
+        // Calcular diferencia en días (milisegundos -> días)
+        const diffTime = fFin - fInicio;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 para incluir el último día
+
+        if (diffDays < 7) {
+            mostrarError(`El período mínimo es de 7 días. Has seleccionado ${diffDays}.`);
+            return;
+        }
+        if (diffDays > 31) {
+            mostrarError(`El período máximo es de 31 días. Has seleccionado ${diffDays}.`);
+            return;
+        }
+        // -----------------------------------------------
+
         const payload = {
-            fecha_inicio: document.getElementById('fecha_inicio').value,
-            fecha_fin: document.getElementById('fecha_fin').value,
+            fecha_inicio: fechaInicioVal,
+            fecha_fin: fechaFinVal,
             especialidad: selectEspecialidad.value,
-            plantilla_id: plantillaId // <--- AQUI ENVIAMOS EL DATO NUEVO
+            plantilla_id: plantillaId 
         };
 
         // UI Loading
@@ -153,7 +179,7 @@
 
             if (response.ok) {
                 msg.innerText = `Job ID: ${data.job_id}. Optimizando...`;
-                pollEstado(data.job_id); // Reutilizamos tu función pollEstado existente
+                pollEstado(data.job_id); 
             } else {
                 mostrarError("Error al iniciar: " + (data.error || "Desconocido"));
             }
@@ -224,14 +250,20 @@
         const msg = document.getElementById('mensaje-estado');
         const btn = document.getElementById('btn-accion');
 
-        container.classList.remove('alert-info');
-        container.classList.add('alert-danger');
-        spinner.classList.add('d-none');
+        // 1. Asegurar que el contenedor sea visible (ESTO FALTABA)
+        container.classList.remove('d-none');
         
+        // 2. Configurar estilos de error
+        container.classList.remove('alert-info', 'alert-success');
+        container.classList.add('alert-danger');
+        
+        // 3. Ocultar spinner y configurar texto
+        spinner.classList.add('d-none');
         badge.className = 'badge bg-danger';
         badge.innerText = 'Falló';
         msg.innerText = mensaje;
 
+        // 4. Resetear botón
         btn.disabled = false;
         btn.innerText = "🚀 Reintentar";
         btn.onclick = iniciarGeneracion; 

@@ -150,6 +150,13 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     if num_dias < 1:
         raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio.")
 
+    # --- VALIDACIÓN NUEVA ---
+    if num_dias < 7:
+        raise ValueError(f"El período es demasiado corto ({num_dias} días). Mínimo 7 días.")
+    if num_dias > 31:
+        raise ValueError(f"El período excede el límite permitido ({num_dias} días). Máximo 31 días.")
+    # ------------------------
+
     turnos_qs = TipoTurno.objects.filter(especialidad=especialidad)
     duraciones = set(t.duracion_horas for t in turnos_qs)
     
@@ -323,17 +330,25 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
         explicabilidad = resultado.get('explicabilidad', {})
         config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
 
-        # Mapeo de Empleados
+        # 1. Recuperar empleados del payload original para mantener el orden
         lista_empleados_payload = payload_original['datos_problema']['lista_profesionales']
         mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
+        
+        # Traer objetos reales de la DB
         empleados_db = Empleado.objects.filter(id__in=mapa_idx_a_empleado_id.values())
         empleados_map = {e.id: e for e in empleados_db}
 
-        # Enriquecer reporte visual
+        # 2. Calcular factor de tiempo para escalar el reporte (SOLUCIÓN GRÁFICO)
+        # Si planifico 15 días, el objetivo debe ser la mitad del mensual.
+        num_dias = (fecha_fin - fecha_inicio).days + 1
+        factor_tiempo = num_dias / 30.0
+
+        # Obtener duración de referencia (protección contra None)
         turno_ref = TipoTurno.objects.filter(especialidad=especialidad).first()
-        duracion_horas = float(turno_ref.duracion_horas) if turno_ref and turno_ref.duracion_horas else 12.0
+        duracion_horas = float(turno_ref.duracion_horas) if (turno_ref and turno_ref.duracion_horas) else 12.0
         
         nombres_cortos, nombres_largos, limites_contractuales = [], [], []
+
         for i, emp_payload in enumerate(lista_empleados_payload):
             emp = empleados_map.get(emp_payload['id_db'])
             if emp:
@@ -341,7 +356,18 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                 n_largo = full_name
                 partes = full_name.split()
                 n_corto = f"{partes[-1]}, {partes[0][0].upper()}." if len(partes) >= 2 else full_name
-                limites = [float(emp.min_turnos_mensuales or 0)*duracion_horas, float(emp.max_turnos_mensuales or 0)*duracion_horas]
+                
+                # --- CÁLCULO ROBUSTO DE LÍMITES ---
+                # Usamos (or 0) para evitar crash si el campo está vacío en DB
+                min_mensual = float(emp.min_turnos_mensuales or 0)
+                max_mensual = float(emp.max_turnos_mensuales or 0)
+                
+                # Escalamos proporcionalmente a los días planificados
+                min_periodo_horas = min_mensual * factor_tiempo * duracion_horas
+                max_periodo_horas = max_mensual * factor_tiempo * duracion_horas
+                
+                # Guardamos con 1 decimal
+                limites = [round(min_periodo_horas, 1), round(max_periodo_horas, 1)]
             else:
                 n_largo = f"Profesional {i+1}"
                 n_corto = f"P{i+1}"
@@ -351,13 +377,16 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             nombres_largos.append(n_largo)
             limites_contractuales.append(limites)
 
+        # 3. Actualizar el JSON de explicabilidad con los nuevos datos escalados
         if 'datos_equidad' not in explicabilidad: explicabilidad['datos_equidad'] = {}
+        
         explicabilidad['datos_equidad'].update({
             'nombres_profesionales': nombres_largos,
             'nombres_cortos': nombres_cortos,
-            'limites_contractuales': limites_contractuales
+            'limites_contractuales': limites_contractuales # Este es el dato que lee el gráfico
         })
         
+        # 4. Transacción Atómica para guardar todo
         with transaction.atomic():
             cronograma = Cronograma.objects.create(
                 especialidad=especialidad,
@@ -370,19 +399,28 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                 tiempo_ejecucion=tiempo,
                 reporte_analisis=explicabilidad 
             )
+            
             turnos_db = {t.id: t for t in TipoTurno.objects.filter(especialidad=especialidad)}
             nuevas_asignaciones = []
+            
             for i, fila in enumerate(matriz_solucion):
                 emp_id = mapa_idx_a_empleado_id.get(i)
                 if not emp_id: continue
+                
                 for j, t_id in enumerate(fila):
+                    # t_id puede ser 0 o None (día libre), solo guardamos si hay turno
                     if t_id and t_id in turnos_db:
                         nuevas_asignaciones.append(Asignacion(
-                            cronograma=cronograma, empleado_id=emp_id, fecha=fecha_inicio + timedelta(days=j), tipo_turno=turnos_db[t_id]
+                            cronograma=cronograma, 
+                            empleado_id=emp_id, 
+                            fecha=fecha_inicio + timedelta(days=j), 
+                            tipo_turno=turnos_db[t_id]
                         ))
-            if nuevas_asignaciones: Asignacion.objects.bulk_create(nuevas_asignaciones)
             
-        print("--- DEBUG: GUARDADO EXITOSO ---")
+            if nuevas_asignaciones: 
+                Asignacion.objects.bulk_create(nuevas_asignaciones)
+            
+        print(f"--- DEBUG: GUARDADO EXITOSO (ID: {cronograma.id}) ---")
         return cronograma
 
     except Exception as e:
