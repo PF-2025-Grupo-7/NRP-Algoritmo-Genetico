@@ -1,240 +1,622 @@
 {% extends "base.html" %}
 
-{% block title %}Generador de Turnos{% endblock %}
+{% block title %}Generar Planificación · Hospital Planner{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center mt-4">
-    <div class="col-md-8 text-center">
-        <h2 class="mb-4">⚡ Generador de Planificación</h2>
-        
-        <div class="card shadow-sm mb-4 border-0">
-            <div class="card-header bg-light text-start">
-                <h5 class="mb-0 text-muted"><i class="bi bi-sliders"></i> Configuración del Escenario</h5>
-            </div>
-            <div class="card-body text-start p-4">
-                <form id="form-generador">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Fecha Inicio</label>
-                            <input type="date" id="fecha_inicio" class="form-control" value="2025-11-01">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Fecha Fin</label>
-                            <input type="date" id="fecha_fin" class="form-control" value="2025-11-30">
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Especialidad</label>
-                            <select id="especialidad" class="form-select" onchange="cargarPlantillas()">
-                                <option value="MEDICO">Médicos (Turnos 12hs)</option>
-                                <option value="ENFERMERO">Enfermeros (Turnos 8hs)</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Plantilla de Demanda</label>
-                            <select id="plantilla" class="form-select" required>
-                                <option value="" disabled selected>-- Cargando... --</option>
-                            </select>
-                            <div class="form-text text-muted small">Define cuánta gente se necesita por turno.</div>
-                        </div>
-                    </div>
-
-                    <div class="d-grid gap-2 mt-4">
-                        <button type="button" id="btn-accion" class="btn btn-primary btn-lg" onclick="iniciarGeneracion()">
-                            🚀 Ejecutar Algoritmo Genético
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <div id="resultado-container" class="alert alert-secondary d-none text-center shadow-sm">
-            <h4 class="mt-2">Estado: <span id="estado-badge" class="badge bg-secondary">Iniciando...</span></h4>
-            <div id="loading-spinner" class="my-3 d-none">
-                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
-            </div>
-            <p id="mensaje-estado" class="fs-5 text-muted">Preparando motor de optimización...</p>
-        </div>
-
-        <hr class="my-5">
-        <div class="d-flex justify-content-center">
-            <a href="{% url 'cronograma_list' %}" class="btn btn-link text-muted text-decoration-none">
-                <i class="bi bi-arrow-left"></i> Ir al listado de planificaciones
-            </a>
+<div class="container py-3" style="max-width: 1100px;">
+    <!-- Header al estilo Panel de Control -->
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Generar Planificación</h1>
+            <p class="text-muted fs-5 mb-0">Optimización de cronogramas de guardias</p>
         </div>
     </div>
+
+    <!-- Card con formulario y estado (estado oculto hasta iniciar) -->
+    <div class="card shadow-sm border-0 generator-card">
+        <div class="card-body p-4 p-lg-5 pb-4">
+            <form id="form-generador" class="row g-3">
+                <div class="col-sm-6">
+                    <label class="form-label fw-semibold">Fecha inicio</label>
+                    <input type="date" class="form-control" id="fecha_inicio" required>
+                    <div class="invalid-feedback">Ingresá una fecha válida.</div>
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label fw-semibold">Fecha fin</label>
+                    <input type="date" class="form-control" id="fecha_fin" required>
+                    <div class="invalid-feedback">La fecha fin debe ser posterior al inicio.</div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Especialidad</label>
+                    <div class="custom-select-wrapper">
+                        <select class="form-select d-none" id="especialidad" required>
+                            <option value="" selected disabled>Seleccioná una especialidad</option>
+                            <option value="MEDICO">Médico</option>
+                            <option value="ENFERMERO">Enfermero</option>
+                            <option value="ER">Experto en Emergencias</option>
+                            <option value="UCI">Unidad de Cuidados Intensivos</option>
+                        </select>
+                        <div class="custom-dropdown">
+                            <div class="custom-dropdown-header" tabindex="0">Seleccioná una especialidad</div>
+                            <div class="custom-dropdown-menu">
+                                <div class="custom-option" data-value="">Seleccioná una especialidad</div>
+                                <div class="custom-option" data-value="MEDICO">Médico</div>
+                                <div class="custom-option" data-value="ENFERMERO">Enfermero</div>
+                                <div class="custom-option" data-value="ER">Experto en Emergencias</div>
+                                <div class="custom-option" data-value="UCI">Unidad de Cuidados Intensivos</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Plantilla de demanda</label>
+                    <div class="custom-select-wrapper">
+                        <select class="form-select d-none" id="plantilla_id" required disabled>
+                            <option value="" selected>Seleccioná una especialidad primero</option>
+                        </select>
+                        <div class="custom-dropdown">
+                            <div class="custom-dropdown-header" tabindex="0">Seleccioná una especialidad primero</div>
+                            <div class="custom-dropdown-menu">
+                                <div class="custom-option" data-value="">Seleccioná una especialidad primero</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-text">Definiciones de cobertura por día y turno.</div>
+                </div>
+
+                <div class="col-12 d-flex flex-column align-items-center gap-3 mt-5 mb-0">
+                    <button type="submit" id="btn-iniciar" class="btn btn-primary fw-semibold px-4" style="min-width: 220px;">
+                        <i class="bi bi-play-fill me-1"></i> Iniciar optimización
+                    </button>
+                    <button type="button" id="btn-reset" class="btn btn-outline-secondary fw-semibold px-4 d-none" style="min-width: 220px;">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Reiniciar
+                    </button>
+                </div>
+
+                <!-- Estado de la ejecución (oculto hasta iniciar) -->
+                <div id="panel-estado" class="col-12 mt-3 d-none">
+                    <div class="rounded-3 p-4 status-panel">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h5 class="fw-bold mb-0" style="color: #2f3e4c; letter-spacing: 0.3px;">Estado de la ejecución</h5>
+                            <span class="badge" id="estado-badge" style="background-color: #6c757d; font-weight: 600; font-size: 0.75rem; padding: 0.4rem 0.6rem;">Listo</span>
+                        </div>
+
+                        <div class="progress mb-3" style="height: 8px; background-color: #e9ecef; border-radius: 8px; overflow: hidden;">
+                            <div id="barra-progreso" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%; background-color: #0d6efd;"></div>
+                        </div>
+
+                        <div id="estado-mensajes" class="small text-muted mt-2">
+                            Completa el formulario y presioná "Iniciar optimización".
+                        </div>
+
+                        <div id="resultado-ok" class="mt-3 d-none">
+                            <div class="alert alert-success d-flex align-items-center mb-3" role="alert">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                <div>Planificación generada y guardada con éxito.</div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a id="link-ver" href="#" class="btn btn-success">
+                                    <i class="bi bi-table me-1"></i> Ver cronograma
+                                </a>
+                                <a id="link-analisis" href="#" class="btn btn-outline-success">
+                                    <i class="bi bi-bar-chart-line me-1"></i> Ver análisis
+                                </a>
+                            </div>
+                        </div>
+
+                        <div id="resultado-error" class="mt-3 d-none">
+                            <div class="alert alert-danger d-flex align-items-center mb-0" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <div id="error-text">Ocurrió un error durante la ejecución.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Consejos -->
+    <div class="mt-3 small text-muted">
+        Consejo: Antes de ejecutar, revisá que existan tipos de turno, personal activo y una plantilla de demanda para la especialidad seleccionada.
+    </div>
 </div>
+
+<style>
+    body { background-color: #EFF3F8 !important; }
+    footer { background-color: #EFF3F8 !important; border-top-color: #e0e5ec !important; }
+    .generator-card { border-radius: 14px; }
+    .icon-circle { width: 64px; height: 64px; background: rgba(13,110,253,.10); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+    .page-title { color: #2f3e4c; letter-spacing: .2px; }
+
+    .status-panel { background: #fff; border: 1px solid #eef0f3; }
+
+    .form-label { color: #2f3e4c; }
+    
+    /* Custom Select Styles */
+    .custom-select-wrapper {
+        position: relative;
+        display: block;
+    }
+    
+    .form-select {
+        height: 48px;
+        border-radius: 10px;
+        border: 1px solid #e0e5ec;
+        background-color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+        font-size: 0.95rem;
+        color: #2f3e4c;
+        padding: 12px 16px;
+    }
+    
+    .custom-dropdown {
+        position: relative;
+        pointer-events: none;
+    }
+    
+    .custom-dropdown-header {
+        height: 48px;
+        border-radius: 10px;
+        border: 1px solid #0d6efd;
+        background-color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 16px;
+        padding-right: 40px;
+        pointer-events: auto;
+    }
+    
+    .custom-dropdown-header:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        box-shadow: 0 4px 16px rgba(13, 110, 253, 0.15);
+    }
+    
+    .custom-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: #ffffff;
+        border: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        pointer-events: none;
+        z-index: 100;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0;
+        animation: fadeInDown 0.3s ease;
+    }
+    
+    @keyframes fadeInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .custom-dropdown-header:focus ~ .custom-dropdown-menu {
+        max-height: 300px;
+        pointer-events: auto;
+        opacity: 1;
+    }
+    
+    .custom-option {
+        padding: 0.5rem 1.2rem;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.95rem;
+        border-bottom: none;
+        font-weight: 500;
+    }
+    
+    .custom-option:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.4rem;
+    }
+    
+    .custom-option:first-child {
+        background-color: transparent;
+        color: #495057;
+        font-weight: 500;
+        cursor: default;
+    }
+    
+    .custom-option:first-child:hover {
+        background-color: transparent;
+        color: #495057;
+        padding-left: 1.2rem;
+    }
+    
+    .form-select:disabled ~ .custom-dropdown .custom-dropdown-header {
+        background-color: #f5f5f5;
+        border-color: #e0e5ec;
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .form-control {
+        height: 48px;
+        border-radius: 10px;
+        border: 1px solid #e0e5ec;
+        background-color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+        font-size: 0.95rem;
+        color: #2f3e4c;
+        padding: 12px 16px;
+    }
+    
+    .form-control:hover {
+        background-color: #f8fbff;
+        border-color: #0d6efd;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+    }
+    
+    .form-control:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+        background-color: #ffffff;
+    }
+    
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: hue-rotate(190deg) saturate(1.2); opacity: 0.8; cursor: pointer; }
+    input[type="date"] { padding-right: 1rem; }
+
+    #estado-badge { font-weight: 600; }
+    #barra-progreso { transition: width .4s ease; }
+
+    @media (max-width: 575px){
+        .icon-circle{ width: 56px; height: 56px; }
+    }
+</style>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Variables globales
-    const selectEspecialidad = document.getElementById('especialidad');
-    const selectPlantilla = document.getElementById('plantilla');
-
-    // 3. FUNCIÓN PARA CARGAR PLANTILLAS DESDE LA API
-    async function cargarPlantillas() {
-        const especialidad = selectEspecialidad.value;
-        selectPlantilla.innerHTML = '<option value="" disabled selected>Cargando...</option>';
-        selectPlantilla.disabled = true;
-
-        try {
-            const res = await fetch(`/api/plantillas/?especialidad=${especialidad}`);
-            const data = await res.json();
-
-            selectPlantilla.innerHTML = ''; // Limpiar
-            
-            if (data.plantillas.length === 0) {
-                const opt = document.createElement('option');
-                opt.text = "⚠️ No hay plantillas creadas para esta especialidad";
-                selectPlantilla.add(opt);
+(function(){
+    // Custom Dropdown Functionality
+    const selectWrappers = document.querySelectorAll('.custom-select-wrapper');
+    
+    selectWrappers.forEach(wrapper => {
+        const nativeSelect = wrapper.querySelector('.form-select');
+        const header = wrapper.querySelector('.custom-dropdown-header');
+        const dropdown = wrapper.querySelector('.custom-dropdown');
+        const menu = wrapper.querySelector('.custom-dropdown-menu');
+        const customOptions = wrapper.querySelectorAll('.custom-option');
+        let isOpen = false;
+        
+        // Abrir/cerrar dropdown al hacer click en header
+        header.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isOpen = !isOpen;
+            if (isOpen) {
+                menu.style.maxHeight = '300px';
+                menu.style.pointerEvents = 'auto';
+                menu.style.opacity = '1';
             } else {
-                data.plantillas.forEach(p => {
-                    const opt = document.createElement('option');
-                    opt.value = p.id;
-                    opt.text = p.nombre;
-                    selectPlantilla.add(opt);
-                });
-                selectPlantilla.disabled = false;
+                menu.style.maxHeight = '0';
+                menu.style.pointerEvents = 'none';
+                menu.style.opacity = '0';
             }
-        } catch (error) {
-            console.error("Error cargando plantillas:", error);
-            selectPlantilla.innerHTML = '<option>Error al cargar</option>';
+        });
+        
+        // Seleccionar opción
+        customOptions.forEach((option, index) => {
+            option.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (index === 0) return; // Saltar la primera opción (placeholder)
+                
+                const value = option.getAttribute('data-value');
+                const text = option.textContent;
+                
+                nativeSelect.value = value;
+                header.textContent = text;
+                
+                // Cerrar dropdown
+                isOpen = false;
+                menu.style.maxHeight = '0';
+                menu.style.pointerEvents = 'none';
+                menu.style.opacity = '0';
+                
+                // Trigger change event
+                const event = new Event('change', { bubbles: true });
+                nativeSelect.dispatchEvent(event);
+            });
+        });
+        
+        // Cerrar dropdown al hacer click fuera
+        document.addEventListener('click', (e) => {
+            if (!wrapper.contains(e.target)) {
+                isOpen = false;
+                menu.style.maxHeight = '0';
+                menu.style.pointerEvents = 'none';
+                menu.style.opacity = '0';
+            }
+        });
+    });
+
+    const $esp = document.getElementById('especialidad');
+    const $plant = document.getElementById('plantilla_id');
+    const $inicio = document.getElementById('fecha_inicio');
+    const $fin = document.getElementById('fecha_fin');
+    const $form = document.getElementById('form-generador');
+    const $btnStart = document.getElementById('btn-iniciar');
+    const $btnReset = document.getElementById('btn-reset');
+
+    const $panelEstado = document.getElementById('panel-estado');
+    const $badge = document.getElementById('estado-badge');
+    const $barra = document.getElementById('barra-progreso');
+    const $msg = document.getElementById('estado-mensajes');
+    const $ok = document.getElementById('resultado-ok');
+    const $err = document.getElementById('resultado-error');
+    const $errText = document.getElementById('error-text');
+    const $linkVer = document.getElementById('link-ver');
+    const $linkAnalisis = document.getElementById('link-analisis');
+
+    // Sugerir periodo del próximo mes
+    try {
+        const hoy = new Date();
+        const y = hoy.getFullYear();
+        const m = hoy.getMonth();
+        const start = new Date(y, m + 1, 1);
+        const end = new Date(y, m + 2, 0);
+        $inicio.value = start.toISOString().slice(0,10);
+        $fin.value = end.toISOString().slice(0,10);
+    } catch(e) {}
+
+    function setEstado(text, kind){
+        $badge.className = 'badge bg-' + (kind || 'secondary');
+        $badge.textContent = text;
+    }
+    
+    let currentProgress = 0;
+    function setProgreso(p, keepAnimated = true){ 
+        const newVal = Math.max(currentProgress, p || 0);
+        currentProgress = newVal;
+        $barra.style.width = newVal + '%';
+        $barra.setAttribute('aria-valuenow', newVal);
+        
+        if (!keepAnimated) {
+            $barra.classList.remove('progress-bar-animated');
+        } else {
+            $barra.classList.add('progress-bar-animated');
         }
     }
+    
+    function setMsg(html){ $msg.innerHTML = html; }
+    function toggleLoading(on){
+        $btnStart.disabled = !!on;
+        $esp.disabled = !!on;
+        $plant.disabled = !!on;
+        $inicio.disabled = !!on;
+        $fin.disabled = !!on;
+    }
+    function resetUI(){
+        currentProgress = 0;
+        setEstado('Listo','secondary'); setProgreso(0, false); setMsg('Completa el formulario y presioná "Iniciar optimización".');
+        $msg.classList.remove('d-none');
+        $ok.classList.add('d-none'); $err.classList.add('d-none');
+        $btnReset.classList.add('d-none');
+        $panelEstado.classList.add('d-none');
+        toggleLoading(false);
+    }
 
-    // Cargar plantillas al iniciar la página
-    document.addEventListener('DOMContentLoaded', cargarPlantillas);
+    resetUI();
 
+    // Cargar plantillas al cambiar especialidad
+    $esp.addEventListener('change', async function(){
+        $plant.innerHTML = '<option value="" selected>Cargando...</option>';
+        $plant.disabled = true;
+        
+        // Update custom dropdown header
+        const plantWrapper = $plant.closest('.custom-select-wrapper');
+        if (plantWrapper) {
+            plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Cargando...';
+        }
+        
+        try {
+            const resp = await fetch(`{% url 'api_get_plantillas' %}?especialidad=${encodeURIComponent($esp.value)}`);
+            const data = await resp.json();
+            const items = (data.plantillas||[]);
+            if(!items.length){
+                $plant.innerHTML = '<option value="" selected>No hay plantillas disponibles</option>';
+                $plant.disabled = true;
+                if (plantWrapper) {
+                    plantWrapper.querySelector('.custom-dropdown-header').textContent = 'No hay plantillas disponibles';
+                    plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">No hay plantillas disponibles</div>';
+                }
+                return;
+            }
+            $plant.innerHTML = '<option value="" selected>Seleccioná una plantilla</option>' + items.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+            $plant.disabled = false;
+            
+            // Update custom dropdown
+            if (plantWrapper) {
+                plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Seleccioná una plantilla';
+                const menuHTML = '<div class="custom-option" data-value="">Seleccioná una plantilla</div>' + 
+                    items.map(p=>`<div class="custom-option" data-value="${p.id}">${p.nombre}</div>`).join('');
+                plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = menuHTML;
+                
+                // Re-attach custom dropdown functionality
+                const header = plantWrapper.querySelector('.custom-dropdown-header');
+                const menu = plantWrapper.querySelector('.custom-dropdown-menu');
+                const customOptions = plantWrapper.querySelectorAll('.custom-option');
+                let isOpen = false;
+                
+                header.removeEventListener('click', null);
+                header.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    isOpen = !isOpen;
+                    if (isOpen) {
+                        menu.style.maxHeight = '300px';
+                        menu.style.pointerEvents = 'auto';
+                        menu.style.opacity = '1';
+                    } else {
+                        menu.style.maxHeight = '0';
+                        menu.style.pointerEvents = 'none';
+                        menu.style.opacity = '0';
+                    }
+                });
+                
+                customOptions.forEach((option, index) => {
+                    option.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        if (index === 0) return;
+                        
+                        const value = option.getAttribute('data-value');
+                        const text = option.textContent;
+                        $plant.value = value;
+                        header.textContent = text;
+                        
+                        isOpen = false;
+                        menu.style.maxHeight = '0';
+                        menu.style.pointerEvents = 'none';
+                        menu.style.opacity = '0';
+                        
+                        const event = new Event('change', { bubbles: true });
+                        $plant.dispatchEvent(event);
+                    });
+                });
+                
+                document.addEventListener('click', (e) => {
+                    if (!plantWrapper.contains(e.target)) {
+                        isOpen = false;
+                        menu.style.maxHeight = '0';
+                        menu.style.pointerEvents = 'none';
+                        menu.style.opacity = '0';
+                    }
+                });
+            }
+            }
+        } catch(e){
+            $plant.innerHTML = '<option value="" selected>Error cargando plantillas</option>';
+            $plant.disabled = true;
+            if (plantWrapper) {
+                plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Error cargando plantillas';
+            }
+        }
+    });
 
-    // 4. ACTUALIZAR LA FUNCIÓN DE INICIO PARA ENVIAR EL ID DE LA PLANTILLA
-    async function iniciarGeneracion() {
-        const btn = document.getElementById('btn-accion');
-        const container = document.getElementById('resultado-container');
-        const badge = document.getElementById('estado-badge');
-        const spinner = document.getElementById('loading-spinner');
-        const msg = document.getElementById('mensaje-estado');
-
-        // Validar que haya plantilla seleccionada
-        const plantillaId = selectPlantilla.value;
-        if (!plantillaId || selectPlantilla.disabled) {
-            alert("Por favor, selecciona una Plantilla de Demanda válida antes de continuar.");
+    // Envío del formulario
+    $form.addEventListener('submit', async function(ev){
+        ev.preventDefault();
+        // Validaciones básicas
+        if(!$inicio.value || !$fin.value || !$esp.value || !$plant.value){
+            setMsg('<span class="text-danger">Completá todos los campos requeridos.</span>');
+            return;
+        }
+        if($fin.value <= $inicio.value){
+            setMsg('<span class="text-danger">La fecha fin debe ser posterior a la fecha inicio.</span>');
             return;
         }
 
-        const payload = {
-            fecha_inicio: document.getElementById('fecha_inicio').value,
-            fecha_fin: document.getElementById('fecha_fin').value,
-            especialidad: selectEspecialidad.value,
-            plantilla_id: plantillaId // <--- AQUI ENVIAMOS EL DATO NUEVO
-        };
-
-        // UI Loading
-        btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Enviando...`;
-        container.classList.remove('d-none', 'alert-success', 'alert-danger');
-        container.classList.add('alert-info');
-        badge.className = 'badge bg-info text-dark';
-        badge.innerText = 'Encolado';
-        spinner.classList.remove('d-none');
+        // Mostrar panel de estado al iniciar
+        $panelEstado.classList.remove('d-none');
+        toggleLoading(true);
+        setEstado('Iniciando','primary');
+        setProgreso(15);
+        setMsg('Enviando parámetros al motor de optimización...');
 
         try {
-            const response = await fetch('/api/planificar/iniciar/', {
+            const resp = await fetch('{% url 'api_iniciar_planificacion' %}', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify(payload)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fecha_inicio: $inicio.value,
+                    fecha_fin: $fin.value,
+                    especialidad: $esp.value,
+                    plantilla_id: $plant.value
+                })
             });
+            const data = await resp.json();
+            if(!resp.ok){ throw new Error(data.error || 'Error al iniciar.'); }
 
-            const data = await response.json();
+            setEstado('Ejecutando','primary');
+            setProgreso(40);
+            setMsg('<div class="d-flex align-items-center gap-2"><span class="spinner-border spinner-border-sm" role="status" style="--bs-spinner-border-width: 0.2em; width: 1rem; height: 1rem; border-color: #0d6efd; border-right-color: transparent;"></span><span>Algoritmo en ejecución. Este proceso puede tardar unos minutos...</span></div>');
+            $btnReset.classList.remove('d-none');
 
-            if (response.ok) {
-                msg.innerText = `Job ID: ${data.job_id}. Optimizando...`;
-                pollEstado(data.job_id); // Reutilizamos tu función pollEstado existente
-            } else {
-                mostrarError("Error al iniciar: " + (data.error || "Desconocido"));
+            await pollEstado(data.job_id);
+        } catch(e){
+            setEstado('Error','danger');
+            setProgreso(0, false);
+            $msg.classList.add('d-none');
+            $errText.textContent = e.message || 'Error desconocido.';
+            $err.classList.remove('d-none');
+            toggleLoading(false);
+        }
+    });
+
+    $btnReset.addEventListener('click', () => {
+        resetUI();
+    });
+
+    async function pollEstado(jobId){
+        let p = 40;
+        const tick = setInterval(()=>{ p = Math.min(p+5, 90); setProgreso(p); }, 2000);
+        try {
+            let intento = 0;
+            while(true){
+                intento++;
+                const resp = await fetch(`{% url 'api_estado_planificacion' job_id='JOBID' %}`.replace('JOBID', jobId));
+                const data = await resp.json();
+                if(data.status === 'completed'){
+                    clearInterval(tick);
+                    setEstado('Completado','success');
+                    setProgreso(100, false);
+                    $msg.classList.add('d-none');
+                    $ok.classList.remove('d-none');
+                    const id = data.cronograma_id;
+                    $linkVer.href = `{% url 'ver_cronograma' cronograma_id=0 %}`.replace('/0/', `/${id}/`);
+                    $linkAnalisis.href = `{% url 'cronograma_analisis' pk=0 %}`.replace('/0/', `/${id}/`);
+                    toggleLoading(false);
+                    break;
+                } else if(data.status === 'running' || resp.status === 202){
+                    // Continúa
+                } else if(data.status === 'failed' || data.error){
+                    throw new Error(data.error || 'Fallo en el proceso.');
+                }
+                await new Promise(r=>setTimeout(r, 2500));
             }
-        } catch (error) {
-            console.error(error);
-            mostrarError("Error de conexión con el servidor.");
+        } catch(e){
+            clearInterval(tick);
+            setEstado('Error','danger');
+            setProgreso(0, false);
+            $msg.classList.add('d-none');
+            $errText.textContent = e.message || 'Error durante el seguimiento.';
+            $err.classList.remove('d-none');
+            toggleLoading(false);
         }
     }
-
-    // ... (Tu función pollEstado y mostrarError siguen igual) ...
-    // Asegurate de copiar las funciones pollEstado, exitoPlanificacion y mostrarError 
-    // que ya tenías en el archivo anterior.
-    
-    // Solo pego pollEstado aquí para referencia, usá la que ya tenías
-    async function pollEstado(jobId) {
-        const intervalo = setInterval(async () => {
-            try {
-                const res = await fetch(`/api/planificar/estado/${jobId}/`);
-                const data = await res.json();
-                const badge = document.getElementById('estado-badge');
-
-                if (data.status === 'completed') {
-                    clearInterval(intervalo);
-                    exitoPlanificacion(data);
-                } else if (data.status === 'failed' || data.status === 'error') {
-                    clearInterval(intervalo);
-                    mostrarError(data.error || "El algoritmo falló.");
-                } else {
-                    badge.className = 'badge bg-warning text-dark';
-                    badge.innerText = 'Procesando';
-                }
-            } catch (e) {
-                clearInterval(intervalo);
-                mostrarError("Error de conexión.");
-            }
-        }, 2000);
-    }
-    
-    function exitoPlanificacion(data) {
-        const container = document.getElementById('resultado-container');
-        const spinner = document.getElementById('loading-spinner');
-        const badge = document.getElementById('estado-badge');
-        const msg = document.getElementById('mensaje-estado');
-        const btn = document.getElementById('btn-accion');
-
-        container.classList.remove('alert-info');
-        container.classList.add('alert-success');
-        spinner.classList.add('d-none');
-
-        badge.className = 'badge bg-success';
-        badge.innerText = '¡Finalizado!';
-        
-        msg.innerHTML = `<strong>Optimización exitosa.</strong><br>Fitness: ${parseFloat(data.fitness).toFixed(2)}`;
-
-        const urlBase = "{% url 'ver_cronograma' 0 %}"; 
-        const urlFinal = urlBase.replace('0', data.cronograma_id);
-
-        btn.disabled = false;
-        btn.className = "btn btn-success btn-lg shadow";
-        btn.innerHTML = `<i class="bi bi-eye"></i> Ver Cronograma Generado`;
-        btn.onclick = function() { window.location.href = urlFinal; };
-    }
-
-    function mostrarError(mensaje) {
-        const container = document.getElementById('resultado-container');
-        const spinner = document.getElementById('loading-spinner');
-        const badge = document.getElementById('estado-badge');
-        const msg = document.getElementById('mensaje-estado');
-        const btn = document.getElementById('btn-accion');
-
-        container.classList.remove('alert-info');
-        container.classList.add('alert-danger');
-        spinner.classList.add('d-none');
-        
-        badge.className = 'badge bg-danger';
-        badge.innerText = 'Falló';
-        msg.innerText = mensaje;
-
-        btn.disabled = false;
-        btn.innerText = "🚀 Reintentar";
-        btn.onclick = iniciarGeneracion; 
-    }
+})();
 </script>
 {% endblock %}
