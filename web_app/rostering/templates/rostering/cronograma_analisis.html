@@ -253,20 +253,29 @@
                 plugins: {
                     legend: { display: true, position: 'top' },
                     tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.9)', // Fondo más oscuro para leer bien
-                        titleFont: { size: 14, weight: 'bold' },
-                        bodyFont: { size: 13 },
+                        // --- ESTILO VISUAL MEJORADO ---
+                        backgroundColor: 'rgba(52, 58, 64, 0.9)', // Gris oscuro "Bootstrap" con transparencia
+                        titleColor: '#ffffff',
+                        bodyColor: '#f8f9fa',
+                        borderColor: 'rgba(255, 255, 255, 0.1)', // Borde sutil
+                        borderWidth: 1,
+                        padding: 12,        // Más espacio interno
+                        cornerRadius: 8,    // Bordes redondeados
+                        displayColors: true, 
+                        boxPadding: 6,      // Separación entre el color y el texto
+
+                        titleFont: { size: 14, weight: 'bold', family: 'system-ui' },
+                        bodyFont: { size: 13, family: 'system-ui' },
                         footerFont: { size: 11, style: 'italic' },
+                        
                         callbacks: {
                             // TÍTULO: Nombre del Profesional
                             title: function(context) {
                                 const idx = context[0].dataIndex;
                                 return nombresLargos[idx] || context[0].label;
                             },
-                            // CUERPO: Muestra las líneas principales
+                            // CUERPO: Lo dejamos limpio para llenarlo en afterBody
                             label: function(context) {
-                                // Truco: Devolvemos null aquí para manejar todo en 'afterBody'
-                                // o personalizamos cada línea.
                                 return null; 
                             },
                             // CONTENIDO PERSONALIZADO
@@ -276,24 +285,29 @@
                                 const contrato = limites[idx];
                                 
                                 let lines = [];
+                                
+                                // 1. Asignado
                                 lines.push(`✅ Asignado: ${valReal} hs`);
                                 
+                                // 2. Contrato
                                 if (contrato) {
                                     lines.push(`📄 Contrato:  ${contrato[0]} - ${contrato[1]} hs`);
                                 }
                                 
-                                // Separador visual
-                                lines.push(''); 
-                                
+                                // 3. Equidad (CON REDONDEO)
                                 if (rangoEquidad && rangoEquidad.length === 2) {
-                                    lines.push(`⚖️ Equidad Ideal: ${rangoEquidad[0]} - ${rangoEquidad[1]} hs`);
+                                    lines.push(''); // Espacio separador
+                                    // Usamos Math.round para quitar decimales molestos
+                                    const eqMin = Math.round(rangoEquidad[0]);
+                                    const eqMax = Math.round(rangoEquidad[1]);
+                                    lines.push(`⚖️ Equidad Ideal: ${eqMin} - ${eqMax} hs`);
                                 }
                                 
                                 return lines;
                             }
                         }
                     }
-                }
+                },
             }
         });
     });
