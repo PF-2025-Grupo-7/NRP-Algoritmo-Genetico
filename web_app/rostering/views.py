@@ -51,6 +51,13 @@ from .services import (
 # VISTAS GENERALES Y DE GESTIÓN
 # ==============================================================================
 
+def landing(request):
+    """Pantalla de presentación: redirige a dashboard si está logueado."""
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    return render(request, 'rostering/landing.html')
+
+
 def dashboard(request):
     """Vista principal: KPIs, accesos rápidos y estado actual del sistema."""
     total_empleados = Empleado.objects.count()
