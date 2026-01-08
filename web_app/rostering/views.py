@@ -109,32 +109,28 @@ def pagina_generador(request):
 @login_required
 @require_POST
 def iniciar_planificacion(request):
-    """
-    Endpoint AJAX: Recibe JSON, delega la lógica al servicio y devuelve estado.
-    Ahora es una vista muy limpia (Skinny View).
-    """
     try:
-        try:
-            data = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'JSON inválido.'}, status=400)
-        
-        # Delegamos TODA la lógica pesada al servicio
+        data = json.loads(request.body)
         job_id = iniciar_proceso_optimizacion(data)
+        return JsonResponse({'status': 'started', 'job_id': job_id})
 
-        return JsonResponse({
-            'status': 'started',
-            'job_id': job_id,
-            'mensaje': 'Optimización iniciada correctamente.'
-        })
-
-    except (ValidationError, ValueError) as e:
+    except ValidationError as e:
+        # Si el error trae parámetros (nuestros datos de dotación), los enviamos
+        if hasattr(e, 'params') and e.params:
+            return JsonResponse({
+                'error': e.message,
+                'tipo_error': 'FALTA_DOTACION', # Flag para que el JS sepa qué modal abrir
+                'detalles': e.params
+            }, status=422) # 422: Entidad no procesable (Validación de negocio fallida)
+        
+        # Error genérico de validación
+        return JsonResponse({'error': str(e.message)}, status=400)
+        
+    except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)
-    except ConnectionError as e:
-        return JsonResponse({'error': str(e)}, status=503)
     except Exception as e:
-        print(f"Error 500: {e}")
-        return JsonResponse({'error': f"Error interno: {str(e)}"}, status=500)
+        print(e)
+        return JsonResponse({'error': "Error interno del servidor"}, status=500)
 
 
 @csrf_exempt
