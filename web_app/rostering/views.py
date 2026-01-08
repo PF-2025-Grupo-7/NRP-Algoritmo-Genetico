@@ -603,3 +603,260 @@ class ConfiguracionAvanzadaView(SuperUserRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Parámetros avanzados guardados.")
         return super().form_valid(form)
+        
+
+# Imports necesarios para PDF
+from django.template.loader import render_to_string
+from django.http import HttpResponse
+from django.db.models import Sum
+from datetime import timedelta
+from weasyprint import HTML
+
+def exportar_cronograma_pdf(request, cronograma_id):
+    cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
+    
+    # 1. Generar encabezado de días en ESPAÑOL manual
+    # Python: 0=Lunes, 6=Domingo
+    letras_dias = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+    
+    dias_encabezado = []
+    fecha_iter = cronograma.fecha_inicio
+    
+    while fecha_iter <= cronograma.fecha_fin:
+        dias_encabezado.append({
+            'fecha': fecha_iter,
+            'letra': letras_dias[fecha_iter.weekday()], # Forzamos la letra en español
+            'dia_num': fecha_iter.day
+        })
+        fecha_iter += timedelta(days=1)
+    
+    num_dias = len(dias_encabezado)
+
+    # 2. Obtener Asignaciones
+    asignaciones = Asignacion.objects.filter(
+        cronograma=cronograma
+    ).select_related('empleado', 'tipo_turno').order_by('empleado__id', 'fecha')
+
+    # 3. Estructurar Matriz (Filas por empleado)
+    # Agrupamos asignaciones por empleado
+    mapa_empleados = {} # id -> {empleado_obj, celdas: [None]*dias, horas: 0}
+    
+    # Pre-cargar empleados involucrados (aunque no tengan turno, deberían aparecer si están en la lista original, 
+    # pero por simplicidad usamos los que tienen asignación o buscamos los activos de la especialidad)
+    # Aquí buscamos todos los activos de la especialidad para que aparezcan aunque no tengan turnos
+    empleados_base = Empleado.objects.filter(especialidad=cronograma.especialidad, activo=True).order_by('nombre_completo')
+
+    # Extraemos info de límites del reporte JSON guardado, si existe
+    datos_reporte = cronograma.reporte_analisis.get('datos_equidad', {})
+    nombres_cortos = datos_reporte.get('nombres_cortos', [])
+    nombres_largos = datos_reporte.get('nombres_profesionales', [])
+    limites = datos_reporte.get('limites_contractuales', [])
+    
+    # Mapa auxiliar nombre -> limites
+    mapa_limites = {nom: lim for nom, lim in zip(nombres_largos, limites)}
+
+    filas = []
+    
+    for emp in empleados_base:
+        # Recuperar limites guardados o calcular al vuelo
+        lims = mapa_limites.get(emp.nombre_completo, [0, 0])
+        if lims == [0, 0]: # Fallback si no está en el reporte json
+             # Lógica simplificada de fallback
+             factor = num_dias / 30
+             lims = [emp.min_turnos_mensuales*12*factor, emp.max_turnos_mensuales*12*factor]
+
+        # Nombre corto para la tabla (Generación simple)
+        partes = emp.nombre_completo.split()
+        n_corto = f"{partes[-1]}, {partes[0][0]}." if len(partes) > 1 else emp.nombre_completo
+
+        # Le inyectamos el atributo temporalmente
+        emp.nombre_corto = n_corto
+        
+        fila = {
+            'empleado': emp,
+            'celdas': [None] * num_dias,
+            'horas_totales': 0,
+            'horas_min': lims[0],
+            'horas_max': lims[1]
+        }
+        filas.append(fila)
+        mapa_empleados[emp.id] = fila
+
+    # Rellenar celdas
+    for asig in asignaciones:
+        if asig.empleado.id in mapa_empleados:
+            # Calcular índice del día
+            delta = (asig.fecha - cronograma.fecha_inicio).days
+            if 0 <= delta < num_dias:
+                mapa_empleados[asig.empleado.id]['celdas'][delta] = asig
+                # Sumar horas (si existe duración, sino 12 por defecto)
+                duracion = asig.tipo_turno.duracion_horas if asig.tipo_turno.duracion_horas else 12
+                mapa_empleados[asig.empleado.id]['horas_totales'] += float(duracion)
+
+    # 1. Obtener los IDs de tipos de turno que REALMENTE hay en las asignaciones
+    # (Esto evita mostrar referencias que no se usaron)
+    ids_turnos_usados = asignaciones.values_list('tipo_turno', flat=True).distinct()
+    tipos_turno_usados = TipoTurno.objects.filter(id__in=ids_turnos_usados).order_by('nombre')
+
+    # Renderizar
+    html_string = render_to_string('rostering/reporte_pdf.html', {
+        'cronograma': cronograma,
+        'dias_encabezado': dias_encabezado,
+        'filas': filas,
+        'tipos_turno': tipos_turno_usados,  # <--- AGREGAR ESTO
+        'fecha_impresion': timezone.now(),
+        'base_url': request.build_absolute_uri('/')
+    })
+    
+    html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
+    pdf_file = html.write_pdf()
+
+    response = HttpResponse(pdf_file, content_type='application/pdf')
+    filename = f"Cronograma_{cronograma.id}_{cronograma.fecha_inicio.strftime('%Y%m')}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
+
+import openpyxl
+from datetime import timedelta 
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+# Asegurate de tener tus modelos importados
+from .models import Cronograma, Asignacion, Empleado, TipoTurno
+
+def exportar_cronograma_excel(request, cronograma_id):
+    cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
+    
+    # 1. Crear el libro y la hoja
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"Cronograma {cronograma.id}"
+
+    # --- ESTILOS ---
+    font_bold = Font(bold=True)
+    align_center = Alignment(horizontal='center', vertical='center')
+    border_thin = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                         top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    # Colores de fondo (Fills)
+    fill_manana = PatternFill(start_color="FFC107", end_color="FFC107", fill_type="solid") # Amarillo
+    fill_tarde = PatternFill(start_color="FD7E14", end_color="FD7E14", fill_type="solid")  # Naranja
+    fill_noche = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")  # Azul
+    fill_guardia = PatternFill(start_color="198754", end_color="198754", fill_type="solid") # Verde
+    fill_enfermeria = PatternFill(start_color="6F42C1", end_color="6F42C1", fill_type="solid") # Violeta
+    fill_franco = PatternFill(start_color="E9ECEF", end_color="E9ECEF", fill_type="solid") # Gris claro
+    
+    # 2. Encabezado Principal
+    # CORRECCIÓN: Generamos el nombre dinámicamente con los datos que SÍ existen
+    titulo_plan = f"Plan {cronograma.get_especialidad_display()}"
+    periodo_str = f"Período: {cronograma.fecha_inicio.strftime('%d/%m/%Y')} al {cronograma.fecha_fin.strftime('%d/%m/%Y')}"
+    
+    ws.merge_cells('A1:E1')
+    ws['A1'] = titulo_plan
+    ws['A1'].font = Font(size=14, bold=True, color="0D6EFD")
+    
+    ws.merge_cells('A2:E2')
+    ws['A2'] = periodo_str
+    
+    # 3. Fila de Días (Encabezados de Tabla)
+    ws.cell(row=4, column=1, value="Profesional").font = font_bold
+    ws.column_dimensions['A'].width = 25 
+
+    dias = []
+    fecha_iter = cronograma.fecha_inicio
+    col_idx = 2 
+    
+    letras_dias = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+
+    while fecha_iter <= cronograma.fecha_fin:
+        letra = letras_dias[fecha_iter.weekday()]
+        dia_str = f"{letra}\n{fecha_iter.day}"
+        
+        cell = ws.cell(row=4, column=col_idx, value=dia_str)
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.font = font_bold
+        cell.border = border_thin
+        
+        # Color gris si es finde
+        if fecha_iter.weekday() >= 5: 
+            cell.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+
+        col_letter = get_column_letter(col_idx)
+        ws.column_dimensions[col_letter].width = 5 
+        
+        dias.append(fecha_iter)
+        fecha_iter += timedelta(days=1) # Ahora sí funciona timedelta
+        col_idx += 1
+
+    # 4. Cargar Datos
+    asignaciones = Asignacion.objects.filter(
+        cronograma=cronograma
+    ).select_related('empleado', 'tipo_turno')
+
+    mapa_turnos = {}
+    for a in asignaciones:
+        mapa_turnos[(a.empleado.id, a.fecha)] = a.tipo_turno
+
+    empleados = Empleado.objects.filter(especialidad=cronograma.especialidad, activo=True).order_by('id')
+
+    # 5. Escribir Filas
+    row_idx = 5
+    for emp in empleados:
+        # Nombre del empleado
+        cell_name = ws.cell(row=row_idx, column=1, value=emp.nombre_completo)
+        cell_name.border = border_thin
+        
+        # Turnos
+        current_col = 2
+        for fecha in dias:
+            turno = mapa_turnos.get((emp.id, fecha))
+            cell = ws.cell(row=row_idx, column=current_col)
+            cell.border = border_thin
+            cell.alignment = align_center
+            
+            if turno:
+                nombre_t = turno.nombre
+                # Lógica visual de colores (Igual que en PDF)
+                sigla = nombre_t[0] 
+                fill_to_use = fill_guardia 
+                font_color = "FFFFFF" 
+                
+                if "Mañana" in nombre_t:
+                    sigla = "M"
+                    fill_to_use = fill_manana
+                    font_color = "000000"
+                elif "Tarde" in nombre_t:
+                    sigla = "T"
+                    fill_to_use = fill_tarde
+                elif "Noche" in nombre_t:
+                    sigla = "N"
+                    fill_to_use = fill_noche
+                elif "Enferme" in nombre_t:
+                    sigla = "E"
+                    fill_to_use = fill_enfermeria
+                
+                cell.value = sigla
+                cell.fill = fill_to_use
+                cell.font = Font(color=font_color, bold=True)
+            else:
+                cell.value = "-"
+                cell.font = Font(color="CCCCCC")
+
+            current_col += 1
+        
+        row_idx += 1
+
+    # 6. Devolver respuesta HTTP
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    
+    # CAMBIO: Usamos fecha inicio Y fin para que sea único
+    f_inicio = cronograma.fecha_inicio.strftime('%Y-%m-%d')
+    f_fin = cronograma.fecha_fin.strftime('%Y-%m-%d')
+    
+    filename = f"Cronograma_{f_inicio}_al_{f_fin}.xlsx"
+    
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    wb.save(response)
+    return response
