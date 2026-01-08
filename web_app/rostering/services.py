@@ -15,6 +15,105 @@ from .models import (
     Cronograma, Asignacion, TrabajoPlanificacion
 )
 
+def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantilla):
+    """
+    RF04: Verifica si la capacidad total de horas de los empleados alcanza
+    para cubrir la demanda teórica de la plantilla.
+    Retorna (False, mensaje) si falta gente, o (True, "OK") si alcanza.
+    """
+    print(f"\n🔍 --- INICIO VALIDACIÓN DOTACIÓN (RF04) ---")
+    
+    dias_totales = (fecha_fin - fecha_inicio).days + 1
+    print(f"📅 Periodo: {fecha_inicio} al {fecha_fin} ({dias_totales} días)")
+
+    # 1. CALCULAR OFERTA (Horas Disponibles)
+    horas_oferta = 0.0
+    factor_periodo = dias_totales / 30.0 
+    
+    # Cacheamos duraciones
+    turnos = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
+    mapa_duraciones = {t.id: (float(t.duracion_horas) if t.duracion_horas else 12.0) for t in turnos}
+    
+    if mapa_duraciones:
+        duracion_promedio = sum(mapa_duraciones.values()) / len(mapa_duraciones)
+    else:
+        duracion_promedio = 12.0
+
+    count_emps = 0
+    for emp in empleados_qs:
+        t_max = float(emp.max_turnos_mensuales or 0)
+        horas_capacidad = t_max * duracion_promedio * factor_periodo
+        horas_oferta += horas_capacidad
+        count_emps += 1
+        
+    print(f"👥 Oferta: {count_emps} empleados activos. Total Horas Disponibles: {int(horas_oferta)}")
+
+    # 2. CALCULAR DEMANDA (Horas Requeridas)
+    horas_demanda = 0.0
+    
+    # Usamos filter directo para evitar problemas de atributos
+    reglas = ReglaDemandaSemanal.objects.filter(plantilla=plantilla).select_related('turno')
+    
+    # IMPRIMIR REGLAS PARA DEBUG
+    print(f"📋 Reglas encontradas en BD para la plantilla: {reglas.count()}")
+    
+    # MAPA SEGURO: Usamos los valores reales del ENUM DiaSemana
+    # Orden de weekday(): 0=Lunes, 6=Domingo
+    mapa_dias = [
+        DiaSemana.LUNES, DiaSemana.MARTES, DiaSemana.MIERCOLES, 
+        DiaSemana.JUEVES, DiaSemana.VIERNES, DiaSemana.SABADO, DiaSemana.DOMINGO
+    ]
+    
+    fecha_iter = fecha_inicio
+    while fecha_iter <= fecha_fin:
+        # Obtenemos el valor correcto del Enum para este día
+        dia_enum_val = mapa_dias[fecha_iter.weekday()]
+        
+        # Excepciones (Días pico)
+        es_pico = False
+        excepciones = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter)
+        
+        if excepciones.exists():
+            es_pico = True
+            for ex in excepciones:
+                cant = ex.cantidad_junior + ex.cantidad_senior
+                dur = float(ex.turno.duracion_horas) if ex.turno and ex.turno.duracion_horas else duracion_promedio
+                horas_demanda += (cant * dur)
+        
+        # Si no es pico, usamos regla semanal
+        if not es_pico:
+            # Comparamos contra el valor del Enum, no contra un string hardcodeado
+            reglas_dia = [r for r in reglas if r.dia == dia_enum_val]
+            
+            for r in reglas_dia:
+                cant = r.cantidad_junior + r.cantidad_senior
+                dur = float(r.turno.duracion_horas) if r.turno and r.turno.duracion_horas else duracion_promedio
+                horas_demanda += (cant * dur)
+            
+        fecha_iter += timedelta(days=1)
+
+    print(f"📉 Demanda Calculada: {int(horas_demanda)} horas necesarias.")
+
+    # 3. COMPARACIÓN
+    balance = horas_oferta - horas_demanda
+    margen_error = horas_demanda * 0.10 
+    
+    if balance < -margen_error:
+        deficit = abs(int(balance))
+        
+        # CAMBIO: Devolvemos un diccionario con DATOS, no solo texto
+        datos_error = {
+            "horas_necesarias": int(horas_demanda),
+            "horas_disponibles": int(horas_oferta),
+            "deficit": deficit,
+            "porcentaje_cobertura": int((horas_oferta / horas_demanda) * 100) if horas_demanda > 0 else 0,
+            "empleados_activos": empleados_qs.count()
+        }
+        return False, datos_error
+    
+    return True, None
+
+
 # ==============================================================================
 # LÓGICA DE ORQUESTACIÓN Y NEGOCIO (NUEVO)
 # ==============================================================================
@@ -45,6 +144,20 @@ def iniciar_proceso_optimizacion(data):
     if not inicio or not fin:
         raise ValueError('Formato de fecha inválido. Usar YYYY-MM-DD.')
 
+    # Validación RF04
+    plantilla = PlantillaDemanda.objects.get(pk=plantilla_id)
+    empleados_qs = Empleado.objects.filter(especialidad=especialidad, activo=True)
+    
+    es_viable, datos_error = validar_cobertura_suficiente(inicio, fin, empleados_qs, plantilla)
+    
+    if not es_viable:
+        # Lanzamos ValidationError pasando el diccionario. 
+        # Django permite pasar dicts o listas en ValidationError.
+        raise ValidationError(
+            message="Imposible cubrir la demanda con la dotación actual.",
+            params=datos_error # Adjuntamos los datos técnicos aquí
+        )
+    
     # 2. Generar el Payload (Aquí ocurren las validaciones de negocio como uniformidad de turnos)
     payload = generar_payload_ag(inicio, fin, especialidad, plantilla_id)
 
@@ -149,6 +262,13 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     num_dias = (fecha_fin - fecha_inicio).days + 1
     if num_dias < 1:
         raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio.")
+
+    # --- VALIDACIÓN NUEVA ---
+    if num_dias < 7:
+        raise ValueError(f"El período es demasiado corto ({num_dias} días). Mínimo 7 días.")
+    if num_dias > 31:
+        raise ValueError(f"El período excede el límite permitido ({num_dias} días). Máximo 31 días.")
+    # ------------------------
 
     turnos_qs = TipoTurno.objects.filter(especialidad=especialidad)
     duraciones = set(t.duracion_horas for t in turnos_qs)
@@ -309,6 +429,13 @@ def consultar_resultado_ag(job_id):
     except requests.exceptions.RequestException as e:
         return {"status": "error", "error": str(e)}
 
+# --- ASEGURATE DE TENER ESTOS IMPORTS AL PRINCIPIO ---
+import traceback
+import json
+from datetime import timedelta, datetime, date
+from django.db import transaction
+from .models import Empleado, TipoTurno, Cronograma, Asignacion, Preferencia, ConfiguracionAlgoritmo
+# -----------------------------------------------------
 
 def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original, resultado, plantilla_demanda=None):
     """Persiste el Cronograma y Asignaciones."""
@@ -320,20 +447,40 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
 
         fitness = resultado.get('fitness', 0)
         tiempo = resultado.get('tiempo_ejecucion', 0)
-        explicabilidad = resultado.get('explicabilidad', {})
+        
+        # Blindaje Explicabilidad
+        explicabilidad = resultado.get('explicabilidad')
+        if explicabilidad is None: explicabilidad = {}
+
         config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
 
-        # Mapeo de Empleados
-        lista_empleados_payload = payload_original['datos_problema']['lista_profesionales']
+        # Blindaje Payload
+        if isinstance(payload_original, str):
+            try:
+                payload_original = json.loads(payload_original)
+            except:
+                pass
+        
+        # 1. Recuperar empleados
+        datos_problema = payload_original.get('datos_problema', {})
+        lista_empleados_payload = datos_problema.get('lista_profesionales', [])
+        
         mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
         empleados_db = Empleado.objects.filter(id__in=mapa_idx_a_empleado_id.values())
         empleados_map = {e.id: e for e in empleados_db}
 
-        # Enriquecer reporte visual
+        # 2. Lógica de Contrato Mensual vs Proporcional
+        num_dias = (fecha_fin - fecha_inicio).days + 1
+        if 28 <= num_dias <= 31:
+            factor_tiempo = 1.0 
+        else:
+            factor_tiempo = num_dias / 30.0
+
         turno_ref = TipoTurno.objects.filter(especialidad=especialidad).first()
-        duracion_horas = float(turno_ref.duracion_horas) if turno_ref and turno_ref.duracion_horas else 12.0
+        duracion_horas = float(turno_ref.duracion_horas) if (turno_ref and turno_ref.duracion_horas) else 12.0
         
         nombres_cortos, nombres_largos, limites_contractuales = [], [], []
+
         for i, emp_payload in enumerate(lista_empleados_payload):
             emp = empleados_map.get(emp_payload['id_db'])
             if emp:
@@ -341,7 +488,14 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                 n_largo = full_name
                 partes = full_name.split()
                 n_corto = f"{partes[-1]}, {partes[0][0].upper()}." if len(partes) >= 2 else full_name
-                limites = [float(emp.min_turnos_mensuales or 0)*duracion_horas, float(emp.max_turnos_mensuales or 0)*duracion_horas]
+                
+                min_mensual = float(emp.min_turnos_mensuales or 0)
+                max_mensual = float(emp.max_turnos_mensuales or 0)
+                
+                min_periodo = min_mensual * factor_tiempo * duracion_horas
+                max_periodo = max_mensual * factor_tiempo * duracion_horas
+                
+                limites = [round(min_periodo, 1), round(max_periodo, 1)]
             else:
                 n_largo = f"Profesional {i+1}"
                 n_corto = f"P{i+1}"
@@ -351,6 +505,95 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             nombres_largos.append(n_largo)
             limites_contractuales.append(limites)
 
+        # ---------------------------------------------------------------------
+        # 3. Detección "Post-Mortem" de Preferencias Ignoradas
+        # ---------------------------------------------------------------------
+        violaciones_blandas = explicabilidad.get('violaciones_blandas')
+        if violaciones_blandas is None: violaciones_blandas = {}
+
+        lista_incumplimientos_francos = []
+        lista_incumplimientos_turnos = []
+
+        # Mapa rápido: {empleado_id: {fecha_str: turno_id}}
+        asignaciones_reales = {}
+        for i, fila in enumerate(matriz_solucion):
+            emp_id = mapa_idx_a_empleado_id.get(i)
+            if not emp_id: continue
+            
+            asignaciones_reales[emp_id] = {}
+            for j, t_id in enumerate(fila):
+                fecha_dia = (fecha_inicio + timedelta(days=j)).strftime("%Y-%m-%d")
+                if t_id: 
+                    asignaciones_reales[emp_id][fecha_dia] = t_id
+
+        prefs = Preferencia.objects.filter(
+            fecha__range=[fecha_inicio, fecha_fin],
+            empleado__in=empleados_db
+        ).select_related('empleado', 'tipo_turno')
+
+        print(f"--- DEBUG PREFERENCIAS ({prefs.count()} encontradas) ---")
+
+        for p in prefs:
+            fecha_str = p.fecha.strftime("%Y-%m-%d")
+            turno_asignado_id = asignaciones_reales.get(p.empleado.id, {}).get(fecha_str)
+
+            # --- CORRECCIÓN AQUÍ: Usamos .DESCANSAR en lugar de .NO_TRABAJAR ---
+            es_descanso = (p.deseo == Preferencia.Deseo.DESCANSAR)
+            es_trabajo = (p.deseo == Preferencia.Deseo.TRABAJAR)
+            # -------------------------------------------------------------------
+
+            if "Neymar" in p.empleado.nombre_completo:
+                 print(f"👁️ REVISANDO NEYMAR | Fecha: {fecha_str} | Deseo: {p.deseo} | Asignado: {turno_asignado_id}")
+
+            # CASO A: Quería Descansar
+            if es_descanso:
+                violation = False
+                detalle = ""
+                
+                if turno_asignado_id: # Tiene turno asignado
+                    if p.tipo_turno is None:
+                        # Pidió día libre COMPLETO y trabaja -> MAL
+                        violation = True
+                        detalle = 'Se asignó guardia pese a pedido de descanso total'
+                    elif p.tipo_turno.id == turno_asignado_id:
+                        # Pidió NO trabajar ESTE turno y se lo dieron -> MAL
+                        violation = True
+                        detalle = f'Se asignó turno {p.tipo_turno.nombre} pese a bloqueo'
+                
+                if violation:
+                    print(f"   ⚠️ VIOLACIÓN: {p.empleado.nombre_completo} en {fecha_str}")
+                    lista_incumplimientos_francos.append({
+                        'empleado_id': p.empleado.id,
+                        'nombre': p.empleado.nombre_completo,
+                        'fecha': fecha_str,
+                        'detalle': detalle
+                    })
+
+            # CASO B: Quería Trabajar
+            elif es_trabajo:
+                violation = False
+                detalle = ""
+                
+                if not turno_asignado_id:
+                     violation = True
+                     detalle = 'No se asignó turno solicitado'
+                elif p.tipo_turno and turno_asignado_id != p.tipo_turno.id:
+                     violation = True
+                     detalle = f'Se asignó otro turno distinto al {p.tipo_turno.nombre}'
+                
+                if violation:
+                    lista_incumplimientos_turnos.append({
+                        'empleado_id': p.empleado.id,
+                        'nombre': p.empleado.nombre_completo,
+                        'fecha': fecha_str,
+                        'detalle': detalle
+                    })
+
+        violaciones_blandas['preferencia_libre_incumplida'] = lista_incumplimientos_francos
+        violaciones_blandas['preferencia_turno_incumplida'] = lista_incumplimientos_turnos
+        explicabilidad['violaciones_blandas'] = violaciones_blandas
+        
+        # Actualizar datos visuales
         if 'datos_equidad' not in explicabilidad: explicabilidad['datos_equidad'] = {}
         explicabilidad['datos_equidad'].update({
             'nombres_profesionales': nombres_largos,
@@ -358,6 +601,7 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             'limites_contractuales': limites_contractuales
         })
         
+        # 4. Transacción Atómica
         with transaction.atomic():
             cronograma = Cronograma.objects.create(
                 especialidad=especialidad,
@@ -370,19 +614,27 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                 tiempo_ejecucion=tiempo,
                 reporte_analisis=explicabilidad 
             )
+            
             turnos_db = {t.id: t for t in TipoTurno.objects.filter(especialidad=especialidad)}
             nuevas_asignaciones = []
+            
             for i, fila in enumerate(matriz_solucion):
                 emp_id = mapa_idx_a_empleado_id.get(i)
                 if not emp_id: continue
+                
                 for j, t_id in enumerate(fila):
                     if t_id and t_id in turnos_db:
                         nuevas_asignaciones.append(Asignacion(
-                            cronograma=cronograma, empleado_id=emp_id, fecha=fecha_inicio + timedelta(days=j), tipo_turno=turnos_db[t_id]
+                            cronograma=cronograma, 
+                            empleado_id=emp_id, 
+                            fecha=fecha_inicio + timedelta(days=j), 
+                            tipo_turno=turnos_db[t_id]
                         ))
-            if nuevas_asignaciones: Asignacion.objects.bulk_create(nuevas_asignaciones)
             
-        print("--- DEBUG: GUARDADO EXITOSO ---")
+            if nuevas_asignaciones: 
+                Asignacion.objects.bulk_create(nuevas_asignaciones)
+            
+        print(f"--- DEBUG: GUARDADO EXITOSO (ID: {cronograma.id}) ---")
         return cronograma
 
     except Exception as e:
