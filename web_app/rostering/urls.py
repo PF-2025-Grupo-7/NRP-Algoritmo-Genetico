@@ -81,6 +81,7 @@ urlpatterns = [
     # Plantillas de Demanda (Maestro)
     path('config/plantillas/', views.PlantillaListView.as_view(), name='plantilla_list'),
     path('config/plantillas/crear/', views.PlantillaCreateView.as_view(), name='plantilla_create'),
+    path('config/plantillas/<int:pk>/editar/', views.PlantillaUpdateView.as_view(), name='plantilla_update'), # actualizar
     path('config/plantillas/<int:pk>/', views.PlantillaDetailView.as_view(), name='plantilla_detail'),
     path('config/plantillas/<int:pk>/eliminar/', views.PlantillaDeleteView.as_view(), name='plantilla_delete'),
 

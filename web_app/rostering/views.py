@@ -503,6 +503,23 @@ class PlantillaDetailView(LoginRequiredMixin, DetailView):
         ctx['excepciones'] = self.object.excepciones.all().order_by('fecha')
         return ctx
 
+# Asegurate de importar el form nuevo arriba
+from .forms import PlantillaDemandaUpdateForm 
+
+class PlantillaUpdateView(LoginRequiredMixin, UpdateView):
+    model = PlantillaDemanda
+    form_class = PlantillaDemandaUpdateForm
+    template_name = 'rostering/plantilla_form.html' # Reutilizamos el template de form
+    
+    def get_success_url(self):
+        # Al guardar, volvemos al detalle de la plantilla
+        return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.pk})
+        
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['titulo'] = f"Editar: {self.object.nombre}"
+        return ctx
+
 class PlantillaDeleteView(LoginRequiredMixin, DeleteView):
     model = PlantillaDemanda
     template_name = 'rostering/confirm_delete_generic.html'

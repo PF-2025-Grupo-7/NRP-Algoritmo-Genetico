@@ -100,6 +100,22 @@ class PlantillaDemandaForm(BootstrapFormMixin, forms.ModelForm):
             'descripcion': forms.Textarea(attrs={'rows': 3}),
         }
 
+class PlantillaDemandaUpdateForm(forms.ModelForm):
+    class Meta:
+        model = PlantillaDemanda
+        fields = ['nombre', 'especialidad', 'descripcion']
+        widgets = {
+            'descripcion': forms.Textarea(attrs={'rows': 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Bloqueamos el campo especialidad para que sea de solo lectura
+        # Usamos 'disabled' para que el usuario lo vea grisado y no pueda tocarlo
+        if 'especialidad' in self.fields:
+            self.fields['especialidad'].disabled = True
+            self.fields['especialidad'].help_text = "La especialidad no se puede modificar una vez creada la plantilla."
+
 class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = ReglaDemandaSemanal
