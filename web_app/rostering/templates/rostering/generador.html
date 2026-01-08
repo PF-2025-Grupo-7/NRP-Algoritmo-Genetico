@@ -15,7 +15,13 @@
     <!-- Card con formulario y estado (estado oculto hasta iniciar) -->
     <div class="card shadow-sm border-0 generator-card">
         <div class="card-body p-4 p-lg-5 pb-4">
-            <form id="form-generador" class="row g-3">
+            <form id="form-generador" class="row g-3" novalidate>
+                <div class="col-12">
+                    <div id="form-warning" class="field-error d-none">
+                        <i class="bi bi-exclamation-circle"></i>
+                        <span id="form-warning-text"></span>
+                    </div>
+                </div>
                 <div class="col-sm-6">
                     <label class="form-label fw-semibold">Fecha inicio</label>
                     <input type="date" class="form-control" id="fecha_inicio" required>
@@ -155,7 +161,8 @@
     
     .custom-dropdown {
         position: relative;
-        pointer-events: none;
+        /* Permitir interacción en todo el dropdown */
+        pointer-events: auto;
     }
     
     .custom-dropdown-header {
@@ -180,9 +187,7 @@
     }
     
     .custom-dropdown-header:hover {
-        background-color: rgba(13, 110, 253, 0.1);
-        color: #0d6efd;
-        box-shadow: 0 4px 16px rgba(13, 110, 253, 0.15);
+        background-color: #EFF3F8;
     }
     
     .custom-dropdown-menu {
@@ -199,8 +204,9 @@
         transition: max-height 0.3s ease;
         pointer-events: none;
         z-index: 100;
-        margin-top: 0.5rem;
-        padding: 0.5rem 0;
+        /* Sin margen ni padding cuando está cerrado para evitar caja angosta */
+        margin-top: 0;
+        padding: 0;
         animation: fadeInDown 0.3s ease;
     }
     
@@ -215,10 +221,13 @@
         }
     }
     
-    .custom-dropdown-header:focus ~ .custom-dropdown-menu {
+    /* Abrir menú cuando el wrapper tiene la clase 'open' */
+    .custom-dropdown.open .custom-dropdown-menu {
         max-height: 300px;
         pointer-events: auto;
         opacity: 1;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0;
     }
     
     .custom-option {
@@ -270,7 +279,7 @@
     }
     
     .form-control:hover {
-        background-color: #f8fbff;
+        background-color: #EFF3F8;
         border-color: #0d6efd;
         box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
     }
@@ -280,6 +289,18 @@
         box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
         background-color: #ffffff;
     }
+
+    /* Warning estilo login */
+    .field-error {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-bottom: 0.35rem;
+        color: #c41c3b;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    .field-error i { font-size: 0.9rem; }
     
     input[type="date"]::-webkit-calendar-picker-indicator { filter: hue-rotate(190deg) saturate(1.2); opacity: 0.8; cursor: pointer; }
     input[type="date"] { padding-right: 1rem; }
@@ -297,70 +318,49 @@
 {% block extra_js %}
 <script>
 (function(){
-    // Custom Dropdown Functionality
-    const selectWrappers = document.querySelectorAll('.custom-select-wrapper');
-    
-    selectWrappers.forEach(wrapper => {
+    // Helpers: configurar un wrapper de dropdown personalizado
+    function setupCustomDropdown(wrapper){
         const nativeSelect = wrapper.querySelector('.form-select');
         const header = wrapper.querySelector('.custom-dropdown-header');
         const dropdown = wrapper.querySelector('.custom-dropdown');
         const menu = wrapper.querySelector('.custom-dropdown-menu');
-        const customOptions = wrapper.querySelectorAll('.custom-option');
-        let isOpen = false;
-        
-        // Abrir/cerrar dropdown al hacer click en header
-        header.addEventListener('click', (e) => {
+
+        if (!header || !dropdown || !menu || !nativeSelect) return;
+
+        // Abrir/cerrar
+        header.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            isOpen = !isOpen;
-            if (isOpen) {
-                menu.style.maxHeight = '300px';
-                menu.style.pointerEvents = 'auto';
-                menu.style.opacity = '1';
-            } else {
-                menu.style.maxHeight = '0';
-                menu.style.pointerEvents = 'none';
-                menu.style.opacity = '0';
-            }
-        });
-        
-        // Seleccionar opción
-        customOptions.forEach((option, index) => {
-            option.addEventListener('click', (e) => {
+            dropdown.classList.toggle('open');
+        };
+
+        // Selección
+        menu.querySelectorAll('.custom-option').forEach((option, index) => {
+            option.onclick = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                
-                if (index === 0) return; // Saltar la primera opción (placeholder)
-                
+                if (index === 0) return; // placeholder
                 const value = option.getAttribute('data-value');
                 const text = option.textContent;
-                
                 nativeSelect.value = value;
                 header.textContent = text;
-                
-                // Cerrar dropdown
-                isOpen = false;
-                menu.style.maxHeight = '0';
-                menu.style.pointerEvents = 'none';
-                menu.style.opacity = '0';
-                
-                // Trigger change event
-                const event = new Event('change', { bubbles: true });
-                nativeSelect.dispatchEvent(event);
-            });
+                dropdown.classList.remove('open');
+                nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            };
         });
-        
-        // Cerrar dropdown al hacer click fuera
+
+        // Cerrar al hacer click fuera
         document.addEventListener('click', (e) => {
             if (!wrapper.contains(e.target)) {
-                isOpen = false;
-                menu.style.maxHeight = '0';
-                menu.style.pointerEvents = 'none';
-                menu.style.opacity = '0';
+                dropdown.classList.remove('open');
             }
         });
-    });
+    }
 
+    // Inicializar todos los wrappers existentes
+    document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
+
+    // Referencias
     const $esp = document.getElementById('especialidad');
     const $plant = document.getElementById('plantilla_id');
     const $inicio = document.getElementById('fecha_inicio');
@@ -368,7 +368,6 @@
     const $form = document.getElementById('form-generador');
     const $btnStart = document.getElementById('btn-iniciar');
     const $btnReset = document.getElementById('btn-reset');
-
     const $panelEstado = document.getElementById('panel-estado');
     const $badge = document.getElementById('estado-badge');
     const $barra = document.getElementById('barra-progreso');
@@ -378,8 +377,10 @@
     const $errText = document.getElementById('error-text');
     const $linkVer = document.getElementById('link-ver');
     const $linkAnalisis = document.getElementById('link-analisis');
+    const $warn = document.getElementById('form-warning');
+    const $warnText = document.getElementById('form-warning-text');
 
-    // Sugerir periodo del próximo mes
+    // Sugerir período del próximo mes
     try {
         const hoy = new Date();
         const y = hoy.getFullYear();
@@ -410,6 +411,16 @@
     }
     
     function setMsg(html){ $msg.innerHTML = html; }
+    function hideWarn(){
+        if ($warn) $warn.classList.add('d-none');
+        if ($warnText) $warnText.textContent = '';
+    }
+    function showWarn(text){
+        if ($warn && $warnText) {
+            $warnText.textContent = text;
+            $warn.classList.remove('d-none');
+        }
+    }
     function toggleLoading(on){
         $btnStart.disabled = !!on;
         $esp.disabled = !!on;
@@ -424,6 +435,7 @@
         $ok.classList.add('d-none'); $err.classList.add('d-none');
         $btnReset.classList.add('d-none');
         $panelEstado.classList.add('d-none');
+        $warn.classList.add('d-none');
         toggleLoading(false);
     }
 
@@ -438,6 +450,7 @@
         const plantWrapper = $plant.closest('.custom-select-wrapper');
         if (plantWrapper) {
             plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Cargando...';
+            plantWrapper.querySelector('.custom-dropdown').classList.remove('open');
         }
         
         try {
@@ -450,9 +463,11 @@
                 if (plantWrapper) {
                     plantWrapper.querySelector('.custom-dropdown-header').textContent = 'No hay plantillas disponibles';
                     plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">No hay plantillas disponibles</div>';
+                    setupCustomDropdown(plantWrapper);
                 }
                 return;
             }
+
             $plant.innerHTML = '<option value="" selected>Seleccioná una plantilla</option>' + items.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
             $plant.disabled = false;
             
@@ -462,66 +477,15 @@
                 const menuHTML = '<div class="custom-option" data-value="">Seleccioná una plantilla</div>' + 
                     items.map(p=>`<div class="custom-option" data-value="${p.id}">${p.nombre}</div>`).join('');
                 plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = menuHTML;
-                
-                // Re-attach custom dropdown functionality
-                const header = plantWrapper.querySelector('.custom-dropdown-header');
-                const menu = plantWrapper.querySelector('.custom-dropdown-menu');
-                const customOptions = plantWrapper.querySelectorAll('.custom-option');
-                let isOpen = false;
-                
-                header.removeEventListener('click', null);
-                header.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    isOpen = !isOpen;
-                    if (isOpen) {
-                        menu.style.maxHeight = '300px';
-                        menu.style.pointerEvents = 'auto';
-                        menu.style.opacity = '1';
-                    } else {
-                        menu.style.maxHeight = '0';
-                        menu.style.pointerEvents = 'none';
-                        menu.style.opacity = '0';
-                    }
-                });
-                
-                customOptions.forEach((option, index) => {
-                    option.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        
-                        if (index === 0) return;
-                        
-                        const value = option.getAttribute('data-value');
-                        const text = option.textContent;
-                        $plant.value = value;
-                        header.textContent = text;
-                        
-                        isOpen = false;
-                        menu.style.maxHeight = '0';
-                        menu.style.pointerEvents = 'none';
-                        menu.style.opacity = '0';
-                        
-                        const event = new Event('change', { bubbles: true });
-                        $plant.dispatchEvent(event);
-                    });
-                });
-                
-                document.addEventListener('click', (e) => {
-                    if (!plantWrapper.contains(e.target)) {
-                        isOpen = false;
-                        menu.style.maxHeight = '0';
-                        menu.style.pointerEvents = 'none';
-                        menu.style.opacity = '0';
-                    }
-                });
-            }
+                setupCustomDropdown(plantWrapper);
             }
         } catch(e){
             $plant.innerHTML = '<option value="" selected>Error cargando plantillas</option>';
             $plant.disabled = true;
             if (plantWrapper) {
                 plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Error cargando plantillas';
+                plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">Error cargando plantillas</div>';
+                setupCustomDropdown(plantWrapper);
             }
         }
     });
@@ -529,13 +493,21 @@
     // Envío del formulario
     $form.addEventListener('submit', async function(ev){
         ev.preventDefault();
+        
+        // Ocultar warning previo
+        $warn.classList.add('d-none');
+        
         // Validaciones básicas
         if(!$inicio.value || !$fin.value || !$esp.value || !$plant.value){
-            setMsg('<span class="text-danger">Completá todos los campos requeridos.</span>');
+            $warnText.textContent = 'Completá todos los campos requeridos.';
+            $warn.classList.remove('d-none');
+            console.log('Mostrando warning: campos incompletos');
             return;
         }
         if($fin.value <= $inicio.value){
-            setMsg('<span class="text-danger">La fecha fin debe ser posterior a la fecha inicio.</span>');
+            $warnText.textContent = 'La fecha fin debe ser posterior a la fecha inicio.';
+            $warn.classList.remove('d-none');
+            console.log('Mostrando warning: fechas inválidas');
             return;
         }
 

@@ -571,12 +571,27 @@ def get_config_activa():
     config, _ = ConfiguracionAlgoritmo.objects.get_or_create(activa=True)
     return config
 
-class ConfiguracionDashboardView(SuperUserRequiredMixin, TemplateView):
+class ConfiguracionDashboardView(SuperUserRequiredMixin, FormView):
     template_name = 'rostering/config_dashboard.html'
+    form_class = ConfiguracionSimpleForm
+    success_url = reverse_lazy('config_dashboard')
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['config'] = get_config_activa()
         return ctx
+
+    def form_valid(self, form):
+        form.save(get_config_activa())
+        # Mapear el valor del modo al nombre amigable
+        modo_nombres = {
+            'RAPIDA': 'Búsqueda Rápida',
+            'EQUILIBRADA': 'Búsqueda Equilibrada',
+            'PROFUNDA': 'Búsqueda Profunda',
+        }
+        modo_nombre = modo_nombres.get(form.cleaned_data['modo'], form.cleaned_data['modo'])
+        messages.success(self.request, f"Configuración actualizada a {modo_nombre}")
+        return super().form_valid(form)
 
 class ConfiguracionSimpleView(SuperUserRequiredMixin, FormView):
     template_name = 'rostering/config_simple.html'
@@ -585,7 +600,14 @@ class ConfiguracionSimpleView(SuperUserRequiredMixin, FormView):
 
     def form_valid(self, form):
         form.save(get_config_activa())
-        messages.success(self.request, f"¡Configuración actualizada a modo {form.cleaned_data['modo']}!")
+        # Mapear el valor del modo al nombre amigable
+        modo_nombres = {
+            'RAPIDA': 'Búsqueda Rápida',
+            'EQUILIBRADA': 'Búsqueda Equilibrada',
+            'PROFUNDA': 'Búsqueda Profunda',
+        }
+        modo_nombre = modo_nombres.get(form.cleaned_data['modo'], form.cleaned_data['modo'])
+        messages.success(self.request, f"Configuración actualizada a {modo_nombre}")
         return super().form_valid(form)
 
 class ConfiguracionAvanzadaView(SuperUserRequiredMixin, UpdateView):

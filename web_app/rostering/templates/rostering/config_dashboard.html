@@ -1,53 +1,196 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="text-center mb-5">
-        <h2><i class="bi bi-gear-wide-connected"></i> Panel de Administración</h2>
-        <p class="text-muted">Gestiona los parámetros del motor de inteligencia artificial.</p>
-    </div>
-
+<div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-md-10"> <div class="alert alert-info text-center shadow-sm">
-                Configuración Activa: <strong>{{ config.nombre }}</strong> 
-                <br>
-                <small>(Población: {{ config.tamano_poblacion }} | Generaciones: {{ config.generaciones }})</small>
-            </div>
-        </div>
-    </div>
-
-    <div class="row justify-content-center mt-4">
-        <div class="col-md-5">
-            <div class="card h-100 shadow border-0 hover-effect">
-                <div class="card-body text-center p-5">
-                    <div class="mb-3 text-primary">
-                        <i class="bi bi-speedometer2" style="font-size: 3rem;"></i>
-                    </div>
-                    <h4>Ajuste Rápido</h4>
-                    <p class="text-muted">
-                        Elige entre perfiles predefinidos (Rápido, Normal, Profundo). 
-                        Ideal para el uso diario.
-                    </p>
-                    <a href="{% url 'config_simple' %}" class="btn btn-primary px-4 mt-3">Usar Modo Simple</a>
+        <div class="col-md-10">
+            <!-- Encabezado -->
+            <div class="row mb-4 align-items-center">
+                <div class="col-md-8">
+                    <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Configuración del Motor de IA</h1>
+                    <p class="text-muted fs-5 mb-0">Gestiona los parámetros del algoritmo genético</p>
                 </div>
             </div>
-        </div>
 
-        <div class="col-md-5">
-            <div class="card h-100 shadow border-0 hover-effect">
-                <div class="card-body text-center p-5">
-                    <div class="mb-3 text-dark">
-                        <i class="bi bi-sliders" style="font-size: 3rem;"></i>
-                    </div>
-                    <h4>Ajuste Avanzado</h4>
-                    <p class="text-muted">
-                        Control total sobre mutaciones, cruces, semillas y pesos de penalización.
-                        Solo para expertos.
-                    </p>
-                    <a href="{% url 'config_avanzada' %}" class="btn btn-outline-dark px-4 mt-3">Entrar al Laboratorio</a>
+            <!-- Ajuste Rápido / Básico - Con las 3 cards -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-bottom-0 pt-4 px-4">
+                    <h4 class="fw-bold mb-1"><i class="bi bi-speedometer2"></i> Ajuste Rápido</h4>
+                    <p class="text-muted mb-2">Define cuánto tiempo y esfuerzo dedicará el algoritmo genético.</p>
                 </div>
+                <div class="card-body p-4 pt-2">
+                    <form method="post" id="config-form">
+                        {% csrf_token %}
+                        
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="card h-100 border-2 cursor-pointer mode-card" data-value="RAPIDA" {% if config.nombre == 'Configuración Rápida' %}data-active="true"{% endif %}>
+                                    <input type="radio" name="modo" value="RAPIDA" class="btn-check" {% if config.nombre == 'Configuración Rápida' %}checked{% endif %}>
+                                    <div class="card-body text-center">
+                                        <div class="fw-bold fs-5 mb-2">Búsqueda Rápida</div>
+                                        <div class="text-muted small">
+                                            <div>Población: 100</div>
+                                            <div>Generaciones: 75</div>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="card h-100 border-2 cursor-pointer mode-card" data-value="EQUILIBRADA" {% if config.nombre == 'Configuración Equilibrada' %}data-active="true"{% endif %}>
+                                    <input type="radio" name="modo" value="EQUILIBRADA" class="btn-check" {% if config.nombre == 'Configuración Equilibrada' %}checked{% endif %}>
+                                    <div class="card-body text-center">
+                                        <div class="fw-bold fs-5 mb-2">Búsqueda Equilibrada</div>
+                                        <div class="text-muted small">
+                                            <div>Población: 100</div>
+                                            <div>Generaciones: 150</div>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="card h-100 border-2 cursor-pointer mode-card" data-value="PROFUNDA" {% if config.nombre == 'Configuración Profunda' %}data-active="true"{% endif %}>
+                                    <input type="radio" name="modo" value="PROFUNDA" class="btn-check" {% if config.nombre == 'Configuración Profunda' %}checked{% endif %}>
+                                    <div class="card-body text-center">
+                                        <div class="fw-bold fs-5 mb-2">Búsqueda Profunda</div>
+                                        <div class="text-muted small">
+                                            <div>Población: 150</div>
+                                            <div>Generaciones: 250</div>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Ajuste Avanzado -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2">
+                    <h4 class="fw-bold mb-1"><i class="bi bi-sliders"></i> Ajuste Avanzado</h4>
+                    <p class="text-muted mb-0">Control total sobre mutaciones, cruces, semillas y pesos de penalización. Solo para expertos.</p>
+                </div>
+                <div class="card-body p-4 pt-2">
+                    <a href="{% url 'config_avanzada' %}" class="text-decoration-none config-link">
+                        <i class="bi bi-arrow-right me-2"></i>Ir a Configuración Avanzada
+                    </a>
+                </div>
+            </div>
+
+            <!-- Botón Guardar Cambios -->
+            <div class="d-flex justify-content-end">
+                <button type="submit" form="config-form" class="btn btn-primary fw-bold px-5">
+                    <i class="bi bi-check-lg me-2"></i>Guardar Cambios
+                </button>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    /* Estilo para ocultar el radio button real */
+    .btn-check { position: absolute; clip: rect(0,0,0,0); pointer-events: none; }
+    
+    /* Estilo base para las cards de modo */
+    .mode-card { 
+        cursor: pointer; 
+        transition: all 0.3s ease;
+        background-color: #ffffff;
+        border-color: #e0e0e0 !important;
+    }
+    
+    .mode-card:hover { 
+        border-color: #0d6efd !important;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25);
+        transform: translateY(-2px);
+    }
+    
+    /* Estilo para la card seleccionada */
+    .mode-card.selected { 
+        background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+        border-color: #0d6efd !important;
+        color: white;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+    }
+    
+    .mode-card.selected .fw-bold { 
+        color: white; 
+    }
+    
+    .mode-card.selected .text-muted { 
+        color: rgba(255, 255, 255, 0.85) !important; 
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('config-form');
+        const radioButtons = document.querySelectorAll('input[name="modo"]');
+        const modeCards = document.querySelectorAll('.mode-card');
+        const configLink = document.querySelector('.config-link');
+        let hasUnsavedChanges = false;
+
+        // Inicializar: marcar la card seleccionada como "selected"
+        function updateCardSelection() {
+            modeCards.forEach(card => {
+                const radio = card.querySelector('input[type="radio"]');
+                if (radio && radio.checked) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+        }
+
+        // Llamar al cargar la página
+        updateCardSelection();
+
+        // Cuando se hace click en una card
+        modeCards.forEach(card => {
+            card.addEventListener('click', function() {
+                const radio = this.querySelector('input[type="radio"]');
+                if (radio) {
+                    radio.checked = true;
+                    updateCardSelection();
+                    hasUnsavedChanges = true;
+                }
+            });
+        });
+
+        // También detectar cambios en los radios directamente
+        radioButtons.forEach(radio => {
+            radio.addEventListener('change', function() {
+                updateCardSelection();
+                hasUnsavedChanges = true;
+            });
+        });
+
+        // Warning cuando intenta salir sin guardar
+        window.addEventListener('beforeunload', function(e) {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = 'Tienes cambios sin guardar en la configuración. ¿Estás seguro de que deseas salir?';
+                return e.returnValue;
+            }
+        });
+
+        // Warning al hacer click en enlaces internos
+        configLink.addEventListener('click', function(e) {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                const confirmed = confirm('Tienes cambios sin guardar en la configuración. ¿Deseas continuar sin guardar?');
+                if (confirmed) {
+                    window.location.href = this.getAttribute('href');
+                }
+            }
+        });
+
+        // Resetear flag cuando se envía el formulario
+        form.addEventListener('submit', function() {
+            hasUnsavedChanges = false;
+        });
+    });
+</script>
 {% endblock %}
