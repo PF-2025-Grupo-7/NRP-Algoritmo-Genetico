@@ -44,11 +44,25 @@ class EmpleadoForm(BootstrapFormMixin, forms.ModelForm):
 class TipoTurnoForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = TipoTurno
-        fields = '__all__'
+        # Excluimos 'duracion_horas' porque se calcula sola en el modelo
+        fields = ['nombre', 'abreviatura', 'especialidad', 'es_nocturno', 'hora_inicio', 'hora_fin']
         widgets = {
-            'hora_inicio': TIME_INPUT,
-            'hora_fin': TIME_INPUT,
+            'hora_inicio': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'hora_fin': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
         }
+        help_texts = {
+            'es_nocturno': 'Marcá esto si el turno cruza la medianoche (ej: 22:00 a 06:00) o implica penalizaciones nocturnas.'
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Lógica para bloquear Especialidad si es una EDICIÓN
+        if self.instance and self.instance.pk:
+            self.fields['especialidad'].disabled = True
+            self.fields['especialidad'].help_text = "La especialidad no se puede cambiar porque afectaría al historial y reglas vigentes."
+
+
 
 class NoDisponibilidadForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
