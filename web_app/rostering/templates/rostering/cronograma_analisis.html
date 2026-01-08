@@ -71,33 +71,60 @@
 
         <div class="col-lg-4 mb-4">
             <div class="card shadow border-0 h-100">
-                <div class="card-header bg-white fw-bold">
-                    <i class="bi bi-list-check"></i> Reglas Blandas
+                <div class="card-header bg-white fw-bold d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-list-check me-2 text-primary"></i> Reporte de Preferencias</span>
                 </div>
                 <div class="card-body p-0">
                     <ul class="list-group list-group-flush">
                         
-                        <li class="list-group-item bg-light fw-bold small">Preferencias de Francos (No cumplidas)</li>
+                        <li class="list-group-item bg-light fw-bold small text-uppercase text-muted">
+                            <i class="bi bi-calendar-x me-1"></i> Francos No Respetados
+                        </li>
+                        
                         {% for v in violaciones_blandas.preferencia_libre_incumplida %}
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span><i class="bi bi-person"></i> ID {{ v.empleado_id }}</span>
-                                <span class="badge bg-warning text-dark">{{ v.fecha }}</span>
-                            </li>
-                        {% empty %}
-                            <li class="list-group-item text-muted small fst-italic">¡Excelente! Todos tuvieron sus francos pedidos.</li>
-                        {% endfor %}
-
-                        <li class="list-group-item bg-light fw-bold small mt-2">Turnos Específicos (No asignados)</li>
-                        {% for v in violaciones_blandas.preferencia_turno_incumplida %}
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <span><i class="bi bi-person"></i> ID {{ v.empleado_id }}</span>
-                                <div class="text-end">
-                                    <span class="badge bg-secondary">{{ v.fecha }}</span>
-                                    <span class="badge bg-primary">{{ v.turno }}</span>
+                            <li class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="me-3">
+                                        <div class="fw-bold text-dark mb-1">
+                                            <i class="bi bi-person-exclamation text-warning me-1"></i> {{ v.nombre }}
+                                        </div>
+                                        <small class="text-muted d-block lh-sm">{{ v.detalle }}</small>
+                                    </div>
+                                    <span class="badge bg-warning text-dark border border-warning">
+                                        <i class="bi bi-calendar-event me-1"></i>{{ v.fecha }}
+                                    </span>
                                 </div>
                             </li>
                         {% empty %}
-                            <li class="list-group-item text-muted small fst-italic">Se cumplieron todos los pedidos de turno.</li>
+                            <li class="list-group-item text-center py-4">
+                                <i class="bi bi-emoji-smile text-success fs-3 d-block mb-1"></i>
+                                <span class="text-muted small">¡Excelente! Todos tuvieron sus francos.</span>
+                            </li>
+                        {% endfor %}
+
+                        <li class="list-group-item bg-light fw-bold small text-uppercase text-muted mt-2">
+                            <i class="bi bi-clock-history me-1"></i> Turnos Pedidos No Asignados
+                        </li>
+                        
+                        {% for v in violaciones_blandas.preferencia_turno_incumplida %}
+                            <li class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="me-3">
+                                        <div class="fw-bold text-dark mb-1">
+                                            <i class="bi bi-person text-secondary me-1"></i> {{ v.nombre }}
+                                        </div>
+                                        <small class="text-muted d-block lh-sm">{{ v.detalle }}</small>
+                                    </div>
+                                    <span class="badge bg-light text-dark border">
+                                        {{ v.fecha }}
+                                    </span>
+                                </div>
+                            </li>
+                        {% empty %}
+                            <li class="list-group-item text-center py-4">
+                                <i class="bi bi-check2-all text-success fs-3 d-block mb-1"></i>
+                                <span class="text-muted small">Se cumplieron todos los pedidos de turno.</span>
+                            </li>
                         {% endfor %}
 
                     </ul>
@@ -226,20 +253,29 @@
                 plugins: {
                     legend: { display: true, position: 'top' },
                     tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.9)', // Fondo más oscuro para leer bien
-                        titleFont: { size: 14, weight: 'bold' },
-                        bodyFont: { size: 13 },
+                        // --- ESTILO VISUAL MEJORADO ---
+                        backgroundColor: 'rgba(52, 58, 64, 0.9)', // Gris oscuro "Bootstrap" con transparencia
+                        titleColor: '#ffffff',
+                        bodyColor: '#f8f9fa',
+                        borderColor: 'rgba(255, 255, 255, 0.1)', // Borde sutil
+                        borderWidth: 1,
+                        padding: 12,        // Más espacio interno
+                        cornerRadius: 8,    // Bordes redondeados
+                        displayColors: true, 
+                        boxPadding: 6,      // Separación entre el color y el texto
+
+                        titleFont: { size: 14, weight: 'bold', family: 'system-ui' },
+                        bodyFont: { size: 13, family: 'system-ui' },
                         footerFont: { size: 11, style: 'italic' },
+                        
                         callbacks: {
                             // TÍTULO: Nombre del Profesional
                             title: function(context) {
                                 const idx = context[0].dataIndex;
                                 return nombresLargos[idx] || context[0].label;
                             },
-                            // CUERPO: Muestra las líneas principales
+                            // CUERPO: Lo dejamos limpio para llenarlo en afterBody
                             label: function(context) {
-                                // Truco: Devolvemos null aquí para manejar todo en 'afterBody'
-                                // o personalizamos cada línea.
                                 return null; 
                             },
                             // CONTENIDO PERSONALIZADO
@@ -249,24 +285,29 @@
                                 const contrato = limites[idx];
                                 
                                 let lines = [];
+                                
+                                // 1. Asignado
                                 lines.push(`✅ Asignado: ${valReal} hs`);
                                 
+                                // 2. Contrato
                                 if (contrato) {
                                     lines.push(`📄 Contrato:  ${contrato[0]} - ${contrato[1]} hs`);
                                 }
                                 
-                                // Separador visual
-                                lines.push(''); 
-                                
+                                // 3. Equidad (CON REDONDEO)
                                 if (rangoEquidad && rangoEquidad.length === 2) {
-                                    lines.push(`⚖️ Equidad Ideal: ${rangoEquidad[0]} - ${rangoEquidad[1]} hs`);
+                                    lines.push(''); // Espacio separador
+                                    // Usamos Math.round para quitar decimales molestos
+                                    const eqMin = Math.round(rangoEquidad[0]);
+                                    const eqMax = Math.round(rangoEquidad[1]);
+                                    lines.push(`⚖️ Equidad Ideal: ${eqMin} - ${eqMax} hs`);
                                 }
                                 
                                 return lines;
                             }
                         }
                     }
-                }
+                },
             }
         });
     });
