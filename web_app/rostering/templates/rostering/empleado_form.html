@@ -9,13 +9,15 @@
                     <h4 class="mb-0">{{ titulo }}</h4>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" id="form-empleado">
                         {% csrf_token %}
                         
                         {% for field in form %}
                         <div class="mb-3">
                             <label class="form-label fw-bold">{{ field.label }}</label>
+                            
                             {{ field }}
+                            
                             {% if field.help_text %}
                                 <div class="form-text">{{ field.help_text }}</div>
                             {% endif %}
@@ -35,4 +37,69 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modalAdvertenciaEspecialidad" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning bg-opacity-10">
+                <h5 class="modal-title text-warning fw-bold">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i> Cambio de Especialidad
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-bold">Estás a punto de cambiar la especialidad de este empleado.</p>
+                <div class="alert alert-warning border-warning small">
+                    <i class="bi bi-info-circle me-1"></i>
+                    <strong>Consecuencia:</strong> Al guardar, el sistema <u>eliminará automáticamente</u> todas las Preferencias y Ausencias futuras asociadas a turnos de la especialidad anterior, para evitar inconsistencias en la planificación.
+                </div>
+                <p class="mb-0">¿Deseas continuar y aplicar estos cambios?</p>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning fw-bold" id="btn-confirmar-cambio">
+                    Sí, cambiar y limpiar datos
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const form = document.getElementById('form-empleado');
+        // Buscamos el select por el atributo 'name' que Django genera automáticamente
+        const selectEspecialidad = form.querySelector('[name="especialidad"]');
+        
+        // Si no encuentra el campo (ej: es readonly o no está en el form), no hacemos nada
+        if (!selectEspecialidad) return;
+
+        // 1. Guardar el valor inicial al cargar la página
+        const especialidadInicial = selectEspecialidad.value;
+
+        // 2. Interceptar el envío del formulario
+        form.addEventListener('submit', function(e) {
+            const especialidadActual = selectEspecialidad.value;
+
+            // Si cambió la especialidad...
+            if (especialidadInicial !== especialidadActual) {
+                e.preventDefault(); // Frenamos el envío real
+                
+                // Mostramos el modal
+                const modalEl = document.getElementById('modalAdvertenciaEspecialidad');
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+            }
+            // Si NO cambió, dejamos que el formulario se envíe normalmente
+        });
+
+        // 3. Manejar el click en "Confirmar" del modal
+        document.getElementById('btn-confirmar-cambio').addEventListener('click', function() {
+            // Forzamos el envío del formulario ignorando el listener (submit programático)
+            form.submit();
+        });
+    });
+</script>
 {% endblock %}
