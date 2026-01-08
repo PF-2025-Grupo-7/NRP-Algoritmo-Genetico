@@ -271,11 +271,43 @@ class NoDisponibilidad(models.Model):
 
     def clean(self):
         super().clean()
+        
+        # 1. Validación de Fechas básica
         if self.fecha_inicio and self.fecha_fin and self.fecha_fin < self.fecha_inicio:
             raise ValidationError({'fecha_fin': 'La fecha de fin no puede ser anterior a la fecha de inicio.'})
 
+        # 2. Validación de Especialidad
         if self.empleado_id and self.tipo_turno_id:
             validar_consistencia_especialidad(self.empleado, self.tipo_turno, 'tipo_turno')
+
+        # 3. Validación de Conflicto con Preferencias de "TRABAJAR"
+        # Si digo que NO estoy disponible, no debería tener un pedido explícito de "QUIERO TRABAJAR" en ese lapso.
+        if self.empleado_id and self.fecha_inicio and self.fecha_fin:
+            # Buscamos preferencias de TRABAJAR en el rango
+            prefs_conflictivas = Preferencia.objects.filter(
+                empleado=self.empleado,
+                deseo=Preferencia.Deseo.TRABAJAR,
+                fecha__range=[self.fecha_inicio, self.fecha_fin]
+            )
+
+            for p in prefs_conflictivas:
+                # Chequeamos superposición de turno (Scope)
+                # Hay conflicto si:
+                # A. La ausencia es todo el día (self.tipo_turno is None)
+                # B. La preferencia es todo el día (p.tipo_turno is None)
+                # C. Ambos son el mismo turno específico
+                hay_superposicion = (
+                    self.tipo_turno is None or 
+                    p.tipo_turno is None or 
+                    self.tipo_turno_id == p.tipo_turno_id
+                )
+                
+                if hay_superposicion:
+                    turno_msg = self.tipo_turno.nombre if self.tipo_turno else "Todo el día"
+                    raise ValidationError(
+                        f"Contradicción: El empleado pidió 'TRABAJAR' el día {p.fecha} ({p.tipo_turno or 'Día completo'}), "
+                        f"no se puede cargar una ausencia para '{turno_msg}'."
+                    )
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -299,8 +331,56 @@ class Preferencia(models.Model):
 
     def clean(self):
         super().clean()
+        
+        # 1. Validación de Especialidad
         if self.tipo_turno_id and self.empleado_id:
             validar_consistencia_especialidad(self.empleado, self.tipo_turno, 'tipo_turno')
+
+        if self.empleado_id and self.fecha:
+            
+            # 2. Validación: "El caso Thiago Messi" (Contradicción Trabajo vs Descanso)
+            # Buscamos otras preferencias del mismo día para el mismo empleado
+            otras_prefs = Preferencia.objects.filter(
+                empleado=self.empleado,
+                fecha=self.fecha
+            ).exclude(pk=self.pk) # Excluímos la propia si estamos editando
+
+            for p in otras_prefs:
+                # Solo nos importa si los deseos son OPUESTOS (Trabajar vs Descansar)
+                if self.deseo != p.deseo:
+                    # Verificamos si los turnos se pisan
+                    hay_superposicion = (
+                        self.tipo_turno is None or      # Yo pido para todo el día
+                        p.tipo_turno is None or         # El otro es para todo el día
+                        self.tipo_turno_id == p.tipo_turno_id  # Mismo turno
+                    )
+                    
+                    if hay_superposicion:
+                        raise ValidationError({
+                            'deseo': f"Contradicción: Ya existe una preferencia opuesta ('{p.get_deseo_display()}') para este día/turno."
+                        })
+
+            # 3. Validación: No pedir "TRABAJAR" si estoy Ausente (NoDisponibilidad)
+            if self.deseo == self.Deseo.TRABAJAR:
+                # Buscamos si hay alguna ausencia que cubra esta fecha
+                ausencias = NoDisponibilidad.objects.filter(
+                    empleado=self.empleado,
+                    fecha_inicio__lte=self.fecha,
+                    fecha_fin__gte=self.fecha
+                )
+                
+                for aus in ausencias:
+                    # Chequeamos superposición de turno
+                    hay_superposicion = (
+                        aus.tipo_turno is None or   # Ausencia total
+                        self.tipo_turno is None or  # Quiero trabajar todo el día (y hay ausencia parcial o total)
+                        aus.tipo_turno_id == self.tipo_turno_id
+                    )
+                    
+                    if hay_superposicion:
+                        raise ValidationError(
+                            f"Imposible solicitar 'TRABAJAR': El empleado tiene una ausencia registrada para esta fecha ({aus.motivo})."
+                        )
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -309,7 +389,6 @@ class Preferencia(models.Model):
     def __str__(self):
         turno_str = self.tipo_turno.nombre if self.tipo_turno else "DÍA COMPLETO"
         return f"{self.empleado}: {self.get_deseo_display()} en {self.fecha} ({turno_str})"
-
 
 # ==============================================================================
 # CONFIGURACIÓN DEL ALGORITMO
