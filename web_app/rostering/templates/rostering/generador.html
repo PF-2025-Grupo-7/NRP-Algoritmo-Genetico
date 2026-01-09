@@ -311,6 +311,23 @@
     @media (max-width: 575px){
         .icon-circle{ width: 56px; height: 56px; }
     }
+
+    /* Estilos para cards clickeables en modal de dotación */
+    .modal-body a.card {
+        transition: all 0.3s ease;
+    }
+
+    .modal-body a.card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(13, 110, 253, 0.2) !important;
+        border-left-width: 5px !important;
+    }
+
+    .modal-body a.card:hover i.bi-arrow-right {
+        opacity: 1 !important;
+        transform: translateX(4px);
+        transition: all 0.3s ease;
+    }
 </style>
 
 {% endblock %}
@@ -327,10 +344,18 @@
 
         if (!header || !dropdown || !menu || !nativeSelect) return;
 
+        // Limpiar event listeners previos (clonar y reemplazar)
+        const newHeader = header.cloneNode(true);
+        header.parentNode.replaceChild(newHeader, header);
+        
         // Abrir/cerrar
-        header.onclick = (e) => {
+        newHeader.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
+            
+            // Si el select está deshabilitado, no hacer nada
+            if (nativeSelect.disabled) return;
+            
             dropdown.classList.toggle('open');
         };
 
@@ -343,18 +368,22 @@
                 const value = option.getAttribute('data-value');
                 const text = option.textContent;
                 nativeSelect.value = value;
-                header.textContent = text;
+                newHeader.textContent = text;
                 dropdown.classList.remove('open');
                 nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
             };
         });
 
         // Cerrar al hacer click fuera
-        document.addEventListener('click', (e) => {
+        const closeHandler = (e) => {
             if (!wrapper.contains(e.target)) {
                 dropdown.classList.remove('open');
             }
-        });
+        };
+        document.addEventListener('click', closeHandler);
+        
+        // Guardar el handler para poder limpiarlo después si es necesario
+        wrapper._closeHandler = closeHandler;
     }
 
     // Inicializar todos los wrappers existentes
@@ -411,6 +440,19 @@
     }
     
     function setMsg(html){ $msg.innerHTML = html; }
+    // Calcular diferencia de días en base a fechas (UTC, sin timezone)
+    function daysBetween(startStr, endStr){
+        try {
+            const [yi, mi, di] = (startStr || '').split('-').map(Number);
+            const [yf, mf, df] = (endStr || '').split('-').map(Number);
+            const msPerDay = 24 * 60 * 60 * 1000;
+            const startUTC = Date.UTC(yi, mi - 1, di);
+            const endUTC = Date.UTC(yf, mf - 1, df);
+            return Math.floor((endUTC - startUTC) / msPerDay);
+        } catch(e){
+            return NaN;
+        }
+    }
     function hideWarn(){
         if ($warn) $warn.classList.add('d-none');
         if ($warnText) $warnText.textContent = '';
@@ -436,6 +478,8 @@
         $btnReset.classList.add('d-none');
         $panelEstado.classList.add('d-none');
         $warn.classList.add('d-none');
+        // Reset visual de barra
+        $barra.style.backgroundColor = '';
         toggleLoading(false);
     }
 
@@ -449,21 +493,25 @@
         // Update custom dropdown header
         const plantWrapper = $plant.closest('.custom-select-wrapper');
         if (plantWrapper) {
-            plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Cargando...';
-            plantWrapper.querySelector('.custom-dropdown').classList.remove('open');
+            const header = plantWrapper.querySelector('.custom-dropdown-header');
+            const dropdown = plantWrapper.querySelector('.custom-dropdown');
+            header.textContent = 'Cargando...';
+            dropdown.classList.remove('open');
         }
         
         try {
             const resp = await fetch(`{% url 'api_get_plantillas' %}?especialidad=${encodeURIComponent($esp.value)}`);
             const data = await resp.json();
             const items = (data.plantillas||[]);
+            
             if(!items.length){
                 $plant.innerHTML = '<option value="" selected>No hay plantillas disponibles</option>';
                 $plant.disabled = true;
                 if (plantWrapper) {
-                    plantWrapper.querySelector('.custom-dropdown-header').textContent = 'No hay plantillas disponibles';
-                    plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">No hay plantillas disponibles</div>';
-                    setupCustomDropdown(plantWrapper);
+                    const header = plantWrapper.querySelector('.custom-dropdown-header');
+                    const menu = plantWrapper.querySelector('.custom-dropdown-menu');
+                    header.textContent = 'No hay plantillas disponibles';
+                    menu.innerHTML = '<div class="custom-option" data-value="">No hay plantillas disponibles</div>';
                 }
                 return;
             }
@@ -473,19 +521,22 @@
             
             // Update custom dropdown
             if (plantWrapper) {
-                plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Seleccioná una plantilla';
+                const header = plantWrapper.querySelector('.custom-dropdown-header');
+                const menu = plantWrapper.querySelector('.custom-dropdown-menu');
+                header.textContent = 'Seleccioná una plantilla';
                 const menuHTML = '<div class="custom-option" data-value="">Seleccioná una plantilla</div>' + 
                     items.map(p=>`<div class="custom-option" data-value="${p.id}">${p.nombre}</div>`).join('');
-                plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = menuHTML;
+                menu.innerHTML = menuHTML;
                 setupCustomDropdown(plantWrapper);
             }
         } catch(e){
             $plant.innerHTML = '<option value="" selected>Error cargando plantillas</option>';
             $plant.disabled = true;
             if (plantWrapper) {
-                plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Error cargando plantillas';
-                plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">Error cargando plantillas</div>';
-                setupCustomDropdown(plantWrapper);
+                const header = plantWrapper.querySelector('.custom-dropdown-header');
+                const menu = plantWrapper.querySelector('.custom-dropdown-menu');
+                header.textContent = 'Error cargando plantillas';
+                menu.innerHTML = '<div class="custom-option" data-value="">Error cargando plantillas</div>';
             }
         }
     });
@@ -494,28 +545,44 @@
     $form.addEventListener('submit', async function(ev){
         ev.preventDefault();
         
-        // Ocultar warning previo
+        // Ocultar warning previo y resetear panel de estado
         $warn.classList.add('d-none');
+        $panelEstado.classList.add('d-none');
         
         // Validaciones básicas
         if(!$inicio.value || !$fin.value || !$esp.value || !$plant.value){
             $warnText.textContent = 'Completá todos los campos requeridos.';
             $warn.classList.remove('d-none');
-            console.log('Mostrando warning: campos incompletos');
             return;
         }
-        if($fin.value <= $inicio.value){
+        // Orden de fechas
+        const diffOrder = daysBetween($inicio.value, $fin.value);
+        if(!(diffOrder > 0)){
             $warnText.textContent = 'La fecha fin debe ser posterior a la fecha inicio.';
             $warn.classList.remove('d-none');
-            console.log('Mostrando warning: fechas inválidas');
             return;
         }
 
-        // Mostrar panel de estado al iniciar
-        $panelEstado.classList.remove('d-none');
+        // Validar período (cuenta inclusiva igual que el backend)
+        const diferenciaDias = daysBetween($inicio.value, $fin.value);
+        const diasIncl = diferenciaDias + 1;
+        
+        if(diasIncl < 7){
+            $warnText.textContent = `El período seleccionado es demasiado corto (${diasIncl} día${diasIncl !== 1 ? 's' : ''}). Para generar un cronograma válido, el período debe ser de al menos 7 días.`;
+            $warn.classList.remove('d-none');
+            return;
+        }
+
+        // Validar período máximo de 31 días
+        if(diasIncl > 31){
+            $warnText.textContent = `El período seleccionado (${diasIncl} días) excede el límite máximo permitido (31 días).`;
+            $warn.classList.remove('d-none');
+            return;
+        }
+
+        // Preparar envío (sin mostrar panel aún)
         toggleLoading(true);
-        setEstado('Iniciando','primary');
-        setProgreso(15);
+        $barra.style.backgroundColor = ''; // Resetear color de barra
         setMsg('Enviando parámetros al motor de optimización...');
 
         try {
@@ -530,8 +597,28 @@
                 })
             });
             const data = await resp.json();
-            if(!resp.ok){ throw new Error(data.error || 'Error al iniciar.'); }
+            if(!resp.ok){
+                // Si el backend trae error de período, usar el warning superior
+                if (data && typeof data.error === 'string' && data.error.toLowerCase().includes('período')) {
+                    $panelEstado.classList.add('d-none');
+                    $warnText.textContent = data.error;
+                    $warn.classList.remove('d-none');
+                    toggleLoading(false);
+                    return;
+                }
+                // Manejo específico: falta de dotación (422)
+                if (resp.status === 422 && data && data.tipo_error === 'FALTA_DOTACION') {
+                    resetUIState();
+                    mostrarModalDotacion(data.detalles);
+                    return; // No continuar
+                }
+                throw new Error(data.error || 'Error al iniciar.');
+            }
 
+            // Mostrar panel recién cuando el backend acepta el trabajo
+            $panelEstado.classList.remove('d-none');
+            $err.classList.add('d-none');
+            $msg.classList.remove('d-none');
             setEstado('Ejecutando','primary');
             setProgreso(40);
             setMsg('<div class="d-flex align-items-center gap-2"><span class="spinner-border spinner-border-sm" role="status" style="--bs-spinner-border-width: 0.2em; width: 1rem; height: 1rem; border-color: #0d6efd; border-right-color: transparent;"></span><span>Algoritmo en ejecución. Este proceso puede tardar unos minutos...</span></div>');
@@ -539,11 +626,14 @@
 
             await pollEstado(data.job_id);
         } catch(e){
+            $panelEstado.classList.remove('d-none');
             setEstado('Error','danger');
-            setProgreso(0, false);
+            setProgreso(100, false);
+            $barra.style.backgroundColor = '#dc3545';
             $msg.classList.add('d-none');
             $errText.textContent = e.message || 'Error desconocido.';
             $err.classList.remove('d-none');
+            $btnReset.classList.remove('d-none');
             toggleLoading(false);
         }
     });
@@ -582,7 +672,8 @@
         } catch(e){
             clearInterval(tick);
             setEstado('Error','danger');
-            setProgreso(0, false);
+            setProgreso(100, false);
+            $barra.style.backgroundColor = '#dc3545';
             $msg.classList.add('d-none');
             $errText.textContent = e.message || 'Error durante el seguimiento.';
             $err.classList.remove('d-none');
@@ -590,73 +681,141 @@
         }
     }
 
+    // --- FUNCIÓN PARA MOSTRAR MODAL DE DOTACIÓN ---
+    function mostrarModalDotacion(detalles) {
+        if (!detalles) return;
+        
+        // 1. Llenar datos numéricos
+        document.getElementById('txt-oferta').innerText = detalles.horas_disponibles || '0';
+        document.getElementById('txt-demanda').innerText = detalles.horas_necesarias || '0';
+        document.getElementById('txt-deficit').innerText = detalles.deficit || '0';
+        document.getElementById('txt-porcentaje').innerText = (detalles.porcentaje_cobertura || 0) + "%";
+        document.getElementById('txt-empleados-card').innerText = detalles.empleados_activos || '0';
+
+        // 2. Configurar Barra de Progreso Visual
+        let porcentaje = Math.min(detalles.porcentaje_cobertura || 0, 100);
+        let barra = document.getElementById('bar-capacidad');
+        
+        barra.style.width = porcentaje + '%';
+        
+        // Cambiar color según gravedad
+        barra.className = 'progress-bar fw-bold d-flex align-items-center';
+        let colorOferta = '#495057'; // gris por defecto
+        if(porcentaje < 30) {
+            barra.classList.add('bg-danger');
+            colorOferta = '#dc3545'; // rojo
+        } else if (porcentaje < 80) {
+            barra.classList.add('bg-warning');
+            colorOferta = '#ffc107'; // amarillo
+        } else {
+            barra.classList.add('bg-success');
+            colorOferta = '#28a745'; // verde
+        }
+        
+        // Colorear el texto de "Oferta" y su cantidad según el color de la barra
+        const divOferta = document.getElementById('txt-oferta').parentElement.parentElement;
+        divOferta.style.color = colorOferta;
+        
+        // Mantener "Demanda" y su cantidad en gris
+        const divDemanda = document.getElementById('txt-demanda').parentElement.parentElement;
+        divDemanda.style.color = '#495057';
+
+        // 3. Configurar el botón "Ajustar Plantilla"
+        const plantillaId = $plant.value;
+        const btnPlantilla = document.getElementById('btn-plantilla-card');
+
+        if (plantillaId) {
+            // Ir a la pantalla de detalle de la plantilla
+            btnPlantilla.href = `/config/plantillas/${plantillaId}/`;
+        } else {
+            // Si no hay plantilla, ir a la lista
+            btnPlantilla.href = `/config/plantillas/`;
+        }
+
+        // 4. Abrir Modal (Usando Bootstrap 5 API)
+        const modalEl = document.getElementById('modalErrorDotacion');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+
+    // Función auxiliar para resetear la UI cuando se abre el modal
+    function resetUIState() {
+        $panelEstado.classList.add('d-none');
+        toggleLoading(false);
+    }
+
+})();
 </script>
 <div class="modal fade" id="modalErrorDotacion" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    Validación de Dotación Fallida
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px;">
+            <div class="modal-header border-0 bg-white d-none" style="border-radius: 14px 14px 0 0;"></div>
             <div class="modal-body p-4">
                 
-                <div class="text-center mb-4">
-                    <h4 class="text-danger fw-bold">Imposible Generar Cronograma</h4>
-                    <p class="text-muted">La demanda requerida supera la capacidad máxima teórica del personal activo.</p>
+                <div class="text-center mb-3">
+                    <h5 class="fw-bold mb-1" style="color: #2f3e4c;">Imposible Generar Cronograma</h5>
+                    <p class="text-muted small mb-0">La demanda requerida supera la capacidad disponible</p>
                 </div>
 
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between small fw-bold mb-1">
-                        <span>Oferta Actual (<span id="txt-oferta">0</span> hs)</span>
-                        <span class="text-danger">Demanda (<span id="txt-demanda">0</span> hs)</span>
-                    </div>
-                    <div class="progress" style="height: 25px; background-color: #e9ecef;">
-                        <div id="bar-capacidad" class="progress-bar bg-danger" role="progressbar" style="width: 0%">
-                            <span id="txt-porcentaje" class="fw-bold text-white drop-shadow">0%</span>
+                <!-- Card de Análisis de Capacidad -->
+                <div class="card border-0 shadow-sm mb-3" style="border-radius: 10px; background-color: #f8f9fa;">
+                    <div class="card-body p-3">
+                        <h6 class="fw-bold mb-3 small" style="color: #2f3e4c;">Análisis de Capacidad</h6>
+                        
+                        <!-- Barra con información embebida -->
+                        <div class="mb-2">
+                            <div class="progress mb-2" style="height: 32px; background-color: #e9ecef; border-radius: 8px; overflow: hidden;">
+                                <div id="bar-capacidad" class="progress-bar bg-danger fw-bold d-flex align-items-center" role="progressbar" style="width: 0%; font-size: 0.85rem; padding-left: 12px;">
+                                    <span id="txt-porcentaje" class="text-white">0%</span>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between small" style="color: #495057;">
+                                <span>Oferta: <strong><span id="txt-oferta">0</span> hs</strong></span>
+                                <span class="text-danger">Demanda: <strong><span id="txt-demanda">0</span> hs</strong></span>
+                            </div>
+                        </div>
+
+                        <!-- Alerta de Déficit -->
+                        <div class="alert alert-danger d-flex align-items-center mt-2 mb-0" style="border-radius: 8px; padding: 0.6rem 0.9rem;">
+                            <i class="bi bi-dash-circle-fill me-2" style="font-size: 0.9rem;"></i>
+                            <span class="small">Faltan <strong><span id="txt-deficit">0</span> hs</strong></span>
                         </div>
                     </div>
-                    <div class="text-center mt-2">
-                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger">
-                            Faltan cubrir <span id="txt-deficit" class="fw-bold">0</span> horas (aprox)
-                        </span>
-                    </div>
                 </div>
 
-                <div class="alert alert-warning d-flex align-items-start small" role="alert">
-                    <i class="bi bi-info-circle-fill fs-5 me-2"></i>
-                    <div>
-                        <strong>Nota importante sobre capacidad:</strong><br>
-                        Para garantizar una cobertura saludable, la capacidad del personal debería ser 
-                        <strong>al menos un 15% superior</strong> a la demanda. Esto es necesario para cubrir francos obligatorios, 
-                        preferencias, indisponibilidades y evitar la fatiga del equipo.
-                        <br>
-                        <em>Incluso si los números fueran iguales, el algoritmo no podría cubrir todos los turnos debido a estas restricciones.</em>
+                <!-- Acciones Sugeridas - Two Cards -->
+                <div class="row g-2">
+                    <!-- Card Personal -->
+                    <div class="col-6">
+                        <a href="{% url 'empleado_list' %}" class="card border-0 shadow-sm text-decoration-none h-100" style="border-radius: 10px; background: linear-gradient(135deg, #e7f3ff 0%, #f0f8ff 100%); transition: all 0.3s ease; border-left: 4px solid #0d6efd; cursor: pointer;">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <i class="bi bi-people-fill" style="font-size: 1.8rem; color: #0d6efd;"></i>
+                                    <i class="bi bi-arrow-right" style="font-size: 1rem; color: #0d6efd; opacity: 0.6;"></i>
+                                </div>
+                                <h6 class="fw-bold mb-1" style="color: #2f3e4c; font-size: 0.95rem;">Revisar Personal</h6>
+                                <p class="small text-muted mb-0">Actualmente hay <strong id="txt-empleados-card" class="text-dark">0</strong> empleados activos. Verifica si hay personal inactivo o licencias mal cargadas.</p>
+                            </div>
+                        </a>
                     </div>
-                </div>
-
-                <div class="card bg-light border-0 mt-3">
-                    <div class="card-body">
-                        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-lightbulb-fill text-warning"></i> Acciones Sugeridas</h6>
-                        <ul class="mb-0 text-muted small ps-3">
-                            <li class="mb-2">
-                                <strong>Revisar Personal:</strong> Actualmente hay <strong id="txt-empleados" class="text-dark">0</strong> empleados activos. Verifica si hay personal inactivo o licencias mal cargadas.
-                            </li>
-                            <li class="mb-2">
-                                <strong>Ajustar Plantilla:</strong> Reducí la cantidad de profesionales requeridos por turno en la configuración de la Plantilla de Demanda.
-                            </li>
-                        </ul>
+                    <!-- Card Plantilla -->
+                    <div class="col-6">
+                        <a href="#" id="btn-plantilla-card" class="card border-0 shadow-sm text-decoration-none h-100" style="border-radius: 10px; background: linear-gradient(135deg, #e7f3ff 0%, #f0f8ff 100%); transition: all 0.3s ease; border-left: 4px solid #0d6efd; cursor: pointer;">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <i class="bi bi-table" style="font-size: 1.8rem; color: #0d6efd;"></i>
+                                    <i class="bi bi-arrow-right" style="font-size: 1rem; color: #0d6efd; opacity: 0.6;"></i>
+                                </div>
+                                <h6 class="fw-bold mb-1" style="color: #2f3e4c; font-size: 0.95rem;">Ajustar Plantilla</h6>
+                                <p class="small text-muted mb-0">Reducí la cantidad de profesionales requeridos por turno en la configuración de la Plantilla de Demanda.</p>
+                            </div>
+                        </a>
                     </div>
                 </div>
 
             </div>
-            <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Entendido</button>
-                <a href="#" id="btn-ir-plantilla" class="btn btn-primary">
-                    <i class="bi bi-pencil-square"></i> Modificar Plantilla
-                </a>
+            <div class="modal-footer border-0 bg-white p-3 justify-content-center gap-2" style="border-radius: 0 0 14px 14px;">
+                <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold" style="border-radius: 8px;" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>
