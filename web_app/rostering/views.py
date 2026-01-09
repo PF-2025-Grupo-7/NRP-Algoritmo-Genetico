@@ -52,11 +52,18 @@ from .services import (
 # VISTAS GENERALES Y DE GESTIÓN
 # ==============================================================================
 
+def landing(request):
+    """Pantalla de presentación: redirige a dashboard si está logueado."""
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    return render(request, 'rostering/landing.html')
+
+
 def dashboard(request):
     """Vista principal: KPIs, accesos rápidos y estado actual del sistema."""
     total_empleados = Empleado.objects.count()
-    borradores_pendientes = Cronograma.objects.filter(estado=Cronograma.Estado.BORRADOR).count()
-    ultimo_cronograma = Cronograma.objects.order_by('-fecha_creacion').first()
+    total_ausencias = NoDisponibilidad.objects.count()
+    total_preferencias = Preferencia.objects.count()
     recientes = Cronograma.objects.all().order_by('-fecha_creacion')[:5]
 
     hoy = timezone.now().date()
@@ -70,10 +77,9 @@ def dashboard(request):
 
     context = {
         'total_empleados': total_empleados,
-        'borradores': borradores_pendientes,
-        'ultimo': ultimo_cronograma,
+        'total_ausencias': total_ausencias,
+        'total_preferencias': total_preferencias,
         'recientes': recientes,
-        'existe_proximo': existe_proximo,
         'mes_objetivo': nombre_mes_objetivo,
     }
     return render(request, 'rostering/dashboard.html', context)
@@ -88,8 +94,6 @@ def registrar_usuario(request):
             login(request, user)
             messages.success(request, "¡Registro exitoso! Bienvenido.")
             return redirect('dashboard')
-        else:
-            messages.error(request, "Por favor corrige los errores abajo.")
     else:
         form = UserCreationForm()
     return render(request, 'registration/register.html', {'form': form})
@@ -591,12 +595,28 @@ def get_config_activa():
     config, _ = ConfiguracionAlgoritmo.objects.get_or_create(activa=True)
     return config
 
-class ConfiguracionDashboardView(SuperUserRequiredMixin, TemplateView):
+class ConfiguracionDashboardView(SuperUserRequiredMixin, FormView):
     template_name = 'rostering/config_dashboard.html'
+    form_class = ConfiguracionSimpleForm
+    success_url = reverse_lazy('config_dashboard')
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['config'] = get_config_activa()
         return ctx
+
+    def form_valid(self, form):
+        form.save(get_config_activa())
+        # Mapear el valor del modo al nombre amigable
+        modo_nombres = {
+            'RAPIDA': 'Búsqueda Rápida',
+            'EQUILIBRADA': 'Búsqueda Equilibrada',
+            'PROFUNDA': 'Búsqueda Profunda',
+            'PERSONALIZADA': 'Búsqueda Personalizada',
+        }
+        modo_nombre = modo_nombres.get(form.cleaned_data['modo'], form.cleaned_data['modo'])
+        messages.success(self.request, f"Configuración actualizada a {modo_nombre}")
+        return super().form_valid(form)
 
 class ConfiguracionSimpleView(SuperUserRequiredMixin, FormView):
     template_name = 'rostering/config_simple.html'
@@ -605,7 +625,15 @@ class ConfiguracionSimpleView(SuperUserRequiredMixin, FormView):
 
     def form_valid(self, form):
         form.save(get_config_activa())
-        messages.success(self.request, f"¡Configuración actualizada a modo {form.cleaned_data['modo']}!")
+        # Mapear el valor del modo al nombre amigable
+        modo_nombres = {
+            'RAPIDA': 'Búsqueda Rápida',
+            'EQUILIBRADA': 'Búsqueda Equilibrada',
+            'PROFUNDA': 'Búsqueda Profunda',
+            'PERSONALIZADA': 'Búsqueda Personalizada',
+        }
+        modo_nombre = modo_nombres.get(form.cleaned_data['modo'], form.cleaned_data['modo'])
+        messages.success(self.request, f"Configuración actualizada a {modo_nombre}")
         return super().form_valid(form)
 
 class ConfiguracionAvanzadaView(SuperUserRequiredMixin, UpdateView):

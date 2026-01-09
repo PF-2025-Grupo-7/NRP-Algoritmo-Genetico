@@ -3,9 +3,10 @@ from . import views
 
 urlpatterns = [
     # ==========================================================================
-    # DASHBOARD Y ACCESO
+    # LANDING Y DASHBOARD
     # ==========================================================================
-    path('', views.dashboard, name='dashboard'),
+    path('', views.landing, name='landing'),
+    path('dashboard/', views.dashboard, name='dashboard'),
     path('accounts/register/', views.registrar_usuario, name='register'),
 
     # ==========================================================================

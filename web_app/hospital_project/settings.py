@@ -109,7 +109,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-ar'
 
 TIME_ZONE = 'America/Argentina/Buenos_Aires'
 
@@ -148,8 +148,8 @@ LOGGING = {
 # Redirección tras login exitoso (iremos al generador o al dashboard)
 LOGIN_REDIRECT_URL = '/'
 
-# A dónde ir después de desloguearse (vuelve al login)
-LOGOUT_REDIRECT_URL = '/accounts/login/' 
+# Redirección tras logout (iremos a la landing page)
+LOGOUT_REDIRECT_URL = '/'
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8080',

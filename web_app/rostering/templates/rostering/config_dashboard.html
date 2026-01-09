@@ -1,53 +1,268 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="text-center mb-5">
-        <h2><i class="bi bi-gear-wide-connected"></i> Panel de Administración</h2>
-        <p class="text-muted">Gestiona los parámetros del motor de inteligencia artificial.</p>
-    </div>
-
+<div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-md-10"> <div class="alert alert-info text-center shadow-sm">
-                Configuración Activa: <strong>{{ config.nombre }}</strong> 
-                <br>
-                <small>(Población: {{ config.tamano_poblacion }} | Generaciones: {{ config.generaciones }})</small>
-            </div>
-        </div>
-    </div>
-
-    <div class="row justify-content-center mt-4">
-        <div class="col-md-5">
-            <div class="card h-100 shadow border-0 hover-effect">
-                <div class="card-body text-center p-5">
-                    <div class="mb-3 text-primary">
-                        <i class="bi bi-speedometer2" style="font-size: 3rem;"></i>
+        <div class="col-md-10">
+            <!-- Encabezado -->
+            <div class="row mb-4 align-items-center">
+                <div class="col-md-8">
+                    <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Configuración del Motor de IA</h1>
+                    <p class="text-muted fs-5 mb-0">Perfiles de optimización disponibles según tus necesidades</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="alert alert-light border mb-0 py-1 px-2" style="font-size: 0.85rem; color: #5a5a5a; display: inline-block; min-width: 220px; max-width: 260px;">
+                        <div class="text-uppercase small fw-semibold" style="letter-spacing: 0.5px;">Configuración actual</div>
+                        <div id="current-config-display" class="fw-semibold" style="color: #0d6efd;">{{ config.nombre }}</div>
                     </div>
-                    <h4>Ajuste Rápido</h4>
-                    <p class="text-muted">
-                        Elige entre perfiles predefinidos (Rápido, Normal, Profundo). 
-                        Ideal para el uso diario.
-                    </p>
-                    <a href="{% url 'config_simple' %}" class="btn btn-primary px-4 mt-3">Usar Modo Simple</a>
                 </div>
             </div>
-        </div>
 
-        <div class="col-md-5">
-            <div class="card h-100 shadow border-0 hover-effect">
-                <div class="card-body text-center p-5">
-                    <div class="mb-3 text-dark">
-                        <i class="bi bi-sliders" style="font-size: 3rem;"></i>
+            <form method="post" id="config-form">
+                {% csrf_token %}
+
+                <!-- Recuadro 1: Ajuste Rápido -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white border-bottom-0 pt-4 px-4">
+                        <h4 class="fw-bold mb-1"><i class="bi bi-speedometer2"></i> Ajuste Rápido</h4>
+                        <p class="text-muted mb-2">Perfiles predefinidos para comenzar rápidamente.</p>
                     </div>
-                    <h4>Ajuste Avanzado</h4>
-                    <p class="text-muted">
-                        Control total sobre mutaciones, cruces, semillas y pesos de penalización.
-                        Solo para expertos.
-                    </p>
-                    <a href="{% url 'config_avanzada' %}" class="btn btn-outline-dark px-4 mt-3">Entrar al Laboratorio</a>
+                    <div class="card-body p-4 pt-2">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="card h-100 border-2 cursor-pointer mode-card" data-value="RAPIDA" {% if config.nombre == 'Configuración Rápida' %}data-active="true"{% endif %}>
+                                    <input type="radio" name="modo" value="RAPIDA" class="btn-check" {% if config.nombre == 'Configuración Rápida' %}checked{% endif %}>
+                                    <div class="card-body text-center">
+                                        <div class="fw-bold fs-5 mb-2">Búsqueda Rápida</div>
+                                        <div class="text-muted small">
+                                            <div>Población: 100</div>
+                                            <div>Generaciones: 75</div>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="card h-100 border-2 cursor-pointer mode-card" data-value="EQUILIBRADA" {% if config.nombre == 'Configuración Equilibrada' %}data-active="true"{% endif %}>
+                                    <input type="radio" name="modo" value="EQUILIBRADA" class="btn-check" {% if config.nombre == 'Configuración Equilibrada' %}checked{% endif %}>
+                                    <div class="card-body text-center">
+                                        <div class="fw-bold fs-5 mb-2">Búsqueda Equilibrada</div>
+                                        <div class="text-muted small">
+                                            <div>Población: 100</div>
+                                            <div>Generaciones: 150</div>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="card h-100 border-2 cursor-pointer mode-card" data-value="PROFUNDA" {% if config.nombre == 'Configuración Profunda' %}data-active="true"{% endif %}>
+                                    <input type="radio" name="modo" value="PROFUNDA" class="btn-check" {% if config.nombre == 'Configuración Profunda' %}checked{% endif %}>
+                                    <div class="card-body text-center">
+                                        <div class="fw-bold fs-5 mb-2">Búsqueda Profunda</div>
+                                        <div class="text-muted small">
+                                            <div>Población: 150</div>
+                                            <div>Generaciones: 250</div>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Recuadro 2: Ajuste Avanzado -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white border-bottom-0 pt-4 px-4">
+                        <h4 class="fw-bold mb-1"><i class="bi bi-sliders"></i> Ajuste Avanzado</h4>
+                        <p class="text-muted mb-2">Control total sobre mutaciones, cruces, semillas y pesos de penalización. Solo para expertos.</p>
+                    </div>
+                    <div class="card-body p-4 pt-2">
+                        <div class="row g-3">
+                            <div class="col-md-12">
+                                <label class="card h-100 border-2 cursor-pointer mode-card" data-value="PERSONALIZADA" {% if config.nombre == 'Búsqueda Personalizada' %}data-active="true"{% endif %}>
+                                    <input type="radio" name="modo" value="PERSONALIZADA" class="btn-check" {% if config.nombre == 'Búsqueda Personalizada' %}checked{% endif %}>
+                                    <div class="card-body">
+                                        <div class="row align-items-center">
+                                            <div class="col-md-8">
+                                                <div class="fw-bold fs-5 mb-2">Búsqueda Personalizada</div>
+                                                <div class="text-muted small">
+                                                    Configura manualmente población, generaciones, probabilidades, estrategias y pesos de penalización.
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4 text-end">
+                                                <a href="{% url 'config_avanzada' %}" class="btn btn-outline-secondary btn-sm config-advanced-link">
+                                                    <i class="bi bi-sliders me-1"></i>Configurar parámetros
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Botón Guardar Cambios -->
+            <div class="d-flex justify-content-end">
+                <button type="button" id="reset-selection" class="btn btn-outline-secondary me-2 fw-bold px-4">Cancelar</button>
+                <button type="submit" form="config-form" class="btn btn-primary fw-bold px-5">
+                    <i class="bi bi-check-lg me-2"></i>Guardar Cambios
+                </button>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    /* Estilo para ocultar el radio button real */
+    .btn-check { position: absolute; clip: rect(0,0,0,0); pointer-events: none; }
+    
+    /* Estilo base para las cards de modo */
+    .mode-card { 
+        cursor: pointer; 
+        transition: all 0.3s ease;
+        background-color: #ffffff;
+        border-color: #e0e0e0 !important;
+    }
+    
+    .mode-card:hover { 
+        border-color: #0d6efd !important;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25);
+        transform: translateY(-2px);
+    }
+    
+    /* Estilo para la card seleccionada */
+    .mode-card.selected { 
+        background-color: #0d6efd;
+        border-color: #0d6efd !important;
+        color: white;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+    }
+    
+    .mode-card.selected .fw-bold { 
+        color: white; 
+    }
+    
+    .mode-card.selected .text-muted { 
+        color: rgba(255, 255, 255, 0.85) !important; 
+    }
+
+    .mode-card.selected .btn-outline-secondary {
+        border-color: rgba(255, 255, 255, 0.8);
+        color: white;
+    }
+
+    .mode-card.selected .btn-outline-secondary:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+        border-color: white;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('config-form');
+        const radioButtons = document.querySelectorAll('input[name="modo"]');
+        const modeCards = document.querySelectorAll('.mode-card');
+        const configAdvancedLink = document.querySelector('.config-advanced-link');
+        const resetBtn = document.getElementById('reset-selection');
+        let hasUnsavedChanges = false;
+        let isNavigatingToAdvanced = false;
+
+        // Nombre de configuración guardada en servidor
+        const savedConfigName = "{{ config.nombre }}";
+        const nameToMode = {
+            'Configuración Rápida': 'RAPIDA',
+            'Configuración Equilibrada': 'EQUILIBRADA',
+            'Configuración Profunda': 'PROFUNDA',
+            'Búsqueda Personalizada': 'PERSONALIZADA'
+        };
+        const savedMode = nameToMode[savedConfigName] || 'PERSONALIZADA';
+
+        // Mapeo de valores de modo a nombres legibles
+        const modoToNombre = {
+            'RAPIDA': 'Búsqueda Rápida',
+            'EQUILIBRADA': 'Búsqueda Equilibrada',
+            'PROFUNDA': 'Búsqueda Profunda',
+            'PERSONALIZADA': 'Búsqueda Personalizada'
+        };
+
+        // Inicializar: marcar la card seleccionada como "selected"
+        function updateCardSelection() {
+            modeCards.forEach(card => {
+                const radio = card.querySelector('input[type="radio"]');
+                if (radio && radio.checked) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+        }
+
+        // Marcar la configuración guardada al cargar
+        const savedRadio = document.querySelector(`input[name="modo"][value="${savedMode}"]`);
+        if (savedRadio) {
+            savedRadio.checked = true;
+        }
+        updateCardSelection();
+
+        // Cuando se hace click en una card
+        modeCards.forEach(card => {
+            card.addEventListener('click', function(e) {
+                // Si se hizo click en el botón "Configurar parámetros", marcar como navegación avanzada
+                if (e.target.closest('.config-advanced-link')) {
+                    isNavigatingToAdvanced = true;
+                    return;
+                }
+                
+                const radio = this.querySelector('input[type="radio"]');
+                if (radio) {
+                    radio.checked = true;
+                    updateCardSelection();
+                    hasUnsavedChanges = true;
+                }
+            });
+        });
+
+        // También detectar cambios en los radios directamente
+        radioButtons.forEach(radio => {
+            radio.addEventListener('change', function() {
+                updateCardSelection();
+                hasUnsavedChanges = true;
+            });
+        });
+
+        // Botón cancelar: volver al último guardado
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function() {
+                const target = document.querySelector(`input[name="modo"][value="${savedMode}"]`);
+                if (target) {
+                    target.checked = true;
+                    updateCardSelection();
+                    hasUnsavedChanges = false;
+                }
+            });
+        }
+
+        // Warning cuando intenta salir sin guardar (PERO NO cuando va a configurar parámetros)
+        window.addEventListener('beforeunload', function(e) {
+            if (hasUnsavedChanges && !isNavigatingToAdvanced) {
+                e.preventDefault();
+                e.returnValue = 'Tienes cambios sin guardar en la configuración. ¿Estás seguro de que deseas salir?';
+                return e.returnValue;
+            }
+        });
+
+        // Resetear flag de navegación avanzada si regresa (por ejemplo, con el botón atrás)
+        window.addEventListener('pageshow', function() {
+            isNavigatingToAdvanced = false;
+        });
+
+        // Resetear flag cuando se envía el formulario
+        form.addEventListener('submit', function() {
+            hasUnsavedChanges = false;
+        });
+    });
+</script>
 {% endblock %}
