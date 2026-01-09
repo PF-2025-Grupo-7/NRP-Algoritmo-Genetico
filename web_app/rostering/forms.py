@@ -151,6 +151,7 @@ class ConfiguracionSimpleForm(forms.Form):
         ('RAPIDA', '⚡ Búsqueda Rápida (Borrador)'),
         ('EQUILIBRADA', '⚖️ Búsqueda Equilibrada (Recomendada)'),
         ('PROFUNDA', '🧠 Búsqueda Profunda (Alta Calidad)'),
+        ('PERSONALIZADA', '🎯 Búsqueda Personalizada (Expertos)'),
     ]
 
     modo = forms.ChoiceField(
@@ -175,6 +176,10 @@ class ConfiguracionSimpleForm(forms.Form):
             config_instance.generaciones = p['gen']
             config_instance.prob_mutacion = p['pm']
             config_instance.nombre = p['nombre']
+            config_instance.save()
+        elif modo == 'PERSONALIZADA':
+            # Para personalizada, solo asegurarse de que el nombre esté correcto
+            config_instance.nombre = "Búsqueda Personalizada"
             config_instance.save()
 
 class ConfiguracionAvanzadaForm(BootstrapFormMixin, forms.ModelForm):

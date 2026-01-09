@@ -8,7 +8,13 @@
             <div class="row mb-4 align-items-center">
                 <div class="col-md-8">
                     <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Configuración del Motor de IA</h1>
-                    <p class="text-muted fs-5 mb-0">Selecciona el perfil que mejor se ajuste a tus necesidades</p>
+                    <p class="text-muted fs-5 mb-0">Perfiles de optimización disponibles según tus necesidades</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="alert alert-light border mb-0 py-1 px-2" style="font-size: 0.85rem; color: #5a5a5a; display: inline-block; min-width: 220px; max-width: 260px;">
+                        <div class="text-uppercase small fw-semibold" style="letter-spacing: 0.5px;">Configuración actual</div>
+                        <div id="current-config-display" class="fw-semibold" style="color: #0d6efd;">{{ config.nombre }}</div>
+                    </div>
                 </div>
             </div>
 
@@ -74,8 +80,8 @@
                     <div class="card-body p-4 pt-2">
                         <div class="row g-3">
                             <div class="col-md-12">
-                                <label class="card h-100 border-2 cursor-pointer mode-card" data-value="PERSONALIZADA" {% if config.nombre != 'Configuración Rápida' and config.nombre != 'Configuración Equilibrada' and config.nombre != 'Configuración Profunda' %}data-active="true"{% endif %}>
-                                    <input type="radio" name="modo" value="PERSONALIZADA" class="btn-check" {% if config.nombre != 'Configuración Rápida' and config.nombre != 'Configuración Equilibrada' and config.nombre != 'Configuración Profunda' %}checked{% endif %}>
+                                <label class="card h-100 border-2 cursor-pointer mode-card" data-value="PERSONALIZADA" {% if config.nombre == 'Búsqueda Personalizada' %}data-active="true"{% endif %}>
+                                    <input type="radio" name="modo" value="PERSONALIZADA" class="btn-check" {% if config.nombre == 'Búsqueda Personalizada' %}checked{% endif %}>
                                     <div class="card-body">
                                         <div class="row align-items-center">
                                             <div class="col-md-8">
@@ -100,6 +106,7 @@
 
             <!-- Botón Guardar Cambios -->
             <div class="d-flex justify-content-end">
+                <button type="button" id="reset-selection" class="btn btn-outline-secondary me-2 fw-bold px-4">Cancelar</button>
                 <button type="submit" form="config-form" class="btn btn-primary fw-bold px-5">
                     <i class="bi bi-check-lg me-2"></i>Guardar Cambios
                 </button>
@@ -159,7 +166,27 @@
         const radioButtons = document.querySelectorAll('input[name="modo"]');
         const modeCards = document.querySelectorAll('.mode-card');
         const configAdvancedLink = document.querySelector('.config-advanced-link');
+        const resetBtn = document.getElementById('reset-selection');
         let hasUnsavedChanges = false;
+        let isNavigatingToAdvanced = false;
+
+        // Nombre de configuración guardada en servidor
+        const savedConfigName = "{{ config.nombre }}";
+        const nameToMode = {
+            'Configuración Rápida': 'RAPIDA',
+            'Configuración Equilibrada': 'EQUILIBRADA',
+            'Configuración Profunda': 'PROFUNDA',
+            'Búsqueda Personalizada': 'PERSONALIZADA'
+        };
+        const savedMode = nameToMode[savedConfigName] || 'PERSONALIZADA';
+
+        // Mapeo de valores de modo a nombres legibles
+        const modoToNombre = {
+            'RAPIDA': 'Búsqueda Rápida',
+            'EQUILIBRADA': 'Búsqueda Equilibrada',
+            'PROFUNDA': 'Búsqueda Profunda',
+            'PERSONALIZADA': 'Búsqueda Personalizada'
+        };
 
         // Inicializar: marcar la card seleccionada como "selected"
         function updateCardSelection() {
@@ -173,14 +200,19 @@
             });
         }
 
-        // Llamar al cargar la página
+        // Marcar la configuración guardada al cargar
+        const savedRadio = document.querySelector(`input[name="modo"][value="${savedMode}"]`);
+        if (savedRadio) {
+            savedRadio.checked = true;
+        }
         updateCardSelection();
 
         // Cuando se hace click en una card
         modeCards.forEach(card => {
             card.addEventListener('click', function(e) {
-                // Si se hizo click en el botón "Configurar parámetros", no hacer nada
+                // Si se hizo click en el botón "Configurar parámetros", marcar como navegación avanzada
                 if (e.target.closest('.config-advanced-link')) {
+                    isNavigatingToAdvanced = true;
                     return;
                 }
                 
@@ -201,22 +233,31 @@
             });
         });
 
-        // Warning cuando intenta salir sin guardar
+        // Botón cancelar: volver al último guardado
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function() {
+                const target = document.querySelector(`input[name="modo"][value="${savedMode}"]`);
+                if (target) {
+                    target.checked = true;
+                    updateCardSelection();
+                    hasUnsavedChanges = false;
+                }
+            });
+        }
+
+        // Warning cuando intenta salir sin guardar (PERO NO cuando va a configurar parámetros)
         window.addEventListener('beforeunload', function(e) {
-            if (hasUnsavedChanges) {
+            if (hasUnsavedChanges && !isNavigatingToAdvanced) {
                 e.preventDefault();
                 e.returnValue = 'Tienes cambios sin guardar en la configuración. ¿Estás seguro de que deseas salir?';
                 return e.returnValue;
             }
         });
 
-        // Warning al hacer click en el link de configuración avanzada
-        if (configAdvancedLink) {
-            configAdvancedLink.addEventListener('click', function(e) {
-                // No mostrar warning cuando se va a configurar parámetros
-                // El warning solo debe aparecer al salir de la sección de configuración completamente
-            });
-        }
+        // Resetear flag de navegación avanzada si regresa (por ejemplo, con el botón atrás)
+        window.addEventListener('pageshow', function() {
+            isNavigatingToAdvanced = false;
+        });
 
         // Resetear flag cuando se envía el formulario
         form.addEventListener('submit', function() {

@@ -588,6 +588,7 @@ class ConfiguracionDashboardView(SuperUserRequiredMixin, FormView):
             'RAPIDA': 'Búsqueda Rápida',
             'EQUILIBRADA': 'Búsqueda Equilibrada',
             'PROFUNDA': 'Búsqueda Profunda',
+            'PERSONALIZADA': 'Búsqueda Personalizada',
         }
         modo_nombre = modo_nombres.get(form.cleaned_data['modo'], form.cleaned_data['modo'])
         messages.success(self.request, f"Configuración actualizada a {modo_nombre}")
@@ -605,6 +606,7 @@ class ConfiguracionSimpleView(SuperUserRequiredMixin, FormView):
             'RAPIDA': 'Búsqueda Rápida',
             'EQUILIBRADA': 'Búsqueda Equilibrada',
             'PROFUNDA': 'Búsqueda Profunda',
+            'PERSONALIZADA': 'Búsqueda Personalizada',
         }
         modo_nombre = modo_nombres.get(form.cleaned_data['modo'], form.cleaned_data['modo'])
         messages.success(self.request, f"Configuración actualizada a {modo_nombre}")
