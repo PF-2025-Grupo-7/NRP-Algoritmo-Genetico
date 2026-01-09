@@ -28,11 +28,23 @@
                         <div class="small text-muted">
                             <i class="bi bi-calendar-week"></i> {{ p.reglas.count }} Reglas
                         </div>
+                        
                         <div class="btn-group">
                             <a href="{% url 'plantilla_detail' p.pk %}" class="btn btn-outline-primary btn-sm">
                                 <i class="bi bi-gear"></i> Configurar
                             </a>
-                            <a href="{% url 'plantilla_delete' p.pk %}" class="btn btn-outline-danger btn-sm">
+                            
+                            <button type="button" 
+                                    class="btn btn-outline-secondary btn-sm" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#modalDuplicar" 
+                                    data-nombre="{{ p.nombre }}"
+                                    data-url="{% url 'plantilla_duplicate' p.pk %}"
+                                    title="Duplicar Plantilla">
+                                <i class="bi bi-files"></i>
+                            </button>
+
+                            <a href="{% url 'plantilla_delete' p.pk %}" class="btn btn-outline-danger btn-sm" title="Eliminar">
                                 <i class="bi bi-trash"></i>
                             </a>
                         </div>
@@ -47,4 +59,49 @@
         {% endfor %}
     </div>
 </div>
+
+<div class="modal fade" id="modalDuplicar" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Duplicar Plantilla</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">¿Deseas crear una copia exacta de la plantilla <strong id="nombrePlantillaModal" class="text-dark">...</strong>?</p>
+                <div class="alert alert-info py-2 small border-0 bg-info bg-opacity-10 text-info-emphasis">
+                    <i class="bi bi-info-circle me-1"></i> Se copiarán todas las reglas semanales y excepciones.
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <a href="#" id="btnConfirmarDuplicar" class="btn btn-primary fw-bold">
+                    <i class="bi bi-files me-1"></i> Sí, duplicar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var modalDuplicar = document.getElementById('modalDuplicar');
+        
+        modalDuplicar.addEventListener('show.bs.modal', function (event) {
+            // Botón que disparó el modal
+            var button = event.relatedTarget;
+            
+            // Extraer info de los atributos data-*
+            var url = button.getAttribute('data-url');
+            var nombre = button.getAttribute('data-nombre');
+            
+            // Actualizar el contenido del modal
+            var modalTitle = modalDuplicar.querySelector('#nombrePlantillaModal');
+            var confirmBtn = modalDuplicar.querySelector('#btnConfirmarDuplicar');
+            
+            modalTitle.textContent = '"' + nombre + '"';
+            confirmBtn.href = url;
+        });
+    });
+</script>
 {% endblock %}

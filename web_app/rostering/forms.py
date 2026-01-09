@@ -44,11 +44,25 @@ class EmpleadoForm(BootstrapFormMixin, forms.ModelForm):
 class TipoTurnoForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = TipoTurno
-        fields = '__all__'
+        # Excluimos 'duracion_horas' porque se calcula sola en el modelo
+        fields = ['nombre', 'abreviatura', 'especialidad', 'es_nocturno', 'hora_inicio', 'hora_fin']
         widgets = {
-            'hora_inicio': TIME_INPUT,
-            'hora_fin': TIME_INPUT,
+            'hora_inicio': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'hora_fin': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
         }
+        help_texts = {
+            'es_nocturno': 'Marcá esto si el turno cruza la medianoche (ej: 22:00 a 06:00) o implica penalizaciones nocturnas.'
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Lógica para bloquear Especialidad si es una EDICIÓN
+        if self.instance and self.instance.pk:
+            self.fields['especialidad'].disabled = True
+            self.fields['especialidad'].help_text = "La especialidad no se puede cambiar porque afectaría al historial y reglas vigentes."
+
+
 
 class NoDisponibilidadForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
@@ -99,6 +113,22 @@ class PlantillaDemandaForm(BootstrapFormMixin, forms.ModelForm):
             'especialidad': SELECT_WIDGET,
             'descripcion': forms.Textarea(attrs={'rows': 3}),
         }
+
+class PlantillaDemandaUpdateForm(forms.ModelForm):
+    class Meta:
+        model = PlantillaDemanda
+        fields = ['nombre', 'especialidad', 'descripcion']
+        widgets = {
+            'descripcion': forms.Textarea(attrs={'rows': 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Bloqueamos el campo especialidad para que sea de solo lectura
+        # Usamos 'disabled' para que el usuario lo vea grisado y no pueda tocarlo
+        if 'especialidad' in self.fields:
+            self.fields['especialidad'].disabled = True
+            self.fields['especialidad'].help_text = "La especialidad no se puede modificar una vez creada la plantilla."
 
 class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:

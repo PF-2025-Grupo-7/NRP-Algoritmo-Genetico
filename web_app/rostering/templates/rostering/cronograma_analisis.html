@@ -10,15 +10,15 @@
                 ({{ cronograma.fecha_inicio|date:"M Y" }})
             </p>
         </div>
-        <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Volver al listado
-        </a>
-        <a href="{% url 'exportar_pdf' cronograma.id %}" target="_blank" class="btn btn-danger shadow-sm">
-            <i class="bi bi-file-earmark-pdf-fill me-2"></i> Exportar PDF
-        </a>
-        <div class="btn-group shadow-sm">
-            <a href="{% url 'exportar_excel' cronograma.id %}" class="btn btn-success">
-                <i class="bi bi-file-excel"></i> Excel
+        <div class="d-flex gap-2">
+            <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
+            <a href="{% url 'exportar_pdf' cronograma.id %}" target="_blank" class="btn btn-danger shadow-sm">
+                <i class="bi bi-file-earmark-pdf-fill me-2"></i> PDF
+            </a>
+            <a href="{% url 'exportar_excel' cronograma.id %}" class="btn btn-success shadow-sm">
+                <i class="bi bi-file-excel me-2"></i> Excel
             </a>
         </div>
     </div>
@@ -40,12 +40,19 @@
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-body text-center">
                     <h6 class="text-muted text-uppercase mb-3">Cobertura de Demanda</h6>
-                    {% if metricas.cobertura_cumplida %}
-                        <div class="text-success mb-2"><i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i></div>
-                        <h5 class="text-success">Completa</h5>
+                    
+                    {% if violaciones_duras.deficit_cobertura %}
+                        <div class="text-danger mb-2 animate__animated animate__pulse animate__infinite">
+                            <i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem;"></i>
+                        </div>
+                        <h5 class="text-danger fw-bold">Déficit Detectado</h5>
+                        <small class="text-danger">No se cubrió el 100% de los turnos</small>
                     {% else %}
-                        <div class="text-danger mb-2"><i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem;"></i></div>
-                        <h5 class="text-danger">Déficit Detectado</h5>
+                        <div class="text-success mb-2">
+                            <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
+                        </div>
+                        <h5 class="text-success fw-bold">Completa</h5>
+                        <small class="text-muted">Se cumplieron todas las reglas de dotación</small>
                     {% endif %}
                 </div>
             </div>
@@ -56,8 +63,9 @@
                 <div class="card-body text-center">
                     <h6 class="text-muted text-uppercase mb-3">Promedio de Horas</h6>
                     <div class="display-4 fw-bold text-dark">
-                        {{ equidad.promedio_objetivo|default:"-"|floatformat:2 }}
+                        {{ equidad.promedio_objetivo|default:"-"|floatformat:1 }}
                     </div>
+                    <small class="text-muted">Horas promedio por profesional</small>
                 </div>
             </div>
         </div>
@@ -70,7 +78,7 @@
                     <i class="bi bi-bar-chart-fill"></i> Distribución de Horas por Profesional
                 </div>
                 <div class="card-body">
-                    <div style="height: 300px; position: relative;">
+                    <div style="height: 400px; position: relative;">
                         <canvas id="equityChart"></canvas>
                     </div>
                 </div>
@@ -80,58 +88,84 @@
         <div class="col-lg-4 mb-4">
             <div class="card shadow border-0 h-100">
                 <div class="card-header bg-white fw-bold d-flex align-items-center justify-content-between">
-                    <span><i class="bi bi-list-check me-2 text-primary"></i> Reporte de Preferencias</span>
+                    <span><i class="bi bi-list-check me-2 text-primary"></i> Reporte de Incidentes</span>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body p-0 overflow-auto" style="max-height: 500px;">
                     <ul class="list-group list-group-flush">
                         
-                        <li class="list-group-item bg-light fw-bold small text-uppercase text-muted">
+                        {% if violaciones_duras.deficit_cobertura %}
+                            <li class="list-group-item bg-danger bg-opacity-10 fw-bold small text-uppercase text-danger border-bottom-0">
+                                <i class="bi bi-shield-exclamation me-1"></i> Cobertura Insuficiente
+                            </li>
+                            {% for v in violaciones_duras.deficit_cobertura %}
+                                <li class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="me-2">
+                                            <div class="fw-bold text-danger mb-0">
+                                                <i class="bi bi-x-circle-fill me-1"></i> {{ v.turno }}
+                                            </div>
+                                            <small class="text-muted lh-1" style="font-size: 0.85rem;">
+                                                {{ v.detalle }}
+                                            </small>
+                                        </div>
+                                        <span class="badge bg-white text-danger border border-danger">
+                                            {{ v.fecha|slice:"5:" }}
+                                        </span>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        {% endif %}
+
+                        <li class="list-group-item bg-warning bg-opacity-10 fw-bold small text-uppercase text-warning text-dark border-bottom-0 mt-0">
                             <i class="bi bi-calendar-x me-1"></i> Francos No Respetados
                         </li>
                         
                         {% for v in violaciones_blandas.preferencia_libre_incumplida %}
                             <li class="list-group-item">
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <div class="me-3">
-                                        <div class="fw-bold text-dark mb-1">
+                                    <div class="me-2">
+                                        <div class="fw-bold text-dark mb-0">
                                             <i class="bi bi-person-exclamation text-warning me-1"></i> {{ v.nombre }}
                                         </div>
-                                        <small class="text-muted d-block lh-sm">{{ v.detalle }}</small>
+                                        <small class="text-muted lh-1" style="font-size: 0.85rem;">
+                                            {{ v.detalle }}
+                                        </small>
                                     </div>
-                                    <span class="badge bg-warning text-dark border border-warning">
-                                        <i class="bi bi-calendar-event me-1"></i>{{ v.fecha }}
+                                    <span class="badge bg-white text-dark border border-warning">
+                                        {{ v.fecha|slice:"5:" }}
                                     </span>
                                 </div>
                             </li>
                         {% empty %}
-                            <li class="list-group-item text-center py-4">
-                                <i class="bi bi-emoji-smile text-success fs-3 d-block mb-1"></i>
-                                <span class="text-muted small">¡Excelente! Todos tuvieron sus francos.</span>
-                            </li>
+                            {% if not violaciones_duras.deficit_cobertura %}
+                                <li class="list-group-item text-center py-3">
+                                    <i class="bi bi-emoji-smile text-success fs-4"></i>
+                                    <div class="small text-muted">Todos tuvieron sus francos.</div>
+                                </li>
+                            {% endif %}
                         {% endfor %}
 
-                        <li class="list-group-item bg-light fw-bold small text-uppercase text-muted mt-2">
-                            <i class="bi bi-clock-history me-1"></i> Turnos Pedidos No Asignados
+                        <li class="list-group-item bg-light fw-bold small text-uppercase text-muted border-bottom-0 mt-0">
+                            <i class="bi bi-clock-history me-1"></i> Turnos Pedidos (Ignorados)
                         </li>
                         
                         {% for v in violaciones_blandas.preferencia_turno_incumplida %}
                             <li class="list-group-item">
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <div class="me-3">
-                                        <div class="fw-bold text-dark mb-1">
-                                            <i class="bi bi-person text-secondary me-1"></i> {{ v.nombre }}
-                                        </div>
-                                        <small class="text-muted d-block lh-sm">{{ v.detalle }}</small>
+                                    <div class="me-2">
+                                        <div class="fw-bold text-dark mb-0">{{ v.nombre }}</div>
+                                        <small class="text-muted lh-1" style="font-size: 0.85rem;">
+                                            {{ v.detalle }}
+                                        </small>
                                     </div>
-                                    <span class="badge bg-light text-dark border">
-                                        {{ v.fecha }}
+                                    <span class="badge bg-light text-muted border">
+                                        {{ v.fecha|slice:"5:" }}
                                     </span>
                                 </div>
                             </li>
                         {% empty %}
-                            <li class="list-group-item text-center py-4">
-                                <i class="bi bi-check2-all text-success fs-3 d-block mb-1"></i>
-                                <span class="text-muted small">Se cumplieron todos los pedidos de turno.</span>
+                            <li class="list-group-item text-center py-3 text-muted small">
+                                Sin reclamos pendientes.
                             </li>
                         {% endfor %}
 
@@ -165,8 +199,8 @@
         const horasReales = getData('data-horas', []);
         const nombresCortos = getData('data-nombres-cortos', []);
         const nombresLargos = getData('data-nombres-largos', []);     
-        const limites = getData('data-limites', []); // Contratos individuales
-        const rangoEquidad = getData('data-rango-equidad', []); // Objetivo Global del algoritmo
+        const limites = getData('data-limites', []); 
+        const rangoEquidad = getData('data-rango-equidad', []); 
 
         // 2. Escala Dinámica
         let minVal = Math.min(...horasReales);
@@ -175,7 +209,9 @@
             const minLimit = Math.min(...minLimits);
             if (minLimit < minVal && minLimit > 0) minVal = minLimit;
         }
-        const startY = minVal > 20 ? (minVal - 15) : 0; 
+        // Ajuste para que empiece en multiplo de 20
+        const roundedMin = Math.floor(minVal / 20) * 20;
+        const startY = roundedMin > 20 ? (roundedMin - 20) : 0;
 
         // 3. Configurar Gráfico
         new Chart(ctxEl.getContext('2d'), {
@@ -184,138 +220,72 @@
                 labels: nombresCortos.length > 0 ? nombresCortos : horasReales.map((_, i) => `P${i+1}`),
                 datasets: [
                     {
-                        // CAPA 1 (FONDO): Contrato Individual
                         label: 'Rango Contractual',
                         data: limites, 
-                        // CAMBIO AQUÍ: Bajamos la opacidad de 0.15 a 0.06
-                        backgroundColor: 'rgba(0, 0, 0, 0.06)', 
-                        // También suavizamos el borde (de 0.3 a 0.1)
+                        backgroundColor: 'rgba(0, 0, 0, 0.04)', 
                         borderColor: 'rgba(0, 0, 0, 0.1)',
                         borderWidth: 1,
                         borderSkipped: false,
-                        barPercentage: 0.8,
+                        barPercentage: 0.7,
                         grouped: false, 
-                        order: 2 // Al fondo
+                        order: 2 
                     },
                     {
-                        // CAPA 2 (FRENTE): Asignación Real
                         label: 'Horas Asignadas',
                         data: horasReales,
                         backgroundColor: function(context) {
                             const idx = context.dataIndex;
                             const val = context.raw;
                             const range = limites[idx];
-                            // Rojo si se sale del contrato
                             if (range && (val < range[0] || val > range[1])) {
-                                return 'rgba(220, 53, 69, 0.85)';
+                                return 'rgba(220, 53, 69, 0.8)'; // Rojo si viola contrato
                             }
-                            return 'rgba(54, 162, 235, 0.85)';
+                            return 'rgba(13, 110, 253, 0.8)'; // Azul Bootstrap
                         },
-                        barPercentage: 0.4, 
+                        barPercentage: 0.35, 
                         grouped: false,
-                        order: 1 // Al frente
+                        order: 1 
                     }
                 ]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false, // Esto permite que respete los 400px del div
+                maintainAspectRatio: false, 
                 scales: {
                     y: {
-                        // 1. Lógica para que arranque en un número "redondo" (múltiplo de 20)
-                        min: function(context) {
-                            // Calculamos el mínimo real de los datos
-                            let minData = Math.min(...horasReales);
-                            
-                            // Si hay contratos, miramos también el límite inferior del contrato
-                            if (limites.length > 0) {
-                                const minLimits = limites.map(l => l[0]).filter(v => v > 0);
-                                if (minLimits.length > 0) {
-                                    minData = Math.min(minData, ...minLimits);
-                                }
-                            }
-
-                            // Redondeamos hacia abajo al múltiplo de 20 más cercano
-                            // Ej: 135 -> 120. Le restamos 20 extra para dar aire abajo.
-                            const roundedMin = Math.floor(minData / 20) * 20;
-                            return roundedMin > 20 ? (roundedMin - 20) : 0;
-                        },
-                        
-                        // 2. Forzamos los pasos de 20 en 20 (100, 120, 140...)
-                        ticks: {
-                            stepSize: 20
-                        },
-                        
+                        min: startY,
+                        ticks: { stepSize: 20 },
                         title: { display: true, text: 'Horas Totales' },
                         grid: { color: 'rgba(0,0,0,0.05)' }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: {
-                            autoSkip: false, // Mostrar todos los nombres
-                            maxRotation: 45,
-                            minRotation: 45  // Forzar inclinación para que entren bien
-                        }
+                        ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 }
                     }
                 },
                 plugins: {
                     legend: { display: true, position: 'top' },
                     tooltip: {
-                        // --- ESTILO VISUAL MEJORADO ---
-                        backgroundColor: 'rgba(52, 58, 64, 0.9)', // Gris oscuro "Bootstrap" con transparencia
-                        titleColor: '#ffffff',
-                        bodyColor: '#f8f9fa',
-                        borderColor: 'rgba(255, 255, 255, 0.1)', // Borde sutil
-                        borderWidth: 1,
-                        padding: 12,        // Más espacio interno
-                        cornerRadius: 8,    // Bordes redondeados
-                        displayColors: true, 
-                        boxPadding: 6,      // Separación entre el color y el texto
-
-                        titleFont: { size: 14, weight: 'bold', family: 'system-ui' },
-                        bodyFont: { size: 13, family: 'system-ui' },
-                        footerFont: { size: 11, style: 'italic' },
-                        
+                        backgroundColor: 'rgba(33, 37, 41, 0.95)',
+                        titleFont: { size: 14 },
+                        bodyFont: { size: 13 },
+                        padding: 10,
+                        cornerRadius: 6,
                         callbacks: {
-                            // TÍTULO: Nombre del Profesional
-                            title: function(context) {
-                                const idx = context[0].dataIndex;
-                                return nombresLargos[idx] || context[0].label;
-                            },
-                            // CUERPO: Lo dejamos limpio para llenarlo en afterBody
-                            label: function(context) {
-                                return null; 
-                            },
-                            // CONTENIDO PERSONALIZADO
-                            afterBody: function(context) {
-                                const idx = context[0].dataIndex;
-                                const valReal = horasReales[idx];
-                                const contrato = limites[idx];
-                                
-                                let lines = [];
-                                
-                                // 1. Asignado
-                                lines.push(`✅ Asignado: ${valReal} hs`);
-                                
-                                // 2. Contrato
-                                if (contrato) {
-                                    lines.push(`📄 Contrato:  ${contrato[0]} - ${contrato[1]} hs`);
-                                }
-                                
-                                // 3. Equidad (CON REDONDEO)
-                                if (rangoEquidad && rangoEquidad.length === 2) {
-                                    lines.push(''); // Espacio separador
-                                    // Usamos Math.round para quitar decimales molestos
-                                    const eqMin = Math.round(rangoEquidad[0]);
-                                    const eqMax = Math.round(rangoEquidad[1]);
-                                    lines.push(`⚖️ Equidad Ideal: ${eqMin} - ${eqMax} hs`);
-                                }
-                                
-                                return lines;
+                            title: function(ctx) { return nombresLargos[ctx[0].dataIndex]; },
+                            label: function() { return null; },
+                            afterBody: function(ctx) {
+                                const idx = ctx[0].dataIndex;
+                                const val = horasReales[idx];
+                                const lim = limites[idx];
+                                return [
+                                    `✅ Real: ${val} hs`,
+                                    lim ? `📄 Contrato: ${lim[0]}-${lim[1]} hs` : ''
+                                ];
                             }
                         }
                     }
-                },
+                }
             }
         });
     });

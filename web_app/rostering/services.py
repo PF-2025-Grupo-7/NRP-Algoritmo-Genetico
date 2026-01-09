@@ -404,9 +404,16 @@ def invocar_api_planificacion(payload):
     """Envía el JSON a la API de optimización."""
     url = "http://optimizer:8000/planificar" 
     try:
-        if os.getenv('DEBUG_PAYLOAD', 'False') == 'True':
+        # --- BLOQUE ESPÍA: GUARDAR PAYLOAD SIEMPRE PARA DEBUG ---
+        print("🕵️ INTERCEPTANDO PAYLOAD...")
+        try:
             with open('debug_payload.json', 'w', encoding='utf-8') as f:
-                json.dump(payload, f, indent=2, default=str)
+                json.dump(payload, f, indent=4, default=str)
+            print("✅ Payload guardado exitosamente en 'debug_payload.json'")
+        except Exception as e:
+            print(f"⚠️ Error al guardar payload de debug: {e}")
+        # --------------------------------------------------------
+
         response = requests.post(url, json=payload, timeout=300) 
         response.raise_for_status() 
         return response.json()
@@ -429,17 +436,10 @@ def consultar_resultado_ag(job_id):
     except requests.exceptions.RequestException as e:
         return {"status": "error", "error": str(e)}
 
-# --- ASEGURATE DE TENER ESTOS IMPORTS AL PRINCIPIO ---
-import traceback
-import json
-from datetime import timedelta, datetime, date
-from django.db import transaction
-from .models import Empleado, TipoTurno, Cronograma, Asignacion, Preferencia, ConfiguracionAlgoritmo
-# -----------------------------------------------------
 
 def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original, resultado, plantilla_demanda=None):
-    """Persiste el Cronograma y Asignaciones."""
-    print("--- DEBUG: INICIANDO GUARDADO DB ---")
+    """Persiste el Cronograma, Asignaciones y AUDITA la cobertura."""
+    print("--- DEBUG: INICIANDO GUARDADO CON AUDITORÍA ---")
     try:
         matriz_solucion = resultado.get('matriz_solucion') or resultado.get('solution')
         if not matriz_solucion:
@@ -451,25 +451,42 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
         # Blindaje Explicabilidad
         explicabilidad = resultado.get('explicabilidad')
         if explicabilidad is None: explicabilidad = {}
+        
+        violaciones_blandas = explicabilidad.get('violaciones_blandas', {})
+        if 'preferencia_libre_incumplida' not in violaciones_blandas: violaciones_blandas['preferencia_libre_incumplida'] = []
+        if 'preferencia_turno_incumplida' not in violaciones_blandas: violaciones_blandas['preferencia_turno_incumplida'] = []
+        
+        violaciones_duras = explicabilidad.get('violaciones_duras', {})
+        if 'deficit_cobertura' not in violaciones_duras: violaciones_duras['deficit_cobertura'] = []
 
         config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
 
         # Blindaje Payload
         if isinstance(payload_original, str):
-            try:
-                payload_original = json.loads(payload_original)
-            except:
-                pass
+            try: payload_original = json.loads(payload_original)
+            except: pass
         
-        # 1. Recuperar empleados
+        # 1. Recuperar empleados y Mapear ID
         datos_problema = payload_original.get('datos_problema', {})
         lista_empleados_payload = datos_problema.get('lista_profesionales', [])
         
+        mapa_idx_a_empleado = {} # idx -> objeto Empleado
+        mapa_empleado_id_a_exp = {} # id_db -> 'SENIOR'/'JUNIOR'
+        
+        # Mapa para recuperar por indice del algoritmo
         mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
-        empleados_db = Empleado.objects.filter(id__in=mapa_idx_a_empleado_id.values())
-        empleados_map = {e.id: e for e in empleados_db}
 
-        # 2. Lógica de Contrato Mensual vs Proporcional
+        empleados_ids = [e['id_db'] for e in lista_empleados_payload]
+        empleados_db = {e.id: e for e in Empleado.objects.filter(id__in=empleados_ids)}
+
+        for i, emp_p in enumerate(lista_empleados_payload):
+            emp_obj = empleados_db.get(emp_p['id_db'])
+            if emp_obj:
+                mapa_idx_a_empleado[i] = emp_obj
+                mapa_empleado_id_a_exp[emp_obj.id] = emp_obj.experiencia
+
+        # 2. Datos Visuales (Nombres, Limites)
+        # Lógica de Contrato Mensual vs Proporcional
         num_dias = (fecha_fin - fecha_inicio).days + 1
         if 28 <= num_dias <= 31:
             factor_tiempo = 1.0 
@@ -482,7 +499,7 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
         nombres_cortos, nombres_largos, limites_contractuales = [], [], []
 
         for i, emp_payload in enumerate(lista_empleados_payload):
-            emp = empleados_map.get(emp_payload['id_db'])
+            emp = empleados_db.get(emp_payload['id_db'])
             if emp:
                 full_name = emp.nombre_completo.strip()
                 n_largo = full_name
@@ -506,63 +523,58 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             limites_contractuales.append(limites)
 
         # ---------------------------------------------------------------------
-        # 3. Detección "Post-Mortem" de Preferencias Ignoradas
+        # 3. Auditoría de Preferencias
         # ---------------------------------------------------------------------
-        violaciones_blandas = explicabilidad.get('violaciones_blandas')
-        if violaciones_blandas is None: violaciones_blandas = {}
+        # Mapa: {empleado_id: {fecha_str: turno_id}}
+        asignaciones_reales = {} 
+        # Mapa: {fecha_str: {turno_id: {'SENIOR': count, 'JUNIOR': count}}}
+        conteo_cobertura = {} 
 
-        lista_incumplimientos_francos = []
-        lista_incumplimientos_turnos = []
-
-        # Mapa rápido: {empleado_id: {fecha_str: turno_id}}
-        asignaciones_reales = {}
         for i, fila in enumerate(matriz_solucion):
-            emp_id = mapa_idx_a_empleado_id.get(i)
-            if not emp_id: continue
+            emp = mapa_idx_a_empleado.get(i)
+            if not emp: continue
             
-            asignaciones_reales[emp_id] = {}
+            if emp.id not in asignaciones_reales: asignaciones_reales[emp.id] = {}
+            
             for j, t_id in enumerate(fila):
-                fecha_dia = (fecha_inicio + timedelta(days=j)).strftime("%Y-%m-%d")
-                if t_id: 
-                    asignaciones_reales[emp_id][fecha_dia] = t_id
+                if t_id:
+                    fecha_dia = (fecha_inicio + timedelta(days=j)).strftime("%Y-%m-%d")
+                    asignaciones_reales[emp.id][fecha_dia] = t_id
+                    
+                    # Contar para auditoría de demanda
+                    if fecha_dia not in conteo_cobertura: conteo_cobertura[fecha_dia] = {}
+                    if t_id not in conteo_cobertura[fecha_dia]: conteo_cobertura[fecha_dia][t_id] = {'SENIOR': 0, 'JUNIOR': 0}
+                    
+                    exp = mapa_empleado_id_a_exp.get(emp.id, 'JUNIOR') # Default Junior
+                    if exp in conteo_cobertura[fecha_dia][t_id]:
+                        conteo_cobertura[fecha_dia][t_id][exp] += 1
 
         prefs = Preferencia.objects.filter(
             fecha__range=[fecha_inicio, fecha_fin],
-            empleado__in=empleados_db
+            empleado__in=empleados_db.values()
         ).select_related('empleado', 'tipo_turno')
-
-        print(f"--- DEBUG PREFERENCIAS ({prefs.count()} encontradas) ---")
 
         for p in prefs:
             fecha_str = p.fecha.strftime("%Y-%m-%d")
             turno_asignado_id = asignaciones_reales.get(p.empleado.id, {}).get(fecha_str)
 
-            # --- CORRECCIÓN AQUÍ: Usamos .DESCANSAR en lugar de .NO_TRABAJAR ---
             es_descanso = (p.deseo == Preferencia.Deseo.DESCANSAR)
             es_trabajo = (p.deseo == Preferencia.Deseo.TRABAJAR)
-            # -------------------------------------------------------------------
-
-            if "Neymar" in p.empleado.nombre_completo:
-                 print(f"👁️ REVISANDO NEYMAR | Fecha: {fecha_str} | Deseo: {p.deseo} | Asignado: {turno_asignado_id}")
 
             # CASO A: Quería Descansar
             if es_descanso:
                 violation = False
                 detalle = ""
-                
-                if turno_asignado_id: # Tiene turno asignado
+                if turno_asignado_id: 
                     if p.tipo_turno is None:
-                        # Pidió día libre COMPLETO y trabaja -> MAL
                         violation = True
                         detalle = 'Se asignó guardia pese a pedido de descanso total'
                     elif p.tipo_turno.id == turno_asignado_id:
-                        # Pidió NO trabajar ESTE turno y se lo dieron -> MAL
                         violation = True
                         detalle = f'Se asignó turno {p.tipo_turno.nombre} pese a bloqueo'
                 
                 if violation:
-                    print(f"   ⚠️ VIOLACIÓN: {p.empleado.nombre_completo} en {fecha_str}")
-                    lista_incumplimientos_francos.append({
+                    violaciones_blandas['preferencia_libre_incumplida'].append({
                         'empleado_id': p.empleado.id,
                         'nombre': p.empleado.nombre_completo,
                         'fecha': fecha_str,
@@ -573,7 +585,6 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             elif es_trabajo:
                 violation = False
                 detalle = ""
-                
                 if not turno_asignado_id:
                      violation = True
                      detalle = 'No se asignó turno solicitado'
@@ -582,15 +593,81 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                      detalle = f'Se asignó otro turno distinto al {p.tipo_turno.nombre}'
                 
                 if violation:
-                    lista_incumplimientos_turnos.append({
+                    violaciones_blandas['preferencia_turno_incumplida'].append({
                         'empleado_id': p.empleado.id,
                         'nombre': p.empleado.nombre_completo,
                         'fecha': fecha_str,
                         'detalle': detalle
                     })
 
-        violaciones_blandas['preferencia_libre_incumplida'] = lista_incumplimientos_francos
-        violaciones_blandas['preferencia_turno_incumplida'] = lista_incumplimientos_turnos
+        # ---------------------------------------------------------------------
+        # 4. Auditoría de Cobertura (NUEVO: DETECTAR FALTANTES)
+        # ---------------------------------------------------------------------
+        if plantilla_demanda:
+            # Traemos todas las reglas y excepciones para comparar
+            reglas = plantilla_demanda.reglas.all()
+            excepciones = plantilla_demanda.excepciones.filter(fecha__range=[fecha_inicio, fecha_fin])
+            
+            # Mapa rápido de reglas: {dia_semana_int: {turno_id: ReglaObj}}
+            mapa_reglas = {}
+            for r in reglas:
+                if r.dia not in mapa_reglas: mapa_reglas[r.dia] = {}
+                mapa_reglas[r.dia][r.turno.id] = r
+            
+            # Mapa excepciones: {fecha_str: {turno_id: ExcepcionObj}}
+            mapa_excepciones = {}
+            for ex in excepciones:
+                f_str = ex.fecha.strftime("%Y-%m-%d")
+                if f_str not in mapa_excepciones: mapa_excepciones[f_str] = {}
+                mapa_excepciones[f_str][ex.turno.id] = ex
+
+            # Recorremos día por día del cronograma
+            delta_dias = (fecha_fin - fecha_inicio).days + 1
+            for d in range(delta_dias):
+                fecha_actual = fecha_inicio + timedelta(days=d)
+                fecha_str = fecha_actual.strftime("%Y-%m-%d")
+                dia_semana = fecha_actual.weekday() # 0=Lunes
+                
+                # Turnos a revisar en este día (según reglas base)
+                turnos_del_dia = mapa_reglas.get(dia_semana, {})
+                
+                # Verificar cada turno requerido
+                for turno_id, regla in turnos_del_dia.items():
+                    # Definir objetivo (Base o Excepción)
+                    obj_senior = regla.cantidad_senior
+                    obj_junior = regla.cantidad_junior
+                    
+                    # Si hay excepción para hoy, pisa la regla
+                    excepcion = mapa_excepciones.get(fecha_str, {}).get(turno_id)
+                    if excepcion:
+                        obj_senior = excepcion.cantidad_senior
+                        obj_junior = excepcion.cantidad_junior
+
+                    # Obtener realidad
+                    datos_reales = conteo_cobertura.get(fecha_str, {}).get(turno_id, {'SENIOR': 0, 'JUNIOR': 0})
+                    real_senior = datos_reales['SENIOR']
+                    real_junior = datos_reales['JUNIOR']
+                    
+                    # Chequear Déficit
+                    falta_senior = obj_senior - real_senior
+                    falta_junior = obj_junior - real_junior
+                    
+                    if falta_senior > 0 or falta_junior > 0:
+                        # ¡ENCONTRAMOS EL PROBLEMA!
+                        turno_nombre = regla.turno.nombre
+                        detalle = []
+                        if falta_senior > 0: detalle.append(f"Faltan {falta_senior} Seniors")
+                        if falta_junior > 0: detalle.append(f"Faltan {falta_junior} Juniors")
+                        
+                        violaciones_duras['deficit_cobertura'].append({
+                            'fecha': fecha_str,
+                            'turno': turno_nombre,
+                            'detalle': ", ".join(detalle) + f" (Obj: S{obj_senior}/J{obj_junior} vs Real: S{real_senior}/J{real_junior})"
+                        })
+                        print(f"⚠️ DÉFICIT {fecha_str} {turno_nombre}: {detalle}")
+
+        # Guardar en explicabilidad
+        explicabilidad['violaciones_duras'] = violaciones_duras
         explicabilidad['violaciones_blandas'] = violaciones_blandas
         
         # Actualizar datos visuales
@@ -600,8 +677,8 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             'nombres_cortos': nombres_cortos,
             'limites_contractuales': limites_contractuales
         })
-        
-        # 4. Transacción Atómica
+
+        # 5. Transacción Atómica y Guardado
         with transaction.atomic():
             cronograma = Cronograma.objects.create(
                 especialidad=especialidad,
@@ -621,7 +698,6 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             for i, fila in enumerate(matriz_solucion):
                 emp_id = mapa_idx_a_empleado_id.get(i)
                 if not emp_id: continue
-                
                 for j, t_id in enumerate(fila):
                     if t_id and t_id in turnos_db:
                         nuevas_asignaciones.append(Asignacion(
@@ -630,9 +706,7 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                             fecha=fecha_inicio + timedelta(days=j), 
                             tipo_turno=turnos_db[t_id]
                         ))
-            
-            if nuevas_asignaciones: 
-                Asignacion.objects.bulk_create(nuevas_asignaciones)
+            if nuevas_asignaciones: Asignacion.objects.bulk_create(nuevas_asignaciones)
             
         print(f"--- DEBUG: GUARDADO EXITOSO (ID: {cronograma.id}) ---")
         return cronograma
