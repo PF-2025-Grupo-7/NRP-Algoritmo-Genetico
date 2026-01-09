@@ -503,6 +503,23 @@ class PlantillaDetailView(LoginRequiredMixin, DetailView):
         ctx['excepciones'] = self.object.excepciones.all().order_by('fecha')
         return ctx
 
+# Asegurate de importar el form nuevo arriba
+from .forms import PlantillaDemandaUpdateForm 
+
+class PlantillaUpdateView(LoginRequiredMixin, UpdateView):
+    model = PlantillaDemanda
+    form_class = PlantillaDemandaUpdateForm
+    template_name = 'rostering/plantilla_form.html' # Reutilizamos el template de form
+    
+    def get_success_url(self):
+        # Al guardar, volvemos al detalle de la plantilla
+        return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.pk})
+        
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['titulo'] = f"Editar: {self.object.nombre}"
+        return ctx
+
 class PlantillaDeleteView(LoginRequiredMixin, DeleteView):
     model = PlantillaDemanda
     template_name = 'rostering/confirm_delete_generic.html'
@@ -860,3 +877,66 @@ def exportar_cronograma_excel(request, cronograma_id):
     
     wb.save(response)
     return response
+
+from django.shortcuts import get_object_or_404, redirect
+from django.db import transaction
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def duplicar_plantilla(request, pk):
+    # 1. Recuperamos la original
+    original = get_object_or_404(PlantillaDemanda, pk=pk)
+    
+    try:
+        with transaction.atomic():
+            # 2. Generar un nombre único para evitar error de Integrity (Unique Constraint)
+            # Intentamos "Copia de [Nombre]", si existe, agregamos un contador.
+            nuevo_nombre = f"Copia de {original.nombre}"
+            contador = 1
+            while PlantillaDemanda.objects.filter(nombre=nuevo_nombre).exists():
+                nuevo_nombre = f"Copia de {original.nombre} ({contador})"
+                contador += 1
+            
+            # 3. Crear la nueva plantilla (Copia Superficial)
+            nueva_plantilla = PlantillaDemanda.objects.create(
+                nombre=nuevo_nombre,
+                especialidad=original.especialidad,
+                descripcion=original.descripcion
+            )
+
+            # 4. Copiar Reglas Semanales (Copia Profunda)
+            # Recuperamos las reglas de la original y creamos nuevas apuntando a la nueva_plantilla
+            reglas_a_crear = []
+            for regla in original.reglas.all():
+                reglas_a_crear.append(ReglaDemandaSemanal(
+                    plantilla=nueva_plantilla,
+                    dia=regla.dia,
+                    turno=regla.turno,
+                    cantidad_senior=regla.cantidad_senior,
+                    cantidad_junior=regla.cantidad_junior
+                ))
+            # Bulk create es más eficiente que guardar una por una
+            ReglaDemandaSemanal.objects.bulk_create(reglas_a_crear)
+
+            # 5. Copiar Excepciones (Copia Profunda)
+            excepciones_a_crear = []
+            for exc in original.excepciones.all():
+                excepciones_a_crear.append(ExcepcionDemanda(
+                    plantilla=nueva_plantilla,
+                    fecha=exc.fecha,
+                    turno=exc.turno,
+                    cantidad_senior=exc.cantidad_senior,
+                    cantidad_junior=exc.cantidad_junior,
+                    motivo=exc.motivo
+                ))
+            ExcepcionDemanda.objects.bulk_create(excepciones_a_crear)
+
+        messages.success(request, f"Plantilla duplicada exitosamente como '{nuevo_nombre}'.")
+        
+        # 6. Redirigimos directamente a EDITAR la nueva copia, por si quiere cambiarle el nombre
+        return redirect('plantilla_update', pk=nueva_plantilla.pk)
+
+    except Exception as e:
+        messages.error(request, f"Error al duplicar la plantilla: {str(e)}")
+        return redirect('plantilla_list')

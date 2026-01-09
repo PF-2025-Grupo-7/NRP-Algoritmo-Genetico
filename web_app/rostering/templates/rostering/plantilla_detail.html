@@ -4,9 +4,16 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="mb-0"><i class="bi bi-sliders"></i> {{ plantilla.nombre }}</h2>
+            <div class="d-flex align-items-center gap-2">
+                <h2 class="mb-0"><i class="bi bi-sliders"></i> {{ plantilla.nombre }}</h2>
+                
+                <a href="{% url 'plantilla_update' plantilla.id %}" class="btn btn-link text-muted p-0 ms-2" title="Editar nombre/descripción">
+                    <i class="bi bi-pencil-square fs-5"></i>
+                </a>
+            </div>
+            
             <span class="badge bg-secondary">{{ plantilla.get_especialidad_display }}</span>
-            <small class="text-muted ms-2">{{ plantilla.descripcion }}</small>
+            <small class="text-muted ms-2">{{ plantilla.descripcion|default:"Sin descripción" }}</small>
         </div>
         <a href="{% url 'plantilla_list' %}" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Volver
