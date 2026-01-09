@@ -69,6 +69,53 @@ class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
         self.dias_no_habiles = dias_no_habiles
         self.turnos_noche = turnos_noche
 
+        # --- CORRECCIÓN CRÍTICA: NORMALIZACIÓN DE CLAVES (STRING -> INT) ---
+        # El JSON manda claves de turno como strings ("6"), pero el algoritmo usa enteros (6).
+        # Esto convierte todo a entero para que el diccionario se lea bien.
+        
+        self.requerimientos_cobertura = []
+        for d in range(num_dias):
+            dia_data_sucio = requerimientos_cobertura[d] # El dict que viene de afuera
+            dia_data_limpio = {}
+            
+            # Si es una lista (raro pero posible), asumimos indices directos
+            if isinstance(dia_data_sucio, list):
+                 self.requerimientos_cobertura.append(dia_data_sucio)
+                 continue
+
+            # Si es diccionario, convertimos las claves
+            for t_key, skills_dict in dia_data_sucio.items():
+                try:
+                    # Forzamos que la clave del turno sea un ENTERO
+                    t_id_int = int(t_key)
+                    
+                    # Normalizamos también los skills a minúscula por si acaso (Junior vs junior)
+                    skills_limpio = {k.lower(): v for k, v in skills_dict.items()}
+                    
+                    dia_data_limpio[t_id_int] = skills_limpio
+                except ValueError:
+                    continue # Si la clave no es un número, la ignoramos
+            
+            self.requerimientos_cobertura.append(dia_data_limpio)
+        
+        # Validación de Seguridad para que duermas tranquilo
+        self._validar_estructura_datos()
+
+    def _validar_estructura_datos(self):
+        """Imprime un debug rápido para confirmar que el AG ve la demanda."""
+        try:
+            # Chequeamos el primer día, primer turno a cubrir
+            primer_turno = self.turnos_a_cubrir[0]
+            req_test = self.requerimientos_cobertura[0].get(primer_turno, {})
+            print(f"DEBUG AG DATOS: Día 0, Turno {primer_turno} (int) -> Demanda: {req_test}")
+            
+            if not req_test:
+                print("⚠️ ALERTA: El AG sigue viendo demanda VACÍA. Revisar IDs de turnos.")
+            else:
+                print("✅ ÉXITO: El AG está leyendo la demanda correctamente.")
+        except Exception as e:
+            print(f"Error validando datos: {e}")
+
     def fitness(self, solution_vector):
         """Calcula el valor de aptitud (fitness) de un individuo.
 

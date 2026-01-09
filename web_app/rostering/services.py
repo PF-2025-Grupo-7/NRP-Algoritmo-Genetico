@@ -263,12 +263,10 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     if num_dias < 1:
         raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio.")
 
-    # --- VALIDACIÓN NUEVA ---
     if num_dias < 7:
         raise ValueError(f"El período es demasiado corto ({num_dias} días). Mínimo 7 días.")
     if num_dias > 31:
         raise ValueError(f"El período excede el límite permitido ({num_dias} días). Máximo 31 días.")
-    # ------------------------
 
     turnos_qs = TipoTurno.objects.filter(especialidad=especialidad)
     duraciones = set(t.duracion_horas for t in turnos_qs)
@@ -337,14 +335,25 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     dict_demanda_normal = extraer_demanda(ReglaDemandaSemanal.objects.filter(plantilla=plantilla, dia=DiaSemana.LUNES))
     dict_demanda_finde = extraer_demanda(ReglaDemandaSemanal.objects.filter(plantilla=plantilla, dia=DiaSemana.SABADO))
     
+    # --- CÁLCULO DE DÍAS ESPECIALES (PICOS Y FINES DE SEMANA) ---
     dias_pico_indices = []
+    dias_no_habiles_indices = [] # Fines de semana y feriados (para equidad y demanda)
+    
     dict_demanda_pico = {}
     fecha_iter = fecha_inicio
+    
     for i in range(num_dias):
+        # 1. Detectar Picos (Excepciones)
         excepcion = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter)
         if excepcion.exists():
             dias_pico_indices.append(i)
             if not dict_demanda_pico: dict_demanda_pico = extraer_demanda(excepcion)
+        
+        # 2. Detectar Fines de Semana (Sábados y Domingos)
+        # weekday(): 0=Lunes, 5=Sábado, 6=Domingo
+        if fecha_iter.weekday() >= 5:
+            dias_no_habiles_indices.append(i)
+            
         fecha_iter += timedelta(days=1)
 
     reglas_cobertura = {
@@ -376,6 +385,9 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         "config": payload_config,
         "datos_problema": {
             "num_dias": num_dias,
+            # --- NUEVO: Enviamos explícitamente qué días son fines de semana ---
+            "dias_no_habiles": dias_no_habiles_indices, 
+            # -------------------------------------------------------------------
             "max_turno_val": max_turno_val,
             "turnos_a_cubrir": turnos_a_cubrir,
             "skills_a_cubrir": ["junior", "senior"],
@@ -398,7 +410,6 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         },
         "estrategias": payload_estrategias
     }
-
 
 def invocar_api_planificacion(payload):
     """Envía el JSON a la API de optimización."""
@@ -436,7 +447,6 @@ def consultar_resultado_ag(job_id):
     except requests.exceptions.RequestException as e:
         return {"status": "error", "error": str(e)}
 
-
 def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original, resultado, plantilla_demanda=None):
     """Persiste el Cronograma, Asignaciones y AUDITA la cobertura."""
     print("--- DEBUG: INICIANDO GUARDADO CON AUDITORÍA ---")
@@ -457,7 +467,12 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
         if 'preferencia_turno_incumplida' not in violaciones_blandas: violaciones_blandas['preferencia_turno_incumplida'] = []
         
         violaciones_duras = explicabilidad.get('violaciones_duras', {})
-        if 'deficit_cobertura' not in violaciones_duras: violaciones_duras['deficit_cobertura'] = []
+        
+        # --- CORRECCIÓN CLAVE: LIMPIEZA DE BASURA DEL AG ---
+        # El AG devuelve incidentes con IDs crudos (6, 8) sin texto.
+        # Los borramos para quedarnos SOLO con nuestra auditoría detallada.
+        violaciones_duras['deficit_cobertura'] = [] 
+        # ---------------------------------------------------
 
         config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
 
@@ -470,8 +485,8 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
         datos_problema = payload_original.get('datos_problema', {})
         lista_empleados_payload = datos_problema.get('lista_profesionales', [])
         
-        mapa_idx_a_empleado = {} # idx -> objeto Empleado
-        mapa_empleado_id_a_exp = {} # id_db -> 'SENIOR'/'JUNIOR'
+        mapa_idx_a_empleado = {} 
+        mapa_empleado_id_a_exp = {} 
         
         # Mapa para recuperar por indice del algoritmo
         mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
@@ -483,15 +498,12 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             emp_obj = empleados_db.get(emp_p['id_db'])
             if emp_obj:
                 mapa_idx_a_empleado[i] = emp_obj
-                mapa_empleado_id_a_exp[emp_obj.id] = emp_obj.experiencia
+                # --- CORRECCIÓN 1: Normalizamos experiencia a MAYÚSCULAS ---
+                mapa_empleado_id_a_exp[emp_obj.id] = emp_obj.experiencia.upper()
 
         # 2. Datos Visuales (Nombres, Limites)
-        # Lógica de Contrato Mensual vs Proporcional
         num_dias = (fecha_fin - fecha_inicio).days + 1
-        if 28 <= num_dias <= 31:
-            factor_tiempo = 1.0 
-        else:
-            factor_tiempo = num_dias / 30.0
+        factor_tiempo = 1.0 if 28 <= num_dias <= 31 else (num_dias / 30.0)
 
         turno_ref = TipoTurno.objects.filter(especialidad=especialidad).first()
         duracion_horas = float(turno_ref.duracion_horas) if (turno_ref and turno_ref.duracion_horas) else 12.0
@@ -522,12 +534,8 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             nombres_largos.append(n_largo)
             limites_contractuales.append(limites)
 
-        # ---------------------------------------------------------------------
         # 3. Auditoría de Preferencias
-        # ---------------------------------------------------------------------
-        # Mapa: {empleado_id: {fecha_str: turno_id}}
         asignaciones_reales = {} 
-        # Mapa: {fecha_str: {turno_id: {'SENIOR': count, 'JUNIOR': count}}}
         conteo_cobertura = {} 
 
         for i, fila in enumerate(matriz_solucion):
@@ -541,11 +549,13 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                     fecha_dia = (fecha_inicio + timedelta(days=j)).strftime("%Y-%m-%d")
                     asignaciones_reales[emp.id][fecha_dia] = t_id
                     
-                    # Contar para auditoría de demanda
                     if fecha_dia not in conteo_cobertura: conteo_cobertura[fecha_dia] = {}
+                    # Inicializamos contadores con claves en MAYÚSCULAS
                     if t_id not in conteo_cobertura[fecha_dia]: conteo_cobertura[fecha_dia][t_id] = {'SENIOR': 0, 'JUNIOR': 0}
                     
-                    exp = mapa_empleado_id_a_exp.get(emp.id, 'JUNIOR') # Default Junior
+                    # --- CORRECCIÓN 2: Normalizamos al recuperar (seguridad extra) ---
+                    exp = mapa_empleado_id_a_exp.get(emp.id, 'JUNIOR').upper() 
+                    
                     if exp in conteo_cobertura[fecha_dia][t_id]:
                         conteo_cobertura[fecha_dia][t_id][exp] += 1
 
@@ -557,11 +567,9 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
         for p in prefs:
             fecha_str = p.fecha.strftime("%Y-%m-%d")
             turno_asignado_id = asignaciones_reales.get(p.empleado.id, {}).get(fecha_str)
-
             es_descanso = (p.deseo == Preferencia.Deseo.DESCANSAR)
             es_trabajo = (p.deseo == Preferencia.Deseo.TRABAJAR)
 
-            # CASO A: Quería Descansar
             if es_descanso:
                 violation = False
                 detalle = ""
@@ -572,7 +580,6 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                     elif p.tipo_turno.id == turno_asignado_id:
                         violation = True
                         detalle = f'Se asignó turno {p.tipo_turno.nombre} pese a bloqueo'
-                
                 if violation:
                     violaciones_blandas['preferencia_libre_incumplida'].append({
                         'empleado_id': p.empleado.id,
@@ -580,8 +587,6 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                         'fecha': fecha_str,
                         'detalle': detalle
                     })
-
-            # CASO B: Quería Trabajar
             elif es_trabajo:
                 violation = False
                 detalle = ""
@@ -591,7 +596,6 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                 elif p.tipo_turno and turno_asignado_id != p.tipo_turno.id:
                      violation = True
                      detalle = f'Se asignó otro turno distinto al {p.tipo_turno.nombre}'
-                
                 if violation:
                     violaciones_blandas['preferencia_turno_incumplida'].append({
                         'empleado_id': p.empleado.id,
@@ -601,43 +605,61 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                     })
 
         # ---------------------------------------------------------------------
-        # 4. Auditoría de Cobertura (NUEVO: DETECTAR FALTANTES)
+        # 4. Auditoría de Cobertura (CON LÓGICA DE RÉPLICA)
         # ---------------------------------------------------------------------
         if plantilla_demanda:
-            # Traemos todas las reglas y excepciones para comparar
-            reglas = plantilla_demanda.reglas.all()
-            excepciones = plantilla_demanda.excepciones.filter(fecha__range=[fecha_inicio, fecha_fin])
+            # Traemos todas las reglas y excepciones
+            reglas = plantilla_demanda.reglas.all().select_related('turno')
+            excepciones = plantilla_demanda.excepciones.filter(fecha__range=[fecha_inicio, fecha_fin]).select_related('turno')
             
-            # Mapa rápido de reglas: {dia_semana_int: {turno_id: ReglaObj}}
+            cache_nombres_turnos = {t.id: t.nombre for t in TipoTurno.objects.filter(especialidad=especialidad)}
+
+            # Mapa de Reglas Base
             mapa_reglas = {}
             for r in reglas:
                 if r.dia not in mapa_reglas: mapa_reglas[r.dia] = {}
                 mapa_reglas[r.dia][r.turno.id] = r
             
-            # Mapa excepciones: {fecha_str: {turno_id: ExcepcionObj}}
+            # Mapa de Excepciones
             mapa_excepciones = {}
             for ex in excepciones:
                 f_str = ex.fecha.strftime("%Y-%m-%d")
                 if f_str not in mapa_excepciones: mapa_excepciones[f_str] = {}
                 mapa_excepciones[f_str][ex.turno.id] = ex
 
-            # Recorremos día por día del cronograma
             delta_dias = (fecha_fin - fecha_inicio).days + 1
+            
             for d in range(delta_dias):
                 fecha_actual = fecha_inicio + timedelta(days=d)
                 fecha_str = fecha_actual.strftime("%Y-%m-%d")
-                dia_semana = fecha_actual.weekday() # 0=Lunes
+                dia_semana_real = fecha_actual.weekday() # 0=Lunes, 6=Domingo
                 
-                # Turnos a revisar en este día (según reglas base)
-                turnos_del_dia = mapa_reglas.get(dia_semana, {})
+                # --- LÓGICA DE NEGOCIO: DÍA DE REFERENCIA ---
+                # Si es día de semana (0-4), usamos LUNES (0) como base.
+                # Si es finde (5-6), usamos SÁBADO (5) como base.
+                dia_referencia = 0 if dia_semana_real < 5 else 5
                 
-                # Verificar cada turno requerido
-                for turno_id, regla in turnos_del_dia.items():
-                    # Definir objetivo (Base o Excepción)
-                    obj_senior = regla.cantidad_senior
-                    obj_junior = regla.cantidad_junior
+                # Turnos a revisar: 
+                # 1. Reglas del día específico (si existen)
+                # 2. Si no, reglas del día de referencia (Lunes/Sábado)
+                # 3. Sumamos Excepciones
+                
+                reglas_del_dia = mapa_reglas.get(dia_semana_real)
+                if not reglas_del_dia:
+                    reglas_del_dia = mapa_reglas.get(dia_referencia, {})
+                
+                ids_reglas = set(reglas_del_dia.keys())
+                ids_excepciones = set(mapa_excepciones.get(fecha_str, {}).keys())
+                todos_turnos_ids = ids_reglas.union(ids_excepciones)
+                
+                for turno_id in todos_turnos_ids:
+                    # Objetivos por defecto (Usando el día de referencia si hace falta)
+                    regla = reglas_del_dia.get(turno_id)
                     
-                    # Si hay excepción para hoy, pisa la regla
+                    obj_senior = regla.cantidad_senior if regla else 0
+                    obj_junior = regla.cantidad_junior if regla else 0
+                    
+                    # Excepción pisa todo
                     excepcion = mapa_excepciones.get(fecha_str, {}).get(turno_id)
                     if excepcion:
                         obj_senior = excepcion.cantidad_senior
@@ -649,12 +671,11 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                     real_junior = datos_reales['JUNIOR']
                     
                     # Chequear Déficit
-                    falta_senior = obj_senior - real_senior
-                    falta_junior = obj_junior - real_junior
+                    falta_senior = max(0, obj_senior - real_senior)
+                    falta_junior = max(0, obj_junior - real_junior)
                     
                     if falta_senior > 0 or falta_junior > 0:
-                        # ¡ENCONTRAMOS EL PROBLEMA!
-                        turno_nombre = regla.turno.nombre
+                        turno_nombre = cache_nombres_turnos.get(turno_id, f"Turno {turno_id}")
                         detalle = []
                         if falta_senior > 0: detalle.append(f"Faltan {falta_senior} Seniors")
                         if falta_junior > 0: detalle.append(f"Faltan {falta_junior} Juniors")
@@ -664,13 +685,10 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                             'turno': turno_nombre,
                             'detalle': ", ".join(detalle) + f" (Obj: S{obj_senior}/J{obj_junior} vs Real: S{real_senior}/J{real_junior})"
                         })
-                        print(f"⚠️ DÉFICIT {fecha_str} {turno_nombre}: {detalle}")
 
-        # Guardar en explicabilidad
         explicabilidad['violaciones_duras'] = violaciones_duras
         explicabilidad['violaciones_blandas'] = violaciones_blandas
         
-        # Actualizar datos visuales
         if 'datos_equidad' not in explicabilidad: explicabilidad['datos_equidad'] = {}
         explicabilidad['datos_equidad'].update({
             'nombres_profesionales': nombres_largos,
@@ -678,7 +696,7 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             'limites_contractuales': limites_contractuales
         })
 
-        # 5. Transacción Atómica y Guardado
+        # 5. Guardado
         with transaction.atomic():
             cronograma = Cronograma.objects.create(
                 especialidad=especialidad,

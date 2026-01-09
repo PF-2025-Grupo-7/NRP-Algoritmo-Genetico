@@ -1,14 +1,24 @@
 {
     "config": {
         "pop_size": 100,
-        "generaciones": 50,
+        "generaciones": 75,
         "pc": 0.85,
-        "pm": 0.2,
+        "pm": 0.3,
         "elitismo": true,
         "seed": 42
     },
     "datos_problema": {
-        "num_dias": 31,
+        "num_dias": 30,
+        "dias_no_habiles": [
+            3,
+            4,
+            10,
+            11,
+            17,
+            18,
+            24,
+            25
+        ],
         "max_turno_val": 8,
         "turnos_a_cubrir": [
             6,
@@ -165,13 +175,13 @@
         "reglas_cobertura": {
             "dias_pico": [],
             "demanda_pico": {
+                "8": {
+                    "junior": 1,
+                    "senior": 2
+                },
                 "6": {
                     "junior": 3,
                     "senior": 3
-                },
-                "8": {
-                    "junior": 2,
-                    "senior": 2
                 }
             },
             "demanda_finde": {
@@ -185,13 +195,13 @@
                 }
             },
             "demanda_normal": {
+                "8": {
+                    "junior": 1,
+                    "senior": 2
+                },
                 "6": {
                     "junior": 3,
                     "senior": 3
-                },
-                "8": {
-                    "junior": 2,
-                    "senior": 2
                 }
             }
         },
@@ -201,53 +211,8 @@
                 6
             ]
         ],
-        "excepciones_disponibilidad": [
-            {
-                "prof_index": 7,
-                "dias_range": [
-                    7,
-                    9
-                ],
-                "disponible": false
-            }
-        ],
-        "excepciones_preferencias": [
-            {
-                "prof_indices": [
-                    0
-                ],
-                "dia": 7,
-                "valor": -2.0
-            },
-            {
-                "prof_indices": [
-                    2
-                ],
-                "dia": 7,
-                "valor": -2.0
-            },
-            {
-                "prof_indices": [
-                    7
-                ],
-                "dia": 7,
-                "valor": -2.0
-            },
-            {
-                "prof_indices": [
-                    13
-                ],
-                "dia": 7,
-                "valor": -2.0
-            },
-            {
-                "prof_indices": [
-                    13
-                ],
-                "dia": 7,
-                "valor": 2.0
-            }
-        ]
+        "excepciones_disponibilidad": [],
+        "excepciones_preferencias": []
     },
     "estrategias": {
         "sel": "torneo_deterministico",
