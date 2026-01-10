@@ -1,37 +1,14 @@
 import numpy as np
+import traceback
+import json
 from .penalizaciones.duras import PenalizacionesDurasMixin
 from .penalizaciones.blandas import PenalizacionesBlandasMixin
 from .repair import reparar_cromosoma
 
 class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
-    """Representa la instancia del problema de planificación de guardias (NRP).
+    """Representa la instancia del problema de planificación de guardias (NRP)."""
 
-    Esta clase centraliza la lógica de evaluación del Algoritmo Genético, 
-    heredando mixins de penalizaciones duras (restricciones obligatorias) 
-    y blandas (objetivos de optimización).
-
-    Attributes:
-        PENALIZACION_DURA (int): Valor constante para penalizar violaciones 
-            inaceptables de restricciones del hospital.
-        num_profesionales (int): Cantidad total de personal médico.
-        num_dias (int): Horizonte de planificación (ej: 30 días).
-        max_turno_val (int): Valor entero máximo para un turno (ej: 3 para Noche).
-        info_profesionales (list): Metadatos de cada profesional (skills, t_min, t_max).
-        matriz_preferencias (np.ndarray): Matriz PxD con preferencias de descanso/turno.
-        matriz_disponibilidad (np.ndarray): Matriz booleana PxD de licencias/ausencias.
-        requerimientos_cobertura (dict): Demanda de personal por día, turno y skill.
-        pesos_fitness (dict): Coeficientes de ponderación para penalizaciones blandas.
-        secuencias_prohibidas (set): Tuplas de transiciones de turnos no permitidas.
-        turnos_a_cubrir (list): Lista de identificadores de turnos activos.
-        skills_a_cubrir (list): Tipos de habilidades requeridas (senior, junior).
-        duracion_turnos (dict): Mapeo de ID de turno a carga horaria (en horas).
-        tolerancia_equidad_general (int): Margen de desvío permitido en horas totales.
-        tolerancia_equidad_dificil (int): Margen de desvío en turnos críticos.
-        dias_no_habiles (set): Índices de días de fin de semana o feriados.
-        turnos_noche (set): Identificadores de turnos nocturnos.
-    """
-
-    PENALIZACION_DURA = 1_000_000
+    PENALIZACION_DURA = 10_000_000 
 
     def __init__(self,
                  num_profesionales,
@@ -50,132 +27,209 @@ class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
                  tolerancia_equidad_dificil,
                  dias_no_habiles,
                  turnos_noche,
+                 reglas_cobertura=None, 
+                 **kwargs 
                  ):
-        """Inicializa la instancia del problema con todos los parámetros de negocio."""
+        
+        print("🔧 INICIALIZANDO ProblemaGAPropio (Versión DIAGNÓSTICO)...")
+
         self.num_profesionales = num_profesionales
         self.num_dias = num_dias
         self.max_turno_val = max_turno_val
         self.info_profesionales = info_profesionales
-        self.matriz_preferencias = matriz_preferencias
-        self.matriz_disponibilidad = matriz_disponibilidad
-        self.requerimientos_cobertura = requerimientos_cobertura
+        
+        # --- FIX SKILLS CACHE ---
+        self.cache_skills = []
+        try:
+            if isinstance(info_profesionales, dict):
+                for i in range(num_profesionales):
+                    p_data = info_profesionales.get(i, {})
+                    skill = p_data.get('skill', 'junior') if isinstance(p_data, dict) else 'junior'
+                    self.cache_skills.append(skill.strip().lower())
+            else:
+                for p in info_profesionales:
+                    skill = p.get('skill', 'junior') if isinstance(p, dict) else 'junior'
+                    self.cache_skills.append(skill.strip().lower())
+        except:
+            self.cache_skills = ['junior'] * num_profesionales
+
+        self.matriz_preferencias = np.array(matriz_preferencias)
+        self.matriz_disponibilidad = np.array(matriz_disponibilidad)
         self.pesos_fitness = pesos_fitness
-        self.secuencias_prohibidas = secuencias_prohibidas
-        self.turnos_a_cubrir = turnos_a_cubrir
+        self.turnos_a_cubrir = turnos_a_cubrir 
         self.skills_a_cubrir = skills_a_cubrir
-        self.duracion_turnos = duracion_turnos
         self.tolerancia_equidad_general = tolerancia_equidad_general
         self.tolerancia_equidad_dificil = tolerancia_equidad_dificil
-        self.dias_no_habiles = dias_no_habiles
-        self.turnos_noche = turnos_noche
+        self.dias_no_habiles = set(dias_no_habiles)
+        self.turnos_noche = set(turnos_noche)
+        self.reglas_cobertura = reglas_cobertura
 
-        # --- CORRECCIÓN CRÍTICA: NORMALIZACIÓN DE CLAVES (STRING -> INT) ---
-        # El JSON manda claves de turno como strings ("6"), pero el algoritmo usa enteros (6).
-        # Esto convierte todo a entero para que el diccionario se lea bien.
+        # 1. BLINDAJE DURACIÓN
+        self.duracion_turnos = {}
+        if isinstance(duracion_turnos, dict):
+            for k, v in duracion_turnos.items():
+                try:
+                    val = float(v)
+                    self.duracion_turnos[int(k)] = val
+                    self.duracion_turnos[str(int(k))] = val
+                except ValueError: continue
         
+        # 2. BLINDAJE SECUENCIAS
+        self.secuencias_prohibidas = set()
+        for seq in secuencias_prohibidas:
+            if isinstance(seq, (list, tuple)) and len(seq) == 2:
+                self.secuencias_prohibidas.add((int(seq[0]), int(seq[1])))
+            elif isinstance(seq, dict): 
+                try:
+                    self.secuencias_prohibidas.add((int(seq['turno_previo']), int(seq['turno_siguiente'])))
+                except: pass
+
+        # 3. PROCESAR REQUERIMIENTOS (CON DEBUG TRAP)
         self.requerimientos_cobertura = []
         for d in range(num_dias):
-            dia_data_sucio = requerimientos_cobertura[d] # El dict que viene de afuera
-            dia_data_limpio = {}
-            
-            # Si es una lista (raro pero posible), asumimos indices directos
-            if isinstance(dia_data_sucio, list):
-                 self.requerimientos_cobertura.append(dia_data_sucio)
-                 continue
+            try: dia_data_sucio = requerimientos_cobertura[d]
+            except (IndexError, KeyError): dia_data_sucio = {}
 
-            # Si es diccionario, convertimos las claves
-            for t_key, skills_dict in dia_data_sucio.items():
-                try:
-                    # Forzamos que la clave del turno sea un ENTERO
-                    t_id_int = int(t_key)
-                    
-                    # Normalizamos también los skills a minúscula por si acaso (Junior vs junior)
-                    skills_limpio = {k.lower(): v for k, v in skills_dict.items()}
-                    
-                    dia_data_limpio[t_id_int] = skills_limpio
-                except ValueError:
-                    continue # Si la clave no es un número, la ignoramos
+            dia_data_limpio = {}
+            # Normalización agresiva
+            if isinstance(dia_data_sucio, dict):
+                for t_key, skills_dict in dia_data_sucio.items():
+                    try:
+                        t_id_int = int(t_key)
+                        if isinstance(skills_dict, dict):
+                            skills_limpio = {k.lower(): v for k, v in skills_dict.items()}
+                            dia_data_limpio[t_id_int] = skills_limpio
+                            dia_data_limpio[str(t_id_int)] = skills_limpio
+                    except: continue
+            
+            # RELLENAR HUECOS INMEDIATO
+            skills_template = {s.lower(): 0 for s in self.skills_a_cubrir}
+            for turno_id in self.turnos_a_cubrir:
+                turno_int = int(turno_id)
+                if turno_int not in dia_data_limpio:
+                    dia_data_limpio[turno_int] = skills_template.copy()
+                    dia_data_limpio[str(turno_int)] = skills_template.copy()
             
             self.requerimientos_cobertura.append(dia_data_limpio)
-        
-        # Validación de Seguridad para que duermas tranquilo
-        self._validar_estructura_datos()
 
-    def _validar_estructura_datos(self):
-        """Imprime un debug rápido para confirmar que el AG ve la demanda."""
+        # =========================================================================
+        # 4. LA TRAMPA DE DIAGNÓSTICO (Si esto falla, te dirá por qué)
+        # =========================================================================
         try:
-            # Chequeamos el primer día, primer turno a cubrir
-            primer_turno = self.turnos_a_cubrir[0]
-            req_test = self.requerimientos_cobertura[0].get(primer_turno, {})
-            print(f"DEBUG AG DATOS: Día 0, Turno {primer_turno} (int) -> Demanda: {req_test}")
+            # Verificamos Día 0, Turno 6 (que sabemos que requiere gente)
+            dia_0 = self.requerimientos_cobertura[0]
+            turno_test = int(self.turnos_a_cubrir[0]) # Debería ser 6 o 8
+            demanda_test = dia_0.get(turno_test, {})
             
-            if not req_test:
-                print("⚠️ ALERTA: El AG sigue viendo demanda VACÍA. Revisar IDs de turnos.")
-            else:
-                print("✅ ÉXITO: El AG está leyendo la demanda correctamente.")
+            seniors_req = demanda_test.get('senior', 0)
+            juniors_req = demanda_test.get('junior', 0)
+            
+            total_req = seniors_req + juniors_req
+            
+            if total_req == 0:
+                # ¡AQUÍ ESTÁ EL PROBLEMA!
+                # Si llegamos aquí, el algoritmo cree que no se necesita nadie.
+                # Lanzamos error con los datos crudos para ver qué llegó.
+                debug_info = {
+                    "turnos_a_cubrir": self.turnos_a_cubrir,
+                    "dia_0_procesado": dia_0,
+                    "dia_0_crudo_type": str(type(requerimientos_cobertura)),
+                    "dia_0_crudo_len": len(requerimientos_cobertura) if isinstance(requerimientos_cobertura, list) else "N/A"
+                }
+                # Intentamos mostrar el primer elemento crudo si existe
+                if isinstance(requerimientos_cobertura, list) and len(requerimientos_cobertura) > 0:
+                    debug_info["dia_0_crudo_content"] = requerimientos_cobertura[0]
+
+                msg = f"🛑 DATOS VACÍOS DETECTADOS: El algoritmo ve Demanda 0 para el Día 0. Debug: {json.dumps(debug_info, default=str)}"
+                print(msg)
+                raise ValueError(msg)
+            
+            print(f"✅ DIAGNÓSTICO OK: Día 0 requiere {total_req} personas. El algoritmo ve los datos.")
+
         except Exception as e:
-            print(f"Error validando datos: {e}")
+            # Si no podemos ni validar, algo está fatal
+            if "DATOS VACÍOS" not in str(e):
+                print(f"⚠️ Error validando datos: {e}")
+                # No lanzamos error aquí para dejar que el crash de fitness lo atrape si es necesario
+                # O mejor, lanzamos para que lo veas en el mensaje de error de la API
+                raise ValueError(f"Fallo en Validación de Datos Inicial: {e}")
+            raise e
+
+        print("✅ ProblemaGAPropio inicializado.")
+
+    def _calcular_pen_cobertura(self, matriz, detallar=False):
+        penalizacion = 0.0
+        faltantes_total = 0
+
+        for d in range(self.num_dias):
+            demanda_dia = self.requerimientos_cobertura[d]
+            
+            for t_id in self.turnos_a_cubrir:
+                t_int = int(t_id)
+                reqs = demanda_dia.get(t_int)
+                if not reqs: reqs = demanda_dia.get(str(t_int), {'junior': 0, 'senior': 0})
+                
+                req_jun = reqs.get('junior', 0)
+                req_sen = reqs.get('senior', 0)
+
+                if req_jun == 0 and req_sen == 0: continue
+
+                cub_jun = 0
+                cub_sen = 0
+                
+                for p in range(self.num_profesionales):
+                    if int(matriz[p, d]) == t_int:
+                        skill = self.cache_skills[p]
+                        if skill == 'senior': cub_sen += 1
+                        else: cub_jun += 1
+                
+                falta = max(0, req_jun - cub_jun) + max(0, req_sen - cub_sen)
+                if falta > 0:
+                    penalizacion += falta * self.PENALIZACION_DURA
+                    faltantes_total += falta
+
+        if detallar: return penalizacion, faltantes_total
+        return penalizacion
 
     def fitness(self, solution_vector):
-        """Calcula el valor de aptitud (fitness) de un individuo.
+        try:
+            matriz = solution_vector.reshape(self.num_profesionales, self.num_dias)
+            matriz_reparada = self._reparar_cromosoma(matriz)
+            
+            penalizacion = 0.0
+            
+            try: penalizacion += self._calcular_pen_cobertura(matriz_reparada)
+            except Exception as e: raise ValueError(f"Fallo Cobertura: {e}")
 
-        El fitness es la suma de todas las penalizaciones. Un valor más bajo 
-        indica una mejor solución. El proceso incluye la reparación del 
-        cromosoma antes de la evaluación.
+            try: penalizacion += self._calcular_pen_disponibilidad(matriz_reparada)
+            except: pass 
+            try: penalizacion += self._calcular_pen_descansos(matriz_reparada)
+            except: pass
+            try: penalizacion += self._calcular_pen_limites_turnos(matriz_reparada)
+            except: pass
+            
+            pen_eq = self._calcular_pen_equidad_general(matriz_reparada)
+            pen_dif = self._calcular_pen_equidad_dificiles(matriz_reparada)
+            pen_pdl = self._calcular_pen_pdl(matriz_reparada)
+            pen_pte = self._calcular_pen_pte(matriz_reparada)
+            
+            total = (penalizacion + 
+                     (self.pesos_fitness['eq'] * pen_eq) + 
+                     (self.pesos_fitness['dif'] * pen_dif) + 
+                     (self.pesos_fitness['pdl'] * pen_pdl) + 
+                     (self.pesos_fitness['pte'] * pen_pte))
+            
+            return float(total)
 
-        Args:
-            solution_vector (np.ndarray): Vector plano que representa la matriz de guardias.
-
-        Returns:
-            float: Valor total de penalización acumulado.
-        """
-        matriz = solution_vector.reshape(self.num_profesionales, self.num_dias)
-        matriz_reparada = self._reparar_cromosoma(matriz)
-        
-        penalizacion = 0.0
-        # Penalizaciones Duras (Obligatorias)
-        penalizacion += self._calcular_pen_disponibilidad(matriz_reparada)
-        penalizacion += self._calcular_pen_descansos(matriz_reparada)
-        penalizacion += self._calcular_pen_limites_turnos(matriz_reparada)
-        penalizacion += self._calcular_pen_cobertura(matriz_reparada)
-        
-        # Penalizaciones Blandas (Deseables, ponderadas por pesos_fitness)
-        pen_eq = self._calcular_pen_equidad_general(matriz_reparada)
-        pen_dif = self._calcular_pen_equidad_dificiles(matriz_reparada)
-        pen_pdl = self._calcular_pen_pdl(matriz_reparada)
-        pen_pte = self._calcular_pen_pte(matriz_reparada)
-        
-        total = (penalizacion + 
-                 (self.pesos_fitness['eq'] * pen_eq) + 
-                 (self.pesos_fitness['dif'] * pen_dif) + 
-                 (self.pesos_fitness['pdl'] * pen_pdl) + 
-                 (self.pesos_fitness['pte'] * pen_pte))
-        return float(total)
+        except Exception as e:
+            print(f"💥 CRASH EN FITNESS: {e}")
+            traceback.print_exc()
+            raise e 
 
     def _reparar_cromosoma(self, matriz):
-        """Aplica el operador de reparación para corregir inconsistencias inmediatas.
-
-        Args:
-            matriz (np.ndarray): Matriz de guardias PxD antes de reparar.
-
-        Returns:
-            np.ndarray: Matriz corregida según las reglas de reparación definidas.
-        """
         return reparar_cromosoma(matriz, self)
     
     def evaluar_detallado(self, solution_vector):
-        """Genera un reporte exhaustivo de calidad sobre una solución específica.
-
-        Este método se utiliza para la auditoría de soluciones, devolviendo un 
-        desglose de quiénes tienen sobrecarga y qué reglas se incumplieron.
-
-        Args:
-            solution_vector (np.ndarray): Vector plano de la solución a evaluar.
-
-        Returns:
-            dict: Diccionario estructurado con métricas de éxito, violaciones 
-                de reglas y estadísticas de equidad horaria.
-        """
         matriz = solution_vector.reshape(self.num_profesionales, self.num_dias)
         matriz_reparada = self._reparar_cromosoma(matriz)
         
@@ -183,7 +237,6 @@ class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
         pen_pdl, inc_pdl = self._calcular_pen_pdl(matriz_reparada, detallar=True)
         pen_pte, inc_pte = self._calcular_pen_pte(matriz_reparada, detallar=True)
         
-        # Análisis de Equidad (Explicabilidad)
         horas_gen = self._obtener_horas_por_profesional(matriz_reparada, tipo="general")
         _, scores, h_avg, h_min, h_max = self._calcular_score_equidad(
             horas_gen, self.tolerancia_equidad_general, detallar=True
@@ -191,7 +244,7 @@ class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
         
         outliers = []
         for p, s in enumerate(scores):
-            if s < 1.0: # Identifica desbalances frente al promedio objetivo
+            if s < 1.0:
                 outliers.append({
                     "profesional_id": p,
                     "horas": float(horas_gen[p]),
@@ -219,27 +272,17 @@ class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
         }
 
     def _obtener_horas_por_profesional(self, matriz, tipo="general"):
-        """Calcula la carga horaria acumulada para cada profesional.
-
-        Args:
-            matriz (np.ndarray): Matriz de planificación actual.
-            tipo (str): "general" para total de horas, "dificil" para 
-                horas en días no hábiles o turnos nocturnos.
-
-        Returns:
-            np.ndarray: Vector con las horas totales trabajadas por profesional.
-        """
         horas = np.zeros(self.num_profesionales)
         for p in range(self.num_profesionales):
             for d in range(self.num_dias):
                 turno = int(matriz[p, d])
                 if turno > 0:
-                    duracion = self.duracion_turnos.get(turno, 0)
+                    duracion = self.duracion_turnos.get(turno)
+                    if duracion is None:
+                         duracion = self.duracion_turnos.get(str(turno), 0)
                     if tipo == "dificil":
                         es_finde_o_feriado = (d in self.dias_no_habiles)
                         es_turno_noche = (turno in self.turnos_noche)
-                        if es_finde_o_feriado or es_turno_noche:
-                            horas[p] += duracion
-                    else: 
-                        horas[p] += duracion
+                        if es_finde_o_feriado or es_turno_noche: horas[p] += duracion
+                    else: horas[p] += duracion
         return horas

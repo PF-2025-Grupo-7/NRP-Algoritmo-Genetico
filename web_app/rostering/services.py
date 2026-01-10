@@ -256,34 +256,29 @@ def construir_matriz_cronograma(cronograma):
 # ==============================================================================
 # FUNCIONES AUXILIARES EXISTENTES (YA LIMPIAS)
 # ==============================================================================
+import copy
+from datetime import timedelta
+# Asegúrate de importar tus modelos y DiaSemana
+from .models import (
+    ConfiguracionAlgoritmo, PlantillaDemanda, Empleado, TipoTurno, 
+    ReglaDemandaSemanal, DiaSemana, ExcepcionDemanda, NoDisponibilidad, 
+    Preferencia, SecuenciaProhibida
+)
 
 def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None):
-    """Construye el diccionario JSON para la API."""
+    """Construye el JSON con estructura de Demanda Semanal Explícita Plana."""
     num_dias = (fecha_fin - fecha_inicio).days + 1
-    if num_dias < 1:
-        raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio.")
+    if num_dias < 1: raise ValueError("Fechas inválidas.")
 
-    if num_dias < 7:
-        raise ValueError(f"El período es demasiado corto ({num_dias} días). Mínimo 7 días.")
-    if num_dias > 31:
-        raise ValueError(f"El período excede el límite permitido ({num_dias} días). Máximo 31 días.")
-
-    turnos_qs = TipoTurno.objects.filter(especialidad=especialidad)
-    duraciones = set(t.duracion_horas for t in turnos_qs)
-    
-    if len(duraciones) > 1:
-        raise ValidationError(f"Error de Uniformidad: Tienes turnos de distintas duraciones ({duraciones} hs).")
-
+    # 1. Configuración y Plantilla
     config = ConfiguracionAlgoritmo.objects.filter(activa=True).first() or ConfiguracionAlgoritmo()
-
     if plantilla_id:
         plantilla = PlantillaDemanda.objects.get(pk=plantilla_id)
     else:
         plantilla = PlantillaDemanda.objects.filter(especialidad=especialidad).first()
-        if not plantilla:
-            raise ValueError(f"No hay plantilla de demanda creada para {especialidad}")
+        if not plantilla: raise ValueError(f"No hay plantilla para {especialidad}")
 
-    # Configuración del AG
+    # 2. Configuración Básica
     payload_config = {
         "pop_size": config.tamano_poblacion,
         "generaciones": config.generaciones,
@@ -292,102 +287,134 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         "elitismo": config.elitismo,
         "seed": config.semilla or 42
     }
-    payload_estrategias = {
-        "sel": config.estrategia_seleccion,
-        "cross": config.estrategia_cruce,
-        "mut": config.estrategia_mutacion
-    }
 
-    # Datos Profesionales
-    factor_tiempo = num_dias / 30.0
+    # 3. Profesionales
+    factor_tiempo = 1.0 if 28 <= num_dias <= 31 else (num_dias / 30.0)
     empleados_qs = Empleado.objects.filter(especialidad=especialidad, activo=True)
     lista_profesionales = []
     mapa_id_a_indice = {} 
 
     for idx, emp in enumerate(empleados_qs):
         mapa_id_a_indice[emp.id] = idx
-        skill = emp.experiencia.lower()
-        t_min = int(emp.min_turnos_mensuales * factor_tiempo)
-        t_max = int(emp.max_turnos_mensuales * factor_tiempo)
-        if t_max < t_min: t_max = t_min
-
         lista_profesionales.append({
             "id_db": emp.id,
+            "id": emp.id, 
             "nombre": emp.nombre_completo,
-            "skill": skill,
-            "t_min": t_min,
-            "t_max": t_max,
+            "skill": emp.experiencia.strip().lower() if emp.experiencia else "junior",
+            "t_min": int(emp.min_turnos_mensuales * factor_tiempo),
+            "t_max": int(emp.max_turnos_mensuales * factor_tiempo),
         })
 
-    # Datos Turnos
+    # 4. Turnos
+    turnos_qs = TipoTurno.objects.filter(especialidad=especialidad)
     turnos_a_cubrir = [t.id for t in turnos_qs]
     turnos_noche = [t.id for t in turnos_qs if t.es_nocturno]
     duracion_turnos = {str(t.id): float(t.duracion_horas) for t in turnos_qs}
     max_turno_val = max(turnos_a_cubrir) if turnos_a_cubrir else 0
 
-    # Reglas de Cobertura
-    def extraer_demanda(regla_qs):
-        resultado = {}
-        for r in regla_qs:
-            resultado[str(r.turno.id)] = {"junior": r.cantidad_junior, "senior": r.cantidad_senior}
-        return resultado
-
-    dict_demanda_normal = extraer_demanda(ReglaDemandaSemanal.objects.filter(plantilla=plantilla, dia=DiaSemana.LUNES))
-    dict_demanda_finde = extraer_demanda(ReglaDemandaSemanal.objects.filter(plantilla=plantilla, dia=DiaSemana.SABADO))
+    # =========================================================================
+    # 5. GENERACIÓN DE DEMANDA EXPLÍCITA (LISTA PLANA DÍA A DÍA)
+    # =========================================================================
     
-    # --- CÁLCULO DE DÍAS ESPECIALES (PICOS Y FINES DE SEMANA) ---
-    dias_pico_indices = []
-    dias_no_habiles_indices = [] # Fines de semana y feriados (para equidad y demanda)
+    # A. Cargar reglas base en un diccionario temporal (0=Lunes ... 6=Domingo)
+    plantilla_semanal = {d: {} for d in range(7)}
     
-    dict_demanda_pico = {}
-    fecha_iter = fecha_inicio
-    
-    for i in range(num_dias):
-        # 1. Detectar Picos (Excepciones)
-        excepcion = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter)
-        if excepcion.exists():
-            dias_pico_indices.append(i)
-            if not dict_demanda_pico: dict_demanda_pico = extraer_demanda(excepcion)
-        
-        # 2. Detectar Fines de Semana (Sábados y Domingos)
-        # weekday(): 0=Lunes, 5=Sábado, 6=Domingo
-        if fecha_iter.weekday() >= 5:
-            dias_no_habiles_indices.append(i)
-            
-        fecha_iter += timedelta(days=1)
-
-    reglas_cobertura = {
-        "dias_pico": dias_pico_indices,
-        "demanda_pico": dict_demanda_pico if dict_demanda_pico else dict_demanda_normal,
-        "demanda_finde": dict_demanda_finde,
-        "demanda_normal": dict_demanda_normal
+    reglas_db = ReglaDemandaSemanal.objects.filter(plantilla=plantilla).select_related('turno')
+    mapa_dias_db = {
+        DiaSemana.LUNES: 0, DiaSemana.MARTES: 1, DiaSemana.MIERCOLES: 2,
+        DiaSemana.JUEVES: 3, DiaSemana.VIERNES: 4, DiaSemana.SABADO: 5, DiaSemana.DOMINGO: 6
     }
 
-    # Excepciones y Preferencias
+    for regla in reglas_db:
+        d_idx = mapa_dias_db.get(regla.dia)
+        if d_idx is not None:
+            # IMPORTANTE: Usamos str(ID) para compatibilidad JSON
+            turno_str = str(regla.turno.id)
+            plantilla_semanal[d_idx][turno_str] = {
+                "junior": regla.cantidad_junior,
+                "senior": regla.cantidad_senior
+            }
+
+    # B. Aplicar lógica de replicación (Lunes->Viernes, Sábado->Domingo)
+    demanda_lunes = plantilla_semanal.get(0)
+    if demanda_lunes: 
+        for d in range(1, 5): # 1, 2, 3, 4
+            if not plantilla_semanal[d]:
+                plantilla_semanal[d] = copy.deepcopy(demanda_lunes)
+    
+    demanda_sabado = plantilla_semanal.get(5)
+    if demanda_sabado: 
+        if not plantilla_semanal[6]: 
+            plantilla_semanal[6] = copy.deepcopy(demanda_sabado)
+
+    # C. Construir la LISTA MAESTRA día por día
+    requerimientos_cobertura_explicita = []
+    dias_no_habiles_indices = []
+    
+    fecha_iter = fecha_inicio
+    for i in range(num_dias):
+        dia_semana = fecha_iter.weekday() # 0=Lunes
+        
+        # 1. Obtener base del día de la semana
+        demanda_dia = copy.deepcopy(plantilla_semanal.get(dia_semana, {}))
+        
+        # 2. Detectar Finde (Sábado y Domingo)
+        if dia_semana >= 5: 
+            dias_no_habiles_indices.append(i)
+        
+        # 3. Aplicar Excepciones (Feriados, Picos)
+        excepciones_db = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter).select_related('turno')
+        
+        if excepciones_db.exists():
+            if i not in dias_no_habiles_indices:
+                dias_no_habiles_indices.append(i)
+            
+            for ex in excepciones_db:
+                demanda_dia[str(ex.turno.id)] = {
+                    "junior": ex.cantidad_junior,
+                    "senior": ex.cantidad_senior
+                }
+
+        # 4. Agregar a la lista maestra
+        requerimientos_cobertura_explicita.append(demanda_dia)
+        
+        fecha_iter += timedelta(days=1)
+
+    # =========================================================================
+
+    # 6. Excepciones Disponibilidad y Preferencias
     excepciones_disponibilidad = []
     for nd in NoDisponibilidad.objects.filter(empleado__in=empleados_qs, fecha_inicio__lte=fecha_fin, fecha_fin__gte=fecha_inicio):
         start = max(0, (nd.fecha_inicio - fecha_inicio).days)
         end = min(num_dias, (nd.fecha_fin - fecha_inicio).days + 1)
-        if start < end:
-            excepciones_disponibilidad.append({"prof_index": mapa_id_a_indice[nd.empleado.id], "dias_range": [start, end], "disponible": False})
+        prof_idx = mapa_id_a_indice.get(nd.empleado.id)
+        if start < end and prof_idx is not None:
+            excepciones_disponibilidad.append({"prof_index": prof_idx, "dias_range": [start, end], "disponible": False})
 
     excepciones_preferencias = []
     for pref in Preferencia.objects.filter(empleado__in=empleados_qs, fecha__range=[fecha_inicio, fecha_fin]):
         dia_idx = (pref.fecha - fecha_inicio).days
         peso = config.peso_preferencia_turno if pref.tipo_turno else config.peso_preferencia_dias_libres
         valor = peso if pref.deseo == 'TRABAJAR' else -peso
-        excepciones_preferencias.append({"prof_indices": [mapa_id_a_indice[pref.empleado.id]], "dia": dia_idx, "valor": valor})
+        prof_idx = mapa_id_a_indice.get(pref.empleado.id)
+        if prof_idx is not None:
+            excepciones_preferencias.append({"prof_indices": [prof_idx], "dia": dia_idx, "valor": valor})
 
-    # Construcción final
-    secuencias = [[s.turno_previo.id, s.turno_siguiente.id] for s in SecuenciaProhibida.objects.filter(especialidad=especialidad)]
+    secuencias = []
+    for s in SecuenciaProhibida.objects.filter(especialidad=especialidad):
+        secuencias.append([s.turno_previo.id, s.turno_siguiente.id])
 
     return {
         "config": payload_config,
         "datos_problema": {
             "num_dias": num_dias,
-            # --- NUEVO: Enviamos explícitamente qué días son fines de semana ---
-            "dias_no_habiles": dias_no_habiles_indices, 
-            # -------------------------------------------------------------------
+            "requerimientos_cobertura_explicita": requerimientos_cobertura_explicita, 
+            
+            "dias_no_habiles": dias_no_habiles_indices,
+            # --- CORRECCIÓN AQUÍ: Diccionario {} en lugar de Lista [] ---
+            "reglas_cobertura": {}, 
+            # -----------------------------------------------------------
+            
             "max_turno_val": max_turno_val,
             "turnos_a_cubrir": turnos_a_cubrir,
             "skills_a_cubrir": ["junior", "senior"],
@@ -403,35 +430,58 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
             "tolerancia_equidad_general": config.tolerancia_general,
             "tolerancia_equidad_dificil": config.tolerancia_dificil,
             "lista_profesionales": lista_profesionales,
-            "reglas_cobertura": reglas_cobertura,
             "secuencias_prohibidas": secuencias,
             "excepciones_disponibilidad": excepciones_disponibilidad,
             "excepciones_preferencias": excepciones_preferencias
         },
-        "estrategias": payload_estrategias
+        "estrategias": {
+            "sel": config.estrategia_seleccion,
+            "cross": config.estrategia_cruce,
+            "mut": config.estrategia_mutacion
+        }
     }
+
+import json
+import requests
 
 def invocar_api_planificacion(payload):
     """Envía el JSON a la API de optimización."""
     url = "http://optimizer:8000/planificar" 
-    try:
-        # --- BLOQUE ESPÍA: GUARDAR PAYLOAD SIEMPRE PARA DEBUG ---
-        print("🕵️ INTERCEPTANDO PAYLOAD...")
-        try:
-            with open('debug_payload.json', 'w', encoding='utf-8') as f:
-                json.dump(payload, f, indent=4, default=str)
-            print("✅ Payload guardado exitosamente en 'debug_payload.json'")
-        except Exception as e:
-            print(f"⚠️ Error al guardar payload de debug: {e}")
-        # --------------------------------------------------------
-
-        response = requests.post(url, json=payload, timeout=300) 
-        response.raise_for_status() 
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error conectando con la API: {e}")
-        return None
     
+    # --- BLOQUE ESPÍA: GUARDAR PAYLOAD ---
+    print("🕵️ INTERCEPTANDO PAYLOAD...")
+    try:
+        with open('debug_payload.json', 'w', encoding='utf-8') as f:
+            json.dump(payload, f, indent=4, default=str)
+        print("✅ Payload guardado en 'debug_payload.json'")
+    except Exception as e:
+        print(f"⚠️ Error al guardar payload: {e}")
+    # -------------------------------------
+
+    try:
+        response = requests.post(url, json=payload, timeout=300)
+        
+        # SI ES 422, LANZAMOS UNA EXCEPCIÓN MANUAL CON EL TEXTO DEL ERROR
+        if response.status_code == 422:
+            # Esto forzará a que el error aparezca en tus logs sí o sí
+            raise ValueError(f"🛑 LA API RECHAZÓ EL JSON: {response.text}")
+
+        response.raise_for_status()
+        return response.json()
+        
+    except requests.exceptions.RequestException as e:
+        # Si lanzamos el ValueError arriba, caerá aquí o en el try/catch superior
+        print(f"Error fatal: {e}")
+        raise e # Re-lanzamos para que se vea
+
+    except requests.exceptions.HTTPError as e:
+        # Si fue un 422, ya lo imprimimos arriba. 
+        # Si fue otro error (500, 404), se imprimirá aquí.
+        print(f"❌ Error HTTP: {e}")
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Error de conexión: {e}")
+        return None
 
 def consultar_resultado_ag(job_id):
     """Polling al endpoint de resultados."""
