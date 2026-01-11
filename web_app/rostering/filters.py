@@ -8,7 +8,7 @@ from .models import Empleado, Cronograma, TipoTurno, NoDisponibilidad, Preferenc
 WIDGET_TEXT = forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Buscar...'})
 WIDGET_NUMBER = forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0'})
 WIDGET_DATE = forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
-WIDGET_SELECT = forms.Select(attrs={'class': 'form-select'})
+WIDGET_SELECT = forms.Select(attrs={'class': 'form-select', 'required': False})
 
 # ==============================================================================
 # FILTROS DE EMPLEADOS
@@ -102,12 +102,14 @@ class CronogramaFilter(django_filters.FilterSet):
             ('BORRADOR', 'Borrador'),
         ], 
         empty_label="Todos los Estados",
+        required=False,
         widget=WIDGET_SELECT
     )
 
     especialidad = django_filters.ChoiceFilter(
         choices=Empleado.TipoEspecialidad.choices,
         empty_label="Todas las Especialidades",
+        required=False,
         widget=WIDGET_SELECT
     )
 

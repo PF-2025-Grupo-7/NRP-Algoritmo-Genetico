@@ -28,7 +28,7 @@
                         <input type="text" name="search" value="{{ filter_form.data.search }}" class="form-control form-control-sm search-input" placeholder="Buscar por nombre o legajo..." aria-label="Buscar empleado">
                     </div>
 
-                    <div class="custom-select-wrapper">
+                    <div class="custom-select-wrapper select-wide">
                         <select class="form-select d-none" id="f_especialidad" name="especialidad">
                             <option value="">Todas las Especialidades</option>
                             {% for value,label in filter_form.especialidad.field.choices %}
@@ -144,7 +144,7 @@
                                 {% if empleado.activo %}
                                     <span class="badge badge-status bg-success-subtle-custom">Activo</span>
                                 {% else %}
-                                    <span class="badge badge-status bg-warning-subtle-custom">Inactivo</span>
+                                    <span class="badge badge-status bg-danger-subtle-custom">Inactivo</span>
                                 {% endif %}
                             </td>
 
@@ -329,6 +329,11 @@
     .bg-warning-subtle-custom { 
         background-color: #fff3cd !important; 
         color: #928560 !important; 
+    }
+
+    .bg-danger-subtle-custom { 
+        background-color: #f8d7da !important; 
+        color: #915c61 !important; 
     }
 
     .bg-info-subtle-custom { 

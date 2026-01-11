@@ -28,7 +28,7 @@
                         <input type="text" name="search" value="{{ filter_form.data.search }}" class="form-control form-control-sm search-input" placeholder="Buscar por nombre o legajo..." aria-label="Buscar empleado">
                     </div>
 
-                    <div class="custom-select-wrapper">
+                    <div class="custom-select-wrapper select-wide">
                         <select class="form-select d-none" id="f_especialidad" name="especialidad">
                             <option value="">Todas las Especialidades</option>
                             {% for value,label in filter_form.especialidad.field.choices %}

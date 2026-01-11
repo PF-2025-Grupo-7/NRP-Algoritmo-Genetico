@@ -26,7 +26,7 @@
                 <div class="col-auto">
                     <div class="custom-select-wrapper select-wide">
                         <select class="form-select d-none" id="f_especialidad" name="especialidad">
-                            <option value="">{{ filter_form.especialidad.field.empty_label|default:"Todas las Especialidades" }}</option>
+                            <option value="">Todas las Especialidades</option>
                             {% for value,label in filter_form.especialidad.field.choices %}
                                 {% if value != '' %}
                                 <option value="{{ value }}" {% if filter_form.data.especialidad == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
@@ -34,9 +34,9 @@
                             {% endfor %}
                         </select>
                         <div class="custom-dropdown">
-                            <div class="custom-dropdown-header" tabindex="0" id="f_especialidad_header" data-placeholder="{{ filter_form.especialidad.field.empty_label|default:'Todas las Especialidades' }}">{{ filter_form.especialidad.field.empty_label|default:"Todas las Especialidades" }}</div>
+                            <div class="custom-dropdown-header" tabindex="0" id="f_especialidad_header" data-placeholder="Todas las Especialidades">Todas las Especialidades</div>
                             <div class="custom-dropdown-menu" id="f_especialidad_menu">
-                                <div class="custom-option" data-value="">{{ filter_form.especialidad.field.empty_label|default:"Todas las Especialidades" }}</div>
+                                <div class="custom-option option-all" data-value="">Todas las Especialidades</div>
                                 {% for value,label in filter_form.especialidad.field.choices %}
                                     {% if value != '' %}
                                     <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
@@ -50,7 +50,7 @@
                 <div class="col-auto">
                     <div class="custom-select-wrapper">
                         <select class="form-select d-none" id="f_estado" name="estado">
-                            <option value="">{{ filter_form.estado.field.empty_label|default:"Todos los Estados" }}</option>
+                            <option value="">Todos los Estados</option>
                             {% for value,label in filter_form.estado.field.choices %}
                                 {% if value != '' %}
                                 <option value="{{ value }}" {% if filter_form.data.estado == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
@@ -58,9 +58,9 @@
                             {% endfor %}
                         </select>
                         <div class="custom-dropdown">
-                            <div class="custom-dropdown-header" tabindex="0" id="f_estado_header" data-placeholder="{{ filter_form.estado.field.empty_label|default:'Todos los Estados' }}">{{ filter_form.estado.field.empty_label|default:"Todos los Estados" }}</div>
+                            <div class="custom-dropdown-header" tabindex="0" id="f_estado_header" data-placeholder="Todos los Estados">Todos los Estados</div>
                             <div class="custom-dropdown-menu" id="f_estado_menu">
-                                <div class="custom-option" data-value="">{{ filter_form.estado.field.empty_label|default:"Todos los Estados" }}</div>
+                                <div class="custom-option option-all" data-value="">Todos los Estados</div>
                                 {% for value,label in filter_form.estado.field.choices %}
                                     {% if value != '' %}
                                     <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
@@ -541,17 +541,16 @@
         padding-left: 1.4rem;
     }
 
-    .custom-option:first-child {
-        background-color: transparent;
-        color: #495057;
+    .custom-option.option-all {
         font-weight: 500;
-        cursor: default;
+        color: #495057;
+        cursor: pointer;
     }
 
-    .custom-option:first-child:hover {
-        background-color: transparent;
-        color: #495057;
-        padding-left: 1.2rem;
+    .custom-option.option-all:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.4rem;
     }
 
     .form-select:disabled ~ .custom-dropdown .custom-dropdown-header {
@@ -695,7 +694,7 @@
 </style>
 
 <script>
-    // Helpers: dropdown personalizado (replicado de generador)
+    // Helpers: dropdown personalizado simplificado
     function setupCustomDropdown(wrapper){
         const nativeSelect = wrapper.querySelector('.form-select');
         const header = wrapper.querySelector('.custom-dropdown-header');
@@ -704,58 +703,56 @@
 
         if (!header || !dropdown || !menu || !nativeSelect) return;
 
-        // Clonar header para limpiar listeners previos
-        const newHeader = header.cloneNode(true);
-        header.parentNode.replaceChild(newHeader, header);
+        const placeholderText = header.dataset.placeholder || nativeSelect.options[0]?.textContent || header.textContent;
 
-        const updateHeaderFromValue = () => {
-            const current = nativeSelect.value;
-            const option = nativeSelect.querySelector(`option[value="${CSS.escape(current)}"]`);
-            if (option && option.textContent) {
-                newHeader.textContent = option.textContent;
-            } else {
-                const placeholder = newHeader.dataset.placeholder || newHeader.textContent;
-                newHeader.textContent = placeholder;
-            }
-        };
-        // Inicializar texto acorde al valor actual
-        updateHeaderFromValue();
+        // Inicializar el header con el texto de la opción seleccionada actualmente
+        const selectedOption = nativeSelect.options[nativeSelect.selectedIndex];
+        if (selectedOption && selectedOption.value !== '') {
+            header.textContent = selectedOption.textContent;
+        } else {
+            header.textContent = placeholderText;
+        }
 
         // Abrir/cerrar
-        newHeader.onclick = (e) => {
+        header.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (nativeSelect.disabled) return;
             dropdown.classList.toggle('open');
         };
 
         // Selección
-        menu.querySelectorAll('.custom-option').forEach((option, index) => {
+        menu.querySelectorAll('.custom-option').forEach((option) => {
             option.onclick = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                // placeholder (primer item) no seleccionable
-                if (index === 0 && option.getAttribute('data-value') === '') {
-                    dropdown.classList.remove('open');
-                    return;
-                }
-                const value = option.getAttribute('data-value');
+                
+                const value = option.getAttribute('data-value') ?? '';
                 const text = option.textContent;
+                
+                // Establecer el valor en el select nativo y forzar índice
                 nativeSelect.value = value;
-                newHeader.textContent = text;
+                const matchingIndex = Array.from(nativeSelect.options).findIndex(opt => opt.value === value);
+                if (matchingIndex >= 0) {
+                    nativeSelect.selectedIndex = matchingIndex;
+                }
+                
+                // Actualizar el header mostrando el placeholder cuando toca "Todos"
+                header.textContent = value === '' ? placeholderText : text;
+                
+                // Cerrar el dropdown
                 dropdown.classList.remove('open');
+
+                // Notificar cambio para coherencia con otros selects
                 nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
             };
         });
 
         // Cerrar al click fuera
-        const closeHandler = (e) => {
+        document.addEventListener('click', (e) => {
             if (!wrapper.contains(e.target)) {
                 dropdown.classList.remove('open');
             }
-        };
-        document.addEventListener('click', closeHandler);
-        wrapper._closeHandler = closeHandler;
+        });
     }
 
     document.addEventListener('DOMContentLoaded', function () {
