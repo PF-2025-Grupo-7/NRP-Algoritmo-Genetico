@@ -78,7 +78,10 @@ class CronogramaFilter(django_filters.FilterSet):
     )
     
     estado = django_filters.ChoiceFilter(
-        choices=Cronograma.Estado.choices, 
+        choices=[
+            ('PUBLICADO', 'Publicado'),
+            ('BORRADOR', 'Borrador'),
+        ], 
         empty_label="Todos los Estados",
         widget=WIDGET_SELECT
     )

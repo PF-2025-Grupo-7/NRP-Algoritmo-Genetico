@@ -9,22 +9,14 @@
     },
     "datos_problema": {
         "num_dias": 28,
-        "max_turno_val": 8,
-        "turnos_a_cubrir": [
-            6,
-            8
-        ],
+        "max_turno_val": 0,
+        "turnos_a_cubrir": [],
         "skills_a_cubrir": [
             "junior",
             "senior"
         ],
-        "turnos_noche": [
-            8
-        ],
-        "duracion_turnos": {
-            "6": 12.0,
-            "8": 12.0
-        },
+        "turnos_noche": [],
+        "duracion_turnos": {},
         "pesos_fitness": {
             "eq": 1.0,
             "dif": 1.5,
@@ -34,173 +26,14 @@
         },
         "tolerancia_equidad_general": 8,
         "tolerancia_equidad_dificil": 4,
-        "lista_profesionales": [
-            {
-                "id_db": 4,
-                "nombre": "George Best",
-                "skill": "senior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 5,
-                "nombre": "Paul Scholes",
-                "skill": "senior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 6,
-                "nombre": "John Deacon",
-                "skill": "senior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 7,
-                "nombre": "Kate Moss",
-                "skill": "senior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 8,
-                "nombre": "Margot Robbie",
-                "skill": "senior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 9,
-                "nombre": "Diana Ross",
-                "skill": "senior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 10,
-                "nombre": "Sam Smith",
-                "skill": "senior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 11,
-                "nombre": "Lindsey Lohan",
-                "skill": "senior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 12,
-                "nombre": "Neymar Jr.",
-                "skill": "junior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 13,
-                "nombre": "Marthin Luther King Jr.",
-                "skill": "junior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 14,
-                "nombre": "Vinicius Jr.",
-                "skill": "junior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 15,
-                "nombre": "Ronaldinho",
-                "skill": "junior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 16,
-                "nombre": "Romarinho",
-                "skill": "junior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 17,
-                "nombre": "Venezuela",
-                "skill": "junior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 18,
-                "nombre": "Thiago Messi",
-                "skill": "junior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 19,
-                "nombre": "CR7 Jr.",
-                "skill": "junior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 2,
-                "nombre": "Aaron Ramsey",
-                "skill": "senior",
-                "t_min": 9,
-                "t_max": 15
-            },
-            {
-                "id_db": 3,
-                "nombre": "Paul Gascoigne",
-                "skill": "senior",
-                "t_min": 9,
-                "t_max": 15
-            }
-        ],
+        "lista_profesionales": [],
         "reglas_cobertura": {
             "dias_pico": [],
-            "demanda_pico": {
-                "6": {
-                    "junior": 2,
-                    "senior": 5
-                },
-                "8": {
-                    "junior": 2,
-                    "senior": 5
-                }
-            },
-            "demanda_finde": {
-                "6": {
-                    "junior": 7,
-                    "senior": 5
-                },
-                "8": {
-                    "junior": 12,
-                    "senior": 10
-                }
-            },
-            "demanda_normal": {
-                "6": {
-                    "junior": 2,
-                    "senior": 5
-                },
-                "8": {
-                    "junior": 2,
-                    "senior": 5
-                }
-            }
+            "demanda_pico": {},
+            "demanda_finde": {},
+            "demanda_normal": {}
         },
-        "secuencias_prohibidas": [
-            [
-                8,
-                6
-            ]
-        ],
+        "secuencias_prohibidas": [],
         "excepciones_disponibilidad": [],
         "excepciones_preferencias": []
     },
