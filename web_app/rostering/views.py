@@ -281,18 +281,14 @@ class EmpleadoListView(LoginRequiredMixin, ListView):
     paginate_by = 15 
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().order_by('id')
         self.filterset = EmpleadoFilter(self.request.GET, queryset=qs)
         qs = self.filterset.qs
-        order = self.request.GET.get('order_by')
-        if order and order.lstrip('-') in ['legajo', 'nombre_completo', 'especialidad', 'experiencia', 'activo']:
-            qs = qs.order_by(order)
         return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['filter_form'] = self.filterset.form
-        ctx['current_order'] = self.request.GET.get('order_by', '')
         return ctx
 
 class EmpleadoCreateView(LoginRequiredMixin, CreateView):

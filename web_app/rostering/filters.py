@@ -24,12 +24,14 @@ class EmpleadoFilter(django_filters.FilterSet):
     especialidad = django_filters.ChoiceFilter(
         choices=Empleado.TipoEspecialidad.choices,
         empty_label="Todas las Especialidades",
+        required=False,
         widget=WIDGET_SELECT
     )
 
     experiencia = django_filters.ChoiceFilter(
         choices=Empleado.TipoExperiencia.choices,
-        empty_label="Cualquier Experiencia",
+        empty_label="Todas las Experiencias",
+        required=False,
         widget=WIDGET_SELECT
     )
 
@@ -47,7 +49,15 @@ class EmpleadoFilter(django_filters.FilterSet):
         widget=WIDGET_NUMBER
     )
 
-    activo = django_filters.BooleanFilter(
+    activo = django_filters.ChoiceFilter(
+        choices=[
+            ('', 'Todos los Estados'),
+            ('1', 'Activo'),
+            ('0', 'Inactivo'),
+        ],
+        empty_label="Todos los Estados",
+        required=False,
+        method='filter_activo',
         widget=WIDGET_SELECT
     )
 
@@ -56,7 +66,16 @@ class EmpleadoFilter(django_filters.FilterSet):
         fields = ['especialidad', 'experiencia', 'min_turnos', 'max_turnos', 'activo']
 
     def filter_search(self, queryset, name, value):
-        return queryset.filter(nombre_completo__icontains=value) | queryset.filter(legajo__icontains=value)
+        if value:
+            return queryset.filter(nombre_completo__icontains=value) | queryset.filter(legajo__icontains=value)
+        return queryset
+    
+    def filter_activo(self, queryset, name, value):
+        if value == '1':
+            return queryset.filter(activo=True)
+        elif value == '0':
+            return queryset.filter(activo=False)
+        return queryset
 
 
 # ==============================================================================
