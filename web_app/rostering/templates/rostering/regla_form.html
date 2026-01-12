@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container mt-5">
     <div class="row justify-content-center">
-        <div class="col-md-6">
+        <div class="col-md-8">
             <div class="card shadow border-0">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">{{ titulo }}</h5>
@@ -11,16 +11,78 @@
                 <div class="card-body p-4">
                     <form method="post">
                         {% csrf_token %}
-                        {% for field in form %}
+                        
+                        <!-- Turno -->
                         <div class="mb-3">
-                            <label class="form-label fw-bold">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.errors %}
-                                <div class="text-danger small mt-1">{{ field.errors.0 }}</div>
+                            <label class="form-label fw-bold">{{ form.turno.label }}</label>
+                            {{ form.turno }}
+                            {% if form.turno.errors %}
+                                <div class="text-danger small mt-1">{{ form.turno.errors.0 }}</div>
                             {% endif %}
                         </div>
-                        {% endfor %}
+
+                        <!-- Días de la semana con checkboxes estilo "puntitos" -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Días de aplicación</label>
+                            <div class="alert alert-light border">
+                                <div class="d-flex justify-content-around align-items-center flex-wrap gap-3">
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="id_dia_lunes" name="dia_lunes" {% if form.dia_lunes.value %}checked{% endif %}>
+                                        <label class="form-check-label" for="id_dia_lunes">Lunes</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="id_dia_martes" name="dia_martes" {% if form.dia_martes.value %}checked{% endif %}>
+                                        <label class="form-check-label" for="id_dia_martes">Martes</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="id_dia_miercoles" name="dia_miercoles" {% if form.dia_miercoles.value %}checked{% endif %}>
+                                        <label class="form-check-label" for="id_dia_miercoles">Miércoles</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="id_dia_jueves" name="dia_jueves" {% if form.dia_jueves.value %}checked{% endif %}>
+                                        <label class="form-check-label" for="id_dia_jueves">Jueves</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="id_dia_viernes" name="dia_viernes" {% if form.dia_viernes.value %}checked{% endif %}>
+                                        <label class="form-check-label" for="id_dia_viernes">Viernes</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="id_dia_sabado" name="dia_sabado" {% if form.dia_sabado.value %}checked{% endif %}>
+                                        <label class="form-check-label" for="id_dia_sabado">Sábado</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="id_dia_domingo" name="dia_domingo" {% if form.dia_domingo.value %}checked{% endif %}>
+                                        <label class="form-check-label" for="id_dia_domingo">Domingo</label>
+                                    </div>
+                                </div>
+                            </div>
+                            {% if form.non_field_errors %}
+                                <div class="text-danger small mt-1">{{ form.non_field_errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Cantidad Senior -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">{{ form.cantidad_senior.label }}</label>
+                            {{ form.cantidad_senior }}
+                            {% if form.cantidad_senior.errors %}
+                                <div class="text-danger small mt-1">{{ form.cantidad_senior.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Cantidad Junior -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">{{ form.cantidad_junior.label }}</label>
+                            {{ form.cantidad_junior }}
+                            {% if form.cantidad_junior.errors %}
+                                <div class="text-danger small mt-1">{{ form.cantidad_junior.errors.0 }}</div>
+                            {% endif %}
+                        </div>
                         
+                        <div class="alert alert-info small mt-4">
+                            <i class="bi bi-info-circle-fill"></i> <strong>Nota:</strong> Si seleccionas un día que ya está asignado en otra regla con el mismo turno, automáticamente se quitará de la regla anterior.
+                        </div>
+
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                             <a href="#" onclick="window.history.back()" class="btn btn-secondary me-md-2">Cancelar</a>
                             <button type="submit" class="btn btn-success">Guardar</button>

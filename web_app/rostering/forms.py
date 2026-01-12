@@ -131,11 +131,19 @@ class PlantillaDemandaUpdateForm(forms.ModelForm):
             self.fields['especialidad'].help_text = "La especialidad no se puede modificar una vez creada la plantilla."
 
 class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
+    # Creamos campos individuales para cada día de la semana
+    dia_lunes = forms.BooleanField(required=False, label='Lunes')
+    dia_martes = forms.BooleanField(required=False, label='Martes')
+    dia_miercoles = forms.BooleanField(required=False, label='Miércoles')
+    dia_jueves = forms.BooleanField(required=False, label='Jueves')
+    dia_viernes = forms.BooleanField(required=False, label='Viernes')
+    dia_sabado = forms.BooleanField(required=False, label='Sábado')
+    dia_domingo = forms.BooleanField(required=False, label='Domingo')
+    
     class Meta:
         model = ReglaDemandaSemanal
-        fields = ['dia', 'turno', 'cantidad_senior', 'cantidad_junior']
+        fields = ['turno', 'cantidad_senior', 'cantidad_junior']
         widgets = {
-            'dia': SELECT_WIDGET,
             'turno': SELECT_WIDGET,
         }
 
@@ -149,7 +157,59 @@ class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
                 plantilla = PlantillaDemanda.objects.get(id=plantilla_id)
                 self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
             except PlantillaDemanda.DoesNotExist:
-                pass # Si no existe (raro), dejamos el queryset por defecto vacío o completo
+                pass
+        
+        # Si estamos editando, marcar los días seleccionados
+        if self.instance and self.instance.pk:
+            dias_seleccionados = self.instance.dias or []
+            if 0 in dias_seleccionados:
+                self.fields['dia_lunes'].initial = True
+            if 1 in dias_seleccionados:
+                self.fields['dia_martes'].initial = True
+            if 2 in dias_seleccionados:
+                self.fields['dia_miercoles'].initial = True
+            if 3 in dias_seleccionados:
+                self.fields['dia_jueves'].initial = True
+            if 4 in dias_seleccionados:
+                self.fields['dia_viernes'].initial = True
+            if 5 in dias_seleccionados:
+                self.fields['dia_sabado'].initial = True
+            if 6 in dias_seleccionados:
+                self.fields['dia_domingo'].initial = True
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        # Construir la lista de días seleccionados
+        dias_seleccionados = []
+        if cleaned_data.get('dia_lunes'):
+            dias_seleccionados.append(0)
+        if cleaned_data.get('dia_martes'):
+            dias_seleccionados.append(1)
+        if cleaned_data.get('dia_miercoles'):
+            dias_seleccionados.append(2)
+        if cleaned_data.get('dia_jueves'):
+            dias_seleccionados.append(3)
+        if cleaned_data.get('dia_viernes'):
+            dias_seleccionados.append(4)
+        if cleaned_data.get('dia_sabado'):
+            dias_seleccionados.append(5)
+        if cleaned_data.get('dia_domingo'):
+            dias_seleccionados.append(6)
+        
+        # Validar que se haya seleccionado al menos un día
+        if not dias_seleccionados:
+            raise ValidationError("Debe seleccionar al menos un día de la semana.")
+        
+        cleaned_data['dias'] = dias_seleccionados
+        return cleaned_data
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.dias = self.cleaned_data['dias']
+        if commit:
+            instance.save()
+        return instance
 
 class ExcepcionDemandaForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:

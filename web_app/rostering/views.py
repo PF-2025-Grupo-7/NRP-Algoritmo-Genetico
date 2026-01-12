@@ -499,8 +499,10 @@ class PlantillaDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['reglas'] = self.object.reglas.all().order_by('dia', 'turno__hora_inicio')
+        ctx['reglas'] = self.object.reglas.all().order_by('turno__hora_inicio')
         ctx['excepciones'] = self.object.excepciones.all().order_by('fecha')
+        # Pasar todos los turnos de la especialidad para el dropdown
+        ctx['turnos'] = TipoTurno.objects.filter(especialidad=self.object.especialidad).order_by('hora_inicio')
         return ctx
 
 # Asegurate de importar el form nuevo arriba
@@ -537,7 +539,35 @@ class ReglaCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.plantilla = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
+        
+        # Resolver conflictos: quitar días de otras reglas con el mismo turno
+        self._resolver_conflictos_dias(form)
+        
         return super().form_valid(form)
+    
+    def _resolver_conflictos_dias(self, form):
+        """Remueve los días seleccionados de otras reglas que tengan el mismo turno."""
+        dias_nuevos = form.cleaned_data['dias']
+        turno = form.instance.turno
+        plantilla = form.instance.plantilla
+        
+        # Buscar otras reglas con el mismo turno en la misma plantilla
+        otras_reglas = ReglaDemandaSemanal.objects.filter(
+            plantilla=plantilla,
+            turno=turno
+        ).exclude(pk=form.instance.pk if form.instance.pk else None)
+        
+        for regla in otras_reglas:
+            dias_actuales = regla.dias or []
+            # Quitar los días que están en la nueva regla
+            dias_actualizados = [d for d in dias_actuales if d not in dias_nuevos]
+            
+            if dias_actualizados != dias_actuales:
+                if dias_actualizados:  # Si quedan días, actualizar
+                    regla.dias = dias_actualizados
+                    regla.save()
+                else:  # Si no quedan días, eliminar la regla
+                    regla.delete()
 
     def get_success_url(self):
         return reverse_lazy('plantilla_detail', kwargs={'pk': self.kwargs['plantilla_id']})
@@ -546,6 +576,53 @@ class ReglaCreateView(LoginRequiredMixin, CreateView):
         ctx = super().get_context_data(**kwargs)
         p = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
         ctx['titulo'] = f"Agregar Regla a {p.nombre}"
+        return ctx
+
+class ReglaUpdateView(LoginRequiredMixin, UpdateView):
+    model = ReglaDemandaSemanal
+    form_class = ReglaDemandaSemanalForm
+    template_name = 'rostering/regla_form.html'
+
+    def get_form_kwargs(self):
+        kw = super().get_form_kwargs()
+        kw['plantilla_id'] = self.object.plantilla.id
+        return kw
+
+    def form_valid(self, form):
+        # Resolver conflictos: quitar días de otras reglas con el mismo turno
+        self._resolver_conflictos_dias(form)
+        return super().form_valid(form)
+    
+    def _resolver_conflictos_dias(self, form):
+        """Remueve los días seleccionados de otras reglas que tengan el mismo turno."""
+        dias_nuevos = form.cleaned_data['dias']
+        turno = form.instance.turno
+        plantilla = form.instance.plantilla
+        
+        # Buscar otras reglas con el mismo turno en la misma plantilla
+        otras_reglas = ReglaDemandaSemanal.objects.filter(
+            plantilla=plantilla,
+            turno=turno
+        ).exclude(pk=form.instance.pk)
+        
+        for regla in otras_reglas:
+            dias_actuales = regla.dias or []
+            # Quitar los días que están en la nueva regla
+            dias_actualizados = [d for d in dias_actuales if d not in dias_nuevos]
+            
+            if dias_actualizados != dias_actuales:
+                if dias_actualizados:  # Si quedan días, actualizar
+                    regla.dias = dias_actualizados
+                    regla.save()
+                else:  # Si no quedan días, eliminar la regla
+                    regla.delete()
+
+    def get_success_url(self):
+        return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.plantilla.id})
+    
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['titulo'] = f"Editar Regla: {self.object.turno.nombre}"
         return ctx
 
 class ReglaDeleteView(LoginRequiredMixin, DeleteView):
@@ -935,7 +1012,7 @@ def duplicar_plantilla(request, pk):
             for regla in original.reglas.all():
                 reglas_a_crear.append(ReglaDemandaSemanal(
                     plantilla=nueva_plantilla,
-                    dia=regla.dia,
+                    dias=regla.dias,  # Copiamos la lista de días
                     turno=regla.turno,
                     cantidad_senior=regla.cantidad_senior,
                     cantidad_junior=regla.cantidad_junior
@@ -964,3 +1041,146 @@ def duplicar_plantilla(request, pk):
     except Exception as e:
         messages.error(request, f"Error al duplicar la plantilla: {str(e)}")
         return redirect('plantilla_list')
+
+
+# ==============================================================================
+# VISTAS AJAX PARA REGLAS DE DEMANDA (EDICIÓN INLINE)
+# ==============================================================================
+
+@login_required
+@require_POST
+@csrf_exempt
+def api_crear_regla(request, plantilla_id):
+    """AJAX: Crear una nueva regla de demanda."""
+    try:
+        plantilla = PlantillaDemanda.objects.get(pk=plantilla_id)
+        
+        turno_id = request.POST.get('turno_id')
+        cantidad_senior = int(request.POST.get('cantidad_senior', 0))
+        cantidad_junior = int(request.POST.get('cantidad_junior', 0))
+        es_excepcion = request.POST.get('es_excepcion', '0') == '1'
+        dias = request.POST.getlist('dias[]')  # Lista de días seleccionados
+        dias = [int(d) for d in dias if d]
+        
+        if not dias:
+            return JsonResponse({'error': 'Debe seleccionar al menos un día'}, status=400)
+        
+        turno = TipoTurno.objects.get(pk=turno_id)
+        
+        # Validar consistencia de especialidad
+        if turno.especialidad != plantilla.especialidad:
+            return JsonResponse({'error': 'El turno no corresponde a la especialidad'}, status=400)
+        
+        # Resolver conflictos
+        otras_reglas = ReglaDemandaSemanal.objects.filter(
+            plantilla=plantilla,
+            turno=turno
+        )
+        
+        for regla in otras_reglas:
+            dias_actuales = regla.dias or []
+            dias_actualizados = [d for d in dias_actuales if d not in dias]
+            
+            if dias_actualizados != dias_actuales:
+                if dias_actualizados:
+                    regla.dias = dias_actualizados
+                    regla.save()
+                else:
+                    regla.delete()
+        
+        # Crear la nueva regla
+        nueva_regla = ReglaDemandaSemanal.objects.create(
+            plantilla=plantilla,
+            turno=turno,
+            dias=dias,
+            cantidad_senior=cantidad_senior,
+            cantidad_junior=cantidad_junior,
+            es_excepcion=es_excepcion
+        )
+        
+        # Retornar los datos en JSON para actualizar la tabla
+        return JsonResponse({
+            'success': True,
+            'regla': {
+                'id': nueva_regla.pk,
+                'turno_nombre': turno.nombre,
+                'turno_abreviatura': turno.abreviatura,
+                'cantidad_senior': nueva_regla.cantidad_senior,
+                'cantidad_junior': nueva_regla.cantidad_junior,
+                'dias': nueva_regla.dias,
+                'dias_display': nueva_regla.get_dias_display(),
+                'es_excepcion': nueva_regla.es_excepcion
+            }
+        })
+    
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+@require_POST
+@csrf_exempt
+def api_actualizar_regla(request, regla_id):
+    """AJAX: Actualizar una regla existente."""
+    try:
+        regla = ReglaDemandaSemanal.objects.get(pk=regla_id)
+        
+        cantidad_senior = int(request.POST.get('cantidad_senior', regla.cantidad_senior))
+        cantidad_junior = int(request.POST.get('cantidad_junior', regla.cantidad_junior))
+        es_excepcion = request.POST.get('es_excepcion', '0') == '1'
+        dias = request.POST.getlist('dias[]')
+        dias = [int(d) for d in dias if d]
+        
+        if not dias:
+            return JsonResponse({'error': 'Debe seleccionar al menos un día'}, status=400)
+        
+        # Resolver conflictos
+        otras_reglas = ReglaDemandaSemanal.objects.filter(
+            plantilla=regla.plantilla,
+            turno=regla.turno
+        ).exclude(pk=regla_id)
+        
+        for otra in otras_reglas:
+            dias_actuales = otra.dias or []
+            dias_actualizados = [d for d in dias_actuales if d not in dias]
+            
+            if dias_actualizados != dias_actuales:
+                if dias_actualizados:
+                    otra.dias = dias_actualizados
+                    otra.save()
+                else:
+                    otra.delete()
+        
+        # Actualizar la regla
+        regla.cantidad_senior = cantidad_senior
+        regla.cantidad_junior = cantidad_junior
+        regla.dias = dias
+        regla.es_excepcion = es_excepcion
+        regla.save()
+        
+        return JsonResponse({
+            'success': True,
+            'regla': {
+                'cantidad_senior': regla.cantidad_senior,
+                'cantidad_junior': regla.cantidad_junior,
+                'dias': regla.dias,
+                'dias_display': regla.get_dias_display(),
+                'es_excepcion': regla.es_excepcion
+            }
+        })
+    
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+@require_POST
+@csrf_exempt
+def api_eliminar_regla(request, regla_id):
+    """AJAX: Eliminar una regla."""
+    try:
+        regla = ReglaDemandaSemanal.objects.get(pk=regla_id)
+        regla.delete()
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
