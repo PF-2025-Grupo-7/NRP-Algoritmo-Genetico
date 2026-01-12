@@ -154,10 +154,13 @@ class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
 class ExcepcionDemandaForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = ExcepcionDemanda
-        fields = ['fecha', 'turno', 'cantidad_senior', 'cantidad_junior', 'motivo']
+        # Agregamos 'es_turno_dificil' a la lista de campos
+        fields = ['fecha', 'turno', 'cantidad_senior', 'cantidad_junior', 'es_turno_dificil', 'motivo']
         widgets = {
             'fecha': DATE_INPUT,
             'turno': SELECT_WIDGET,
+            # Checkbox estilizado (opcional, el mixin ya le pone form-check-input)
+            'es_turno_dificil': forms.CheckboxInput(attrs={'class': 'form-check-input ms-2'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -171,7 +174,7 @@ class ExcepcionDemandaForm(BootstrapFormMixin, forms.ModelForm):
                 self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
             except PlantillaDemanda.DoesNotExist:
                 pass
-
+            
 # ==============================================================================
 # FORMULARIOS DE CONFIGURACIÓN DEL MOTOR
 # ==============================================================================
