@@ -15,104 +15,156 @@ from .models import (
     Cronograma, Asignacion, TrabajoPlanificacion
 )
 
+# En services.py
+
 def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantilla):
     """
-    RF04: Verifica si la capacidad total de horas de los empleados alcanza
-    para cubrir la demanda teórica de la plantilla.
-    Retorna (False, mensaje) si falta gente, o (True, "OK") si alcanza.
+    RF04 MEJORADO: Verifica capacidad con desglose Junior/Senior, 
+    descuento de ausencias y margen de seguridad.
     """
-    print(f"\n🔍 --- INICIO VALIDACIÓN DOTACIÓN (RF04) ---")
+    print(f"\n🔍 --- VALIDACIÓN DE DOTACIÓN INTELIGENTE ---")
     
+    # 1. Configuración Básica
+    MARGEN_SEGURIDAD = 0.10  # 10% extra requerido para cubrir imprevistos/descansos
     dias_totales = (fecha_fin - fecha_inicio).days + 1
-    print(f"📅 Periodo: {fecha_inicio} al {fecha_fin} ({dias_totales} días)")
-
-    # 1. CALCULAR OFERTA (Horas Disponibles)
-    horas_oferta = 0.0
     factor_periodo = dias_totales / 30.0 
     
-    # Cacheamos duraciones
+    # Obtenemos duración promedio de turnos para estimaciones
     turnos = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
-    mapa_duraciones = {t.id: (float(t.duracion_horas) if t.duracion_horas else 12.0) for t in turnos}
-    
-    if mapa_duraciones:
-        duracion_promedio = sum(mapa_duraciones.values()) / len(mapa_duraciones)
-    else:
-        duracion_promedio = 12.0
-
-    count_emps = 0
-    for emp in empleados_qs:
-        t_max = float(emp.max_turnos_mensuales or 0)
-        horas_capacidad = t_max * duracion_promedio * factor_periodo
-        horas_oferta += horas_capacidad
-        count_emps += 1
+    if not turnos.exists():
+        return False, {"error_generico": "No hay tipos de turno definidos."}
         
-    print(f"👥 Oferta: {count_emps} empleados activos. Total Horas Disponibles: {int(horas_oferta)}")
+    duracion_promedio = sum(t.duracion_horas for t in turnos) / len(turnos)
+    duracion_promedio = float(duracion_promedio)
 
-    # 2. CALCULAR DEMANDA (Horas Requeridas)
-    horas_demanda = 0.0
+    # ---------------------------------------------------------
+    # A. CÁLCULO DE LA OFERTA (Horas Reales Disponibles)
+    # ---------------------------------------------------------
+    oferta = {'SENIOR': 0.0, 'JUNIOR': 0.0}
+    ausencias_total_horas = 0.0
     
-    # Usamos filter directo para evitar problemas de atributos
+    # Pre-cargamos ausencias en el rango
+    ausencias = NoDisponibilidad.objects.filter(
+        empleado__in=empleados_qs,
+        fecha_fin__gte=fecha_inicio,
+        fecha_inicio__lte=fecha_fin
+    )
+
+    for emp in empleados_qs:
+        # 1. Capacidad Teórica (Base)
+        t_max = float(emp.max_turnos_mensuales or 0)
+        horas_teoricas = t_max * duracion_promedio * factor_periodo
+        
+        # 2. Descuento por Ausencias (Impacto real)
+        horas_ausencia = 0.0
+        mis_ausencias = [a for a in ausencias if a.empleado_id == emp.id]
+        
+        for aus in mis_ausencias:
+            # Intersección de rangos de fechas
+            inicio_cruce = max(aus.fecha_inicio, fecha_inicio)
+            fin_cruce = min(aus.fecha_fin, fecha_fin)
+            dias_cruce = (fin_cruce - inicio_cruce).days + 1
+            
+            if dias_cruce > 0:
+                if aus.tipo_turno:
+                    # Si es ausencia de un turno específico, restamos la duración de ESE turno
+                    horas_ausencia += (dias_cruce * float(aus.tipo_turno.duracion_horas))
+                else:
+                    # Si es ausencia total (licencia), restamos el promedio diario (o duración turno)
+                    horas_ausencia += (dias_cruce * duracion_promedio)
+
+        horas_netas = max(0, horas_teoricas - horas_ausencia)
+        ausencias_total_horas += horas_ausencia
+        
+        # Sumar al bucket correspondiente (Normalizado a mayúsculas)
+        rol = emp.experiencia.upper() if emp.experiencia else 'JUNIOR'
+        if rol not in oferta: rol = 'JUNIOR' # Fallback
+        oferta[rol] += horas_netas
+
+    print(f"   Oferta Neta: {oferta} (Ausencias descontadas: {int(ausencias_total_horas)}hs)")
+
+    # ---------------------------------------------------------
+    # B. CÁLCULO DE LA DEMANDA (Requerimiento Exacto)
+    # ---------------------------------------------------------
+    demanda = {'SENIOR': 0.0, 'JUNIOR': 0.0}
+    
     reglas = ReglaDemandaSemanal.objects.filter(plantilla=plantilla).select_related('turno')
-    
-    # IMPRIMIR REGLAS PARA DEBUG
-    print(f"📋 Reglas encontradas en BD para la plantilla: {reglas.count()}")
-    
-    # MAPA SEGURO: Usamos los valores reales del ENUM DiaSemana
-    # Orden de weekday(): 0=Lunes, 6=Domingo
-    mapa_dias = [
-        DiaSemana.LUNES, DiaSemana.MARTES, DiaSemana.MIERCOLES, 
-        DiaSemana.JUEVES, DiaSemana.VIERNES, DiaSemana.SABADO, DiaSemana.DOMINGO
-    ]
-    
+    # Mapa de días (0=Lunes...)
+    mapa_reglas = {d: [] for d in range(7)}
+    for r in reglas:
+        mapa_reglas[r.dia].append(r)
+        
+    excepciones = ExcepcionDemanda.objects.filter(
+        plantilla=plantilla, 
+        fecha__range=[fecha_inicio, fecha_fin]
+    ).select_related('turno')
+    # Mapa de excepciones por fecha string
+    mapa_excepciones = {}
+    for ex in excepciones:
+        f_str = ex.fecha.strftime("%Y-%m-%d")
+        if f_str not in mapa_excepciones: mapa_excepciones[f_str] = []
+        mapa_excepciones[f_str].append(ex)
+
     fecha_iter = fecha_inicio
     while fecha_iter <= fecha_fin:
-        # Obtenemos el valor correcto del Enum para este día
-        dia_enum_val = mapa_dias[fecha_iter.weekday()]
+        dia_sem = fecha_iter.weekday()
+        f_str = fecha_iter.strftime("%Y-%m-%d")
         
-        # Excepciones (Días pico)
-        es_pico = False
-        excepciones = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter)
+        # Determinamos qué reglas aplican (Excepción > Regla)
+        items_dia = []
         
-        if excepciones.exists():
-            es_pico = True
-            for ex in excepciones:
-                cant = ex.cantidad_junior + ex.cantidad_senior
-                dur = float(ex.turno.duracion_horas) if ex.turno and ex.turno.duracion_horas else duracion_promedio
-                horas_demanda += (cant * dur)
-        
-        # Si no es pico, usamos regla semanal
-        if not es_pico:
-            # Comparamos contra el valor del Enum, no contra un string hardcodeado
-            reglas_dia = [r for r in reglas if r.dia == dia_enum_val]
+        if f_str in mapa_excepciones:
+            # Usamos excepciones (feriados, picos)
+            items_dia = mapa_excepciones[f_str]
+        else:
+            # Usamos regla estándar
+            items_dia = mapa_reglas[dia_sem]
             
-            for r in reglas_dia:
-                cant = r.cantidad_junior + r.cantidad_senior
-                dur = float(r.turno.duracion_horas) if r.turno and r.turno.duracion_horas else duracion_promedio
-                horas_demanda += (cant * dur)
+        for item in items_dia:
+            dur = float(item.turno.duracion_horas)
+            demanda['SENIOR'] += (item.cantidad_senior * dur)
+            demanda['JUNIOR'] += (item.cantidad_junior * dur)
             
         fecha_iter += timedelta(days=1)
 
-    print(f"📉 Demanda Calculada: {int(horas_demanda)} horas necesarias.")
-
-    # 3. COMPARACIÓN
-    balance = horas_oferta - horas_demanda
-    margen_error = horas_demanda * 0.10 
+    # Aplicar Margen de Seguridad
+    demanda_con_margen = {k: v * (1 + MARGEN_SEGURIDAD) for k, v in demanda.items()}
     
-    if balance < -margen_error:
-        deficit = abs(int(balance))
-        
-        # CAMBIO: Devolvemos un diccionario con DATOS, no solo texto
+    print(f"   Demanda (+{int(MARGEN_SEGURIDAD*100)}%): {demanda_con_margen}")
+
+    # ---------------------------------------------------------
+    # C. BALANCE Y VEREDICTO
+    # ---------------------------------------------------------
+    balance_senior = oferta['SENIOR'] - demanda_con_margen['SENIOR']
+    balance_junior = oferta['JUNIOR'] - demanda_con_margen['JUNIOR']
+    
+    # Tolerancia mínima (por redondeos de float)
+    es_viable_senior = balance_senior >= -5.0 
+    es_viable_junior = balance_junior >= -5.0
+    
+    if not es_viable_senior or not es_viable_junior:
         datos_error = {
-            "horas_necesarias": int(horas_demanda),
-            "horas_disponibles": int(horas_oferta),
-            "deficit": deficit,
-            "porcentaje_cobertura": int((horas_oferta / horas_demanda) * 100) if horas_demanda > 0 else 0,
-            "empleados_activos": empleados_qs.count()
+            "senior": {
+                "oferta": int(oferta['SENIOR']),
+                "demanda": int(demanda_con_margen['SENIOR']),
+                "balance": int(balance_senior),
+                "estado": "CRITICO" if not es_viable_senior else "OK"
+            },
+            "junior": {
+                "oferta": int(oferta['JUNIOR']),
+                "demanda": int(demanda_con_margen['JUNIOR']),
+                "balance": int(balance_junior),
+                "estado": "CRITICO" if not es_viable_junior else "OK"
+            },
+            "global": {
+                "ausencias_impacto": int(ausencias_total_horas),
+                "margen_seguridad": int(MARGEN_SEGURIDAD * 100),
+                "dias": dias_totales
+            }
         }
         return False, datos_error
-    
-    return True, None
 
+    return True, None
 
 # ==============================================================================
 # LÓGICA DE ORQUESTACIÓN Y NEGOCIO (NUEVO)

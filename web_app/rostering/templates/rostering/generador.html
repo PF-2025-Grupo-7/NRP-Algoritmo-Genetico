@@ -4,7 +4,6 @@
 
 {% block content %}
 <div class="container py-3" style="max-width: 1100px;">
-    <!-- Header al estilo Panel de Control -->
     <div class="row mb-4 align-items-center">
         <div class="col-md-8">
             <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Generar Planificación</h1>
@@ -12,7 +11,6 @@
         </div>
     </div>
 
-    <!-- Card con formulario y estado (estado oculto hasta iniciar) -->
     <div class="card shadow-sm border-0 generator-card">
         <div class="card-body p-4 p-lg-5 pb-4">
             <form id="form-generador" class="row g-3" novalidate>
@@ -81,7 +79,6 @@
                     </button>
                 </div>
 
-                <!-- Estado de la ejecución (oculto hasta iniciar) -->
                 <div id="panel-estado" class="col-12 mt-3 d-none">
                     <div class="rounded-3 p-4 status-panel">
                         <div class="d-flex align-items-center justify-content-between mb-3">
@@ -124,9 +121,81 @@
         </div>
     </div>
 
-    <!-- Consejos -->
     <div class="mt-3 small text-muted">
         Consejo: Antes de ejecutar, revisá que existan tipos de turno, personal activo y una plantilla de demanda para la especialidad seleccionada.
+    </div>
+</div>
+
+<div class="modal fade" id="modalErrorDotacion" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            
+            <div class="modal-header bg-white border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold text-danger">
+                    <i class="bi bi-x-circle-fill me-2"></i>Dotación Insuficiente
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body pt-2">
+                <p class="text-muted small mb-4">
+                    La planificación no puede iniciarse. La capacidad operativa actual (descontando ausencias) 
+                    no cubre la demanda requerida más el margen de seguridad.
+                </p>
+
+                <div class="card mb-3 border-0 bg-light" id="card-senior">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold text-uppercase small text-muted">Seniors</span>
+                            <span class="badge" id="badge-senior">OK</span>
+                        </div>
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span>Oferta: <strong id="val-oferta-senior">0</strong>h</span>
+                            <span>Demanda: <strong id="val-demanda-senior">0</strong>h</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div id="bar-senior" class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div id="msg-senior" class="text-end text-danger small fw-bold mt-1" style="font-size: 0.75rem;"></div>
+                    </div>
+                </div>
+
+                <div class="card mb-3 border-0 bg-light" id="card-junior">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold text-uppercase small text-muted">Juniors</span>
+                            <span class="badge" id="badge-junior">OK</span>
+                        </div>
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span>Oferta: <strong id="val-oferta-junior">0</strong>h</span>
+                            <span>Demanda: <strong id="val-demanda-junior">0</strong>h</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div id="bar-junior" class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div id="msg-junior" class="text-end text-danger small fw-bold mt-1" style="font-size: 0.75rem;"></div>
+                    </div>
+                </div>
+
+                <div id="alerta-ausencias" class="alert alert-warning d-flex align-items-center py-2 px-3 d-none">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <div class="small lh-sm">
+                        <strong>Impacto de Ausencias:</strong> Se descontaron <span id="val-ausencias">0</span> horas 
+                        por licencias o bloqueos en este período.
+                    </div>
+                </div>
+
+                <div class="text-center mt-3">
+                    <small class="text-muted fst-italic" style="font-size: 0.7rem;">
+                        * El cálculo incluye un margen de seguridad del <span id="val-margen">10</span>% para descansos.
+                    </small>
+                </div>
+            </div>
+
+            <div class="modal-footer border-top-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">Entendido, revisaré la dotación</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -317,8 +386,80 @@
 
 {% block extra_js %}
 <script>
-// Agregamos este listener al principio para esperar que el HTML cargue
 document.addEventListener('DOMContentLoaded', function() {
+
+    // --- FUNCIÓN PARA MOSTRAR EL NUEVO MODAL ---
+    function mostrarErrorDotacion(detalles) {
+        // Referencias
+        const modalEl = document.getElementById('modalErrorDotacion');
+        const modal = new bootstrap.Modal(modalEl);
+        
+        // --- SENIORS ---
+        const s = detalles.senior;
+        document.getElementById('val-oferta-senior').textContent = s.oferta;
+        document.getElementById('val-demanda-senior').textContent = s.demanda;
+        
+        const badgeSen = document.getElementById('badge-senior');
+        const barSen = document.getElementById('bar-senior');
+        const msgSen = document.getElementById('msg-senior');
+        
+        let pctSen = s.demanda > 0 ? (s.oferta / s.demanda) * 100 : 100;
+        
+        if (s.estado === 'CRITICO') {
+            badgeSen.className = 'badge bg-danger';
+            badgeSen.textContent = 'DÉFICIT';
+            barSen.className = 'progress-bar bg-danger';
+            barSen.style.width = Math.min(pctSen, 100) + '%';
+            msgSen.textContent = `Faltan ${Math.abs(s.balance)} horas`;
+        } else {
+            badgeSen.className = 'badge bg-success';
+            badgeSen.textContent = 'CUBIERTO';
+            barSen.className = 'progress-bar bg-success';
+            barSen.style.width = '100%';
+            msgSen.textContent = '';
+        }
+
+        // --- JUNIORS ---
+        const j = detalles.junior;
+        document.getElementById('val-oferta-junior').textContent = j.oferta;
+        document.getElementById('val-demanda-junior').textContent = j.demanda;
+        
+        const badgeJun = document.getElementById('badge-junior');
+        const barJun = document.getElementById('bar-junior');
+        const msgJun = document.getElementById('msg-junior');
+        
+        let pctJun = j.demanda > 0 ? (j.oferta / j.demanda) * 100 : 100;
+        
+        if (j.estado === 'CRITICO') {
+            badgeJun.className = 'badge bg-danger';
+            badgeJun.textContent = 'DÉFICIT';
+            barJun.className = 'progress-bar bg-danger';
+            barJun.style.width = Math.min(pctJun, 100) + '%';
+            msgJun.textContent = `Faltan ${Math.abs(j.balance)} horas`;
+        } else {
+            badgeJun.className = 'badge bg-success';
+            badgeJun.textContent = 'CUBIERTO';
+            barJun.className = 'progress-bar bg-success';
+            barJun.style.width = '100%';
+            msgJun.textContent = '';
+        }
+
+        // --- GLOBALES ---
+        const g = detalles.global || {};
+        const alertaAus = document.getElementById('alerta-ausencias');
+        
+        if (g.ausencias_impacto > 0) {
+            document.getElementById('val-ausencias').textContent = g.ausencias_impacto;
+            alertaAus.classList.remove('d-none');
+        } else {
+            alertaAus.classList.add('d-none');
+        }
+        
+        document.getElementById('val-margen').textContent = g.margen_seguridad || 10;
+
+        // Mostrar
+        modal.show();
+    }
 
     // Helpers: configurar un wrapper de dropdown personalizado
     function setupCustomDropdown(wrapper){
@@ -365,7 +506,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Inicializar todos los wrappers existentes
-    // AHORA SÍ va a encontrar los elementos porque estamos dentro de DOMContentLoaded
     document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
 
     // --- Referencias ---
@@ -466,7 +606,6 @@ document.addEventListener('DOMContentLoaded', function() {
             $plant.innerHTML = '<option value="" selected>Cargando...</option>';
             $plant.disabled = true;
             
-            // Update custom dropdown header visualmente
             const plantWrapper = $plant.closest('.custom-select-wrapper');
             if (plantWrapper) {
                 plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Cargando...';
@@ -474,7 +613,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             try {
-                // Asegurate que esta URL sea correcta en tu Django
                 const resp = await fetch(`{% url 'api_get_plantillas' %}?especialidad=${encodeURIComponent($esp.value)}`);
                 const data = await resp.json();
                 const items = (data.plantillas||[]);
@@ -493,13 +631,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 $plant.innerHTML = '<option value="" selected>Seleccioná una plantilla</option>' + items.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
                 $plant.disabled = false;
                 
-                // Reconstruir el dropdown custom con los nuevos datos
                 if (plantWrapper) {
                     plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Seleccioná una plantilla';
                     const menuHTML = '<div class="custom-option" data-value="">Seleccioná una plantilla</div>' + 
                         items.map(p=>`<div class="custom-option" data-value="${p.id}">${p.nombre}</div>`).join('');
                     plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = menuHTML;
-                    // IMPORTANTE: Volver a aplicar los listeners a los nuevos elementos
                     setupCustomDropdown(plantWrapper);
                 }
             } catch(e){
@@ -522,7 +658,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if($warn) $warn.classList.add('d-none');
             
-            // Validaciones básicas
             if(!$inicio.value || !$fin.value || !$esp.value || !$plant.value){
                 showWarn('Completá todos los campos requeridos.');
                 return;
@@ -532,7 +667,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            // UI changes
             if($panelEstado) $panelEstado.classList.remove('d-none');
             toggleLoading(true);
             setEstado('Iniciando','primary');
@@ -544,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}' // Agregué el CSRF Token por si Django lo pide
+                        'X-CSRFToken': '{{ csrf_token }}'
                     },
                     body: JSON.stringify({
                         fecha_inicio: $inicio.value,
@@ -554,7 +688,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     })
                 });
                 const data = await resp.json();
-                if(!resp.ok){ throw new Error(data.error || 'Error al iniciar.'); }
+                
+                // --- DETECCIÓN DE ERROR DE DOTACIÓN ---
+                if(!resp.ok){
+                    if(resp.status === 422 && data.tipo_error === 'FALTA_DOTACION') {
+                        mostrarErrorDotacion(data.detalles);
+                        resetUI(); // Ocultamos la barra de progreso
+                        return; // Cortamos ejecución aquí
+                    }
+                    throw new Error(data.error || 'Error al iniciar.');
+                }
 
                 setEstado('Ejecutando','primary');
                 setProgreso(40);
@@ -582,12 +725,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Polling de estado ---
     async function pollEstado(jobId){
         let p = 40;
-        // Simular avance visual lento mientras esperamos
         const tick = setInterval(()=>{ p = Math.min(p+5, 90); setProgreso(p); }, 2000);
         
         try {
             while(true){
-                // Reemplazamos el placeholder JOBID por el ID real
                 const url = `{% url 'api_estado_planificacion' job_id='JOBID' %}`.replace('JOBID', jobId);
                 const resp = await fetch(url);
                 const data = await resp.json();
@@ -610,7 +751,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else if(data.status === 'failed' || data.error){
                     throw new Error(data.error || 'Fallo en el proceso.');
                 }
-                // Esperar 2.5s antes de volver a consultar
                 await new Promise(r=>setTimeout(r, 2500));
             }
         } catch(e){
@@ -624,6 +764,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-}); // Fin del DOMContentLoaded
+});
 </script>
 {% endblock %}
