@@ -317,7 +317,9 @@
 
 {% block extra_js %}
 <script>
-(function(){
+// Agregamos este listener al principio para esperar que el HTML cargue
+document.addEventListener('DOMContentLoaded', function() {
+
     // Helpers: configurar un wrapper de dropdown personalizado
     function setupCustomDropdown(wrapper){
         const nativeSelect = wrapper.querySelector('.form-select');
@@ -331,6 +333,10 @@
         header.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
+            // Cierra otros dropdowns abiertos si hubiera
+            document.querySelectorAll('.custom-dropdown.open').forEach(d => {
+                if(d !== dropdown) d.classList.remove('open');
+            });
             dropdown.classList.toggle('open');
         };
 
@@ -345,6 +351,7 @@
                 nativeSelect.value = value;
                 header.textContent = text;
                 dropdown.classList.remove('open');
+                // Disparar evento change manualmente para que lo detecte el otro script
                 nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
             };
         });
@@ -358,9 +365,10 @@
     }
 
     // Inicializar todos los wrappers existentes
+    // AHORA SÍ va a encontrar los elementos porque estamos dentro de DOMContentLoaded
     document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
 
-    // Referencias
+    // --- Referencias ---
     const $esp = document.getElementById('especialidad');
     const $plant = document.getElementById('plantilla_id');
     const $inicio = document.getElementById('fecha_inicio');
@@ -380,17 +388,19 @@
     const $warn = document.getElementById('form-warning');
     const $warnText = document.getElementById('form-warning-text');
 
-    // Sugerir período del próximo mes
+    // --- Sugerir período del próximo mes ---
     try {
         const hoy = new Date();
         const y = hoy.getFullYear();
         const m = hoy.getMonth();
         const start = new Date(y, m + 1, 1);
         const end = new Date(y, m + 2, 0);
-        $inicio.value = start.toISOString().slice(0,10);
-        $fin.value = end.toISOString().slice(0,10);
+        
+        if($inicio) $inicio.value = start.toISOString().slice(0,10);
+        if($fin) $fin.value = end.toISOString().slice(0,10);
     } catch(e) {}
 
+    // --- Funciones de UI ---
     function setEstado(text, kind){
         $badge.className = 'badge bg-' + (kind || 'secondary');
         $badge.textContent = text;
@@ -400,265 +410,220 @@
     function setProgreso(p, keepAnimated = true){ 
         const newVal = Math.max(currentProgress, p || 0);
         currentProgress = newVal;
-        $barra.style.width = newVal + '%';
-        $barra.setAttribute('aria-valuenow', newVal);
-        
-        if (!keepAnimated) {
-            $barra.classList.remove('progress-bar-animated');
-        } else {
-            $barra.classList.add('progress-bar-animated');
+        if($barra) {
+            $barra.style.width = newVal + '%';
+            $barra.setAttribute('aria-valuenow', newVal);
+            
+            if (!keepAnimated) {
+                $barra.classList.remove('progress-bar-animated');
+            } else {
+                $barra.classList.add('progress-bar-animated');
+            }
         }
     }
     
-    function setMsg(html){ $msg.innerHTML = html; }
+    function setMsg(html){ if($msg) $msg.innerHTML = html; }
+    
     function hideWarn(){
         if ($warn) $warn.classList.add('d-none');
         if ($warnText) $warnText.textContent = '';
     }
+    
     function showWarn(text){
         if ($warn && $warnText) {
             $warnText.textContent = text;
             $warn.classList.remove('d-none');
         }
     }
+    
     function toggleLoading(on){
-        $btnStart.disabled = !!on;
-        $esp.disabled = !!on;
-        $plant.disabled = !!on;
-        $inicio.disabled = !!on;
-        $fin.disabled = !!on;
+        if($btnStart) $btnStart.disabled = !!on;
+        if($esp) $esp.disabled = !!on;
+        if($plant) $plant.disabled = !!on;
+        if($inicio) $inicio.disabled = !!on;
+        if($fin) $fin.disabled = !!on;
     }
+    
     function resetUI(){
         currentProgress = 0;
         setEstado('Listo','secondary'); setProgreso(0, false); setMsg('Completa el formulario y presioná "Iniciar optimización".');
-        $msg.classList.remove('d-none');
-        $ok.classList.add('d-none'); $err.classList.add('d-none');
-        $btnReset.classList.add('d-none');
-        $panelEstado.classList.add('d-none');
-        $warn.classList.add('d-none');
+        if($msg) $msg.classList.remove('d-none');
+        if($ok) $ok.classList.add('d-none'); 
+        if($err) $err.classList.add('d-none');
+        if($btnReset) $btnReset.classList.add('d-none');
+        if($panelEstado) $panelEstado.classList.add('d-none');
+        if($warn) $warn.classList.add('d-none');
         toggleLoading(false);
     }
 
     resetUI();
 
-    // Cargar plantillas al cambiar especialidad
-    $esp.addEventListener('change', async function(){
-        $plant.innerHTML = '<option value="" selected>Cargando...</option>';
-        $plant.disabled = true;
-        
-        // Update custom dropdown header
-        const plantWrapper = $plant.closest('.custom-select-wrapper');
-        if (plantWrapper) {
-            plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Cargando...';
-            plantWrapper.querySelector('.custom-dropdown').classList.remove('open');
-        }
-        
-        try {
-            const resp = await fetch(`{% url 'api_get_plantillas' %}?especialidad=${encodeURIComponent($esp.value)}`);
-            const data = await resp.json();
-            const items = (data.plantillas||[]);
-            if(!items.length){
-                $plant.innerHTML = '<option value="" selected>No hay plantillas disponibles</option>';
-                $plant.disabled = true;
+    // --- Cargar plantillas al cambiar especialidad ---
+    if($esp) {
+        $esp.addEventListener('change', async function(){
+            if(!$plant) return;
+            
+            $plant.innerHTML = '<option value="" selected>Cargando...</option>';
+            $plant.disabled = true;
+            
+            // Update custom dropdown header visualmente
+            const plantWrapper = $plant.closest('.custom-select-wrapper');
+            if (plantWrapper) {
+                plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Cargando...';
+                plantWrapper.querySelector('.custom-dropdown').classList.remove('open');
+            }
+            
+            try {
+                // Asegurate que esta URL sea correcta en tu Django
+                const resp = await fetch(`{% url 'api_get_plantillas' %}?especialidad=${encodeURIComponent($esp.value)}`);
+                const data = await resp.json();
+                const items = (data.plantillas||[]);
+                
+                if(!items.length){
+                    $plant.innerHTML = '<option value="" selected>No hay plantillas disponibles</option>';
+                    $plant.disabled = true;
+                    if (plantWrapper) {
+                        plantWrapper.querySelector('.custom-dropdown-header').textContent = 'No hay plantillas disponibles';
+                        plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">No hay plantillas disponibles</div>';
+                        setupCustomDropdown(plantWrapper);
+                    }
+                    return;
+                }
+
+                $plant.innerHTML = '<option value="" selected>Seleccioná una plantilla</option>' + items.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+                $plant.disabled = false;
+                
+                // Reconstruir el dropdown custom con los nuevos datos
                 if (plantWrapper) {
-                    plantWrapper.querySelector('.custom-dropdown-header').textContent = 'No hay plantillas disponibles';
-                    plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">No hay plantillas disponibles</div>';
+                    plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Seleccioná una plantilla';
+                    const menuHTML = '<div class="custom-option" data-value="">Seleccioná una plantilla</div>' + 
+                        items.map(p=>`<div class="custom-option" data-value="${p.id}">${p.nombre}</div>`).join('');
+                    plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = menuHTML;
+                    // IMPORTANTE: Volver a aplicar los listeners a los nuevos elementos
                     setupCustomDropdown(plantWrapper);
                 }
+            } catch(e){
+                console.error(e);
+                $plant.innerHTML = '<option value="" selected>Error cargando plantillas</option>';
+                $plant.disabled = true;
+                if (plantWrapper) {
+                    plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Error cargando plantillas';
+                    plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">Error cargando plantillas</div>';
+                    setupCustomDropdown(plantWrapper);
+                }
+            }
+        });
+    }
+
+    // --- Envío del formulario ---
+    if($form) {
+        $form.addEventListener('submit', async function(ev){
+            ev.preventDefault();
+            
+            if($warn) $warn.classList.add('d-none');
+            
+            // Validaciones básicas
+            if(!$inicio.value || !$fin.value || !$esp.value || !$plant.value){
+                showWarn('Completá todos los campos requeridos.');
+                return;
+            }
+            if($fin.value <= $inicio.value){
+                showWarn('La fecha fin debe ser posterior a la fecha inicio.');
                 return;
             }
 
-            $plant.innerHTML = '<option value="" selected>Seleccioná una plantilla</option>' + items.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
-            $plant.disabled = false;
-            
-            // Update custom dropdown
-            if (plantWrapper) {
-                plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Seleccioná una plantilla';
-                const menuHTML = '<div class="custom-option" data-value="">Seleccioná una plantilla</div>' + 
-                    items.map(p=>`<div class="custom-option" data-value="${p.id}">${p.nombre}</div>`).join('');
-                plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = menuHTML;
-                setupCustomDropdown(plantWrapper);
+            // UI changes
+            if($panelEstado) $panelEstado.classList.remove('d-none');
+            toggleLoading(true);
+            setEstado('Iniciando','primary');
+            setProgreso(15);
+            setMsg('Enviando parámetros al motor de optimización...');
+
+            try {
+                const resp = await fetch('{% url 'api_iniciar_planificacion' %}', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}' // Agregué el CSRF Token por si Django lo pide
+                    },
+                    body: JSON.stringify({
+                        fecha_inicio: $inicio.value,
+                        fecha_fin: $fin.value,
+                        especialidad: $esp.value,
+                        plantilla_id: $plant.value
+                    })
+                });
+                const data = await resp.json();
+                if(!resp.ok){ throw new Error(data.error || 'Error al iniciar.'); }
+
+                setEstado('Ejecutando','primary');
+                setProgreso(40);
+                setMsg('<div class="d-flex align-items-center gap-2"><span class="spinner-border spinner-border-sm text-primary" role="status"></span><span>Algoritmo en ejecución. Este proceso puede tardar unos minutos...</span></div>');
+                if($btnReset) $btnReset.classList.remove('d-none');
+
+                await pollEstado(data.job_id);
+            } catch(e){
+                setEstado('Error','danger');
+                setProgreso(0, false);
+                if($msg) $msg.classList.add('d-none');
+                if($errText) $errText.textContent = e.message || 'Error desconocido.';
+                if($err) $err.classList.remove('d-none');
+                toggleLoading(false);
             }
-        } catch(e){
-            $plant.innerHTML = '<option value="" selected>Error cargando plantillas</option>';
-            $plant.disabled = true;
-            if (plantWrapper) {
-                plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Error cargando plantillas';
-                plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">Error cargando plantillas</div>';
-                setupCustomDropdown(plantWrapper);
-            }
-        }
-    });
+        });
+    }
 
-    // Envío del formulario
-    $form.addEventListener('submit', async function(ev){
-        ev.preventDefault();
-        
-        // Ocultar warning previo
-        $warn.classList.add('d-none');
-        
-        // Validaciones básicas
-        if(!$inicio.value || !$fin.value || !$esp.value || !$plant.value){
-            $warnText.textContent = 'Completá todos los campos requeridos.';
-            $warn.classList.remove('d-none');
-            console.log('Mostrando warning: campos incompletos');
-            return;
-        }
-        if($fin.value <= $inicio.value){
-            $warnText.textContent = 'La fecha fin debe ser posterior a la fecha inicio.';
-            $warn.classList.remove('d-none');
-            console.log('Mostrando warning: fechas inválidas');
-            return;
-        }
+    if($btnReset) {
+        $btnReset.addEventListener('click', () => {
+            resetUI();
+        });
+    }
 
-        // Mostrar panel de estado al iniciar
-        $panelEstado.classList.remove('d-none');
-        toggleLoading(true);
-        setEstado('Iniciando','primary');
-        setProgreso(15);
-        setMsg('Enviando parámetros al motor de optimización...');
-
-        try {
-            const resp = await fetch('{% url 'api_iniciar_planificacion' %}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    fecha_inicio: $inicio.value,
-                    fecha_fin: $fin.value,
-                    especialidad: $esp.value,
-                    plantilla_id: $plant.value
-                })
-            });
-            const data = await resp.json();
-            if(!resp.ok){ throw new Error(data.error || 'Error al iniciar.'); }
-
-            setEstado('Ejecutando','primary');
-            setProgreso(40);
-            setMsg('<div class="d-flex align-items-center gap-2"><span class="spinner-border spinner-border-sm" role="status" style="--bs-spinner-border-width: 0.2em; width: 1rem; height: 1rem; border-color: #0d6efd; border-right-color: transparent;"></span><span>Algoritmo en ejecución. Este proceso puede tardar unos minutos...</span></div>');
-            $btnReset.classList.remove('d-none');
-
-            await pollEstado(data.job_id);
-        } catch(e){
-            setEstado('Error','danger');
-            setProgreso(0, false);
-            $msg.classList.add('d-none');
-            $errText.textContent = e.message || 'Error desconocido.';
-            $err.classList.remove('d-none');
-            toggleLoading(false);
-        }
-    });
-
-    $btnReset.addEventListener('click', () => {
-        resetUI();
-    });
-
+    // --- Polling de estado ---
     async function pollEstado(jobId){
         let p = 40;
+        // Simular avance visual lento mientras esperamos
         const tick = setInterval(()=>{ p = Math.min(p+5, 90); setProgreso(p); }, 2000);
+        
         try {
-            let intento = 0;
             while(true){
-                intento++;
-                const resp = await fetch(`{% url 'api_estado_planificacion' job_id='JOBID' %}`.replace('JOBID', jobId));
+                // Reemplazamos el placeholder JOBID por el ID real
+                const url = `{% url 'api_estado_planificacion' job_id='JOBID' %}`.replace('JOBID', jobId);
+                const resp = await fetch(url);
                 const data = await resp.json();
+                
                 if(data.status === 'completed'){
                     clearInterval(tick);
                     setEstado('Completado','success');
                     setProgreso(100, false);
-                    $msg.classList.add('d-none');
-                    $ok.classList.remove('d-none');
+                    if($msg) $msg.classList.add('d-none');
+                    if($ok) $ok.classList.remove('d-none');
+                    
                     const id = data.cronograma_id;
-                    $linkVer.href = `{% url 'ver_cronograma' cronograma_id=0 %}`.replace('/0/', `/${id}/`);
-                    $linkAnalisis.href = `{% url 'cronograma_analisis' pk=0 %}`.replace('/0/', `/${id}/`);
+                    if($linkVer) $linkVer.href = `{% url 'ver_cronograma' cronograma_id=0 %}`.replace('/0/', `/${id}/`);
+                    if($linkAnalisis) $linkAnalisis.href = `{% url 'cronograma_analisis' pk=0 %}`.replace('/0/', `/${id}/`);
+                    
                     toggleLoading(false);
                     break;
-                } else if(data.status === 'running' || resp.status === 202){
-                    // Continúa
+                } else if(data.status === 'running' || data.status === 'queued' || resp.status === 202){
+                    // Continúa esperando
                 } else if(data.status === 'failed' || data.error){
                     throw new Error(data.error || 'Fallo en el proceso.');
                 }
+                // Esperar 2.5s antes de volver a consultar
                 await new Promise(r=>setTimeout(r, 2500));
             }
         } catch(e){
             clearInterval(tick);
             setEstado('Error','danger');
             setProgreso(0, false);
-            $msg.classList.add('d-none');
-            $errText.textContent = e.message || 'Error durante el seguimiento.';
-            $err.classList.remove('d-none');
+            if($msg) $msg.classList.add('d-none');
+            if($errText) $errText.textContent = e.message || 'Error durante el seguimiento.';
+            if($err) $err.classList.remove('d-none');
             toggleLoading(false);
         }
     }
 
+}); // Fin del DOMContentLoaded
 </script>
-<div class="modal fade" id="modalErrorDotacion" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    Validación de Dotación Fallida
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4">
-                
-                <div class="text-center mb-4">
-                    <h4 class="text-danger fw-bold">Imposible Generar Cronograma</h4>
-                    <p class="text-muted">La demanda requerida supera la capacidad máxima teórica del personal activo.</p>
-                </div>
-
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between small fw-bold mb-1">
-                        <span>Oferta Actual (<span id="txt-oferta">0</span> hs)</span>
-                        <span class="text-danger">Demanda (<span id="txt-demanda">0</span> hs)</span>
-                    </div>
-                    <div class="progress" style="height: 25px; background-color: #e9ecef;">
-                        <div id="bar-capacidad" class="progress-bar bg-danger" role="progressbar" style="width: 0%">
-                            <span id="txt-porcentaje" class="fw-bold text-white drop-shadow">0%</span>
-                        </div>
-                    </div>
-                    <div class="text-center mt-2">
-                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger">
-                            Faltan cubrir <span id="txt-deficit" class="fw-bold">0</span> horas (aprox)
-                        </span>
-                    </div>
-                </div>
-
-                <div class="alert alert-warning d-flex align-items-start small" role="alert">
-                    <i class="bi bi-info-circle-fill fs-5 me-2"></i>
-                    <div>
-                        <strong>Nota importante sobre capacidad:</strong><br>
-                        Para garantizar una cobertura saludable, la capacidad del personal debería ser 
-                        <strong>al menos un 15% superior</strong> a la demanda. Esto es necesario para cubrir francos obligatorios, 
-                        preferencias, indisponibilidades y evitar la fatiga del equipo.
-                        <br>
-                        <em>Incluso si los números fueran iguales, el algoritmo no podría cubrir todos los turnos debido a estas restricciones.</em>
-                    </div>
-                </div>
-
-                <div class="card bg-light border-0 mt-3">
-                    <div class="card-body">
-                        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-lightbulb-fill text-warning"></i> Acciones Sugeridas</h6>
-                        <ul class="mb-0 text-muted small ps-3">
-                            <li class="mb-2">
-                                <strong>Revisar Personal:</strong> Actualmente hay <strong id="txt-empleados" class="text-dark">0</strong> empleados activos. Verifica si hay personal inactivo o licencias mal cargadas.
-                            </li>
-                            <li class="mb-2">
-                                <strong>Ajustar Plantilla:</strong> Reducí la cantidad de profesionales requeridos por turno en la configuración de la Plantilla de Demanda.
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-            </div>
-            <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Entendido</button>
-                <a href="#" id="btn-ir-plantilla" class="btn btn-primary">
-                    <i class="bi bi-pencil-square"></i> Modificar Plantilla
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
