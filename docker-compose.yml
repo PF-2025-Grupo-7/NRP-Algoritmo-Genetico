@@ -30,7 +30,7 @@ services:
     container_name: hospital_web
     command: >
       sh -c "python manage.py migrate &&
-             python manage.py loaddata datos_iniciales.json &&
+             python manage.py loaddata rostering/fixtures/datos_iniciales.json || true
              python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./web_app:/code

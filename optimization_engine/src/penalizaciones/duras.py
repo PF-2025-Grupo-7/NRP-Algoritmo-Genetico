@@ -77,7 +77,8 @@ class PenalizacionesDurasMixin:
                     # Comparamos y penalizamos el déficit
                     if asignado < requerido:
                         faltantes = requerido - asignado
-                        penalizacion += (faltantes * self.PENALIZACION_DURA)
+                        # MULTIPLICADOR NUCLEAR: 100.000 puntos por cada turno descubierto
+                        penalizacion += (faltantes * 100000.0)
                         if detallar:
                             incidentes.append({
                                 "dia": d,

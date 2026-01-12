@@ -1,39 +1,100 @@
 {% extends "base.html" %}
 
-{% block title %}Registrarse{% endblock %}
-
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-6 col-lg-5">
-        <div class="card shadow-sm">
-            <div class="card-header bg-success text-white text-center">
-                <h4>Crear Cuenta Nueva</h4>
-            </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    
-                    {% for field in form %}
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.help_text %}
-                                <small class="form-text text-muted d-block">{{ field.help_text }}</small>
-                            {% endif %}
-                            {% for error in field.errors %}
-                                <div class="text-danger small">{{ error }}</div>
-                            {% endfor %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-sm-10 col-md-8 col-lg-6 register-container">
+            <div class="card border-0 shadow-sm register-card">
+                <div class="card-body p-5">
+                    <!-- Encabezado -->
+                    <div class="text-center mb-4">
+                        <div class="icon-circle">
+                            <i class="bi bi-person-plus-fill text-primary fs-1"></i>
                         </div>
-                    {% endfor %}
-
-                    <div class="d-grid mt-4">
-                        <button type="submit" class="btn btn-success">Registrarse</button>
+                        <h2 class="mt-3 h4 fw-bold register-title">Crear Cuenta Nueva</h2>
                     </div>
-                </form>
-                
-                <hr>
-                <div class="text-center">
-                    <p>¿Ya tenés cuenta? <a href="{% url 'login' %}">Ingresá acá</a></p>
+
+                    <!-- Formulario -->
+                    <form method="post" class="register-form {% if form.errors %}form-with-errors{% endif %}">
+                        {% csrf_token %}
+
+                        <!-- Campos del formulario -->
+                        <div class="input-wrapper">
+                            <input type="text" name="username" class="form-control" placeholder="Usuario" required>
+                            {% if form.username.errors %}
+                                <div class="field-error">
+                                    <i class="bi bi-exclamation-circle"></i>
+                                    {% if "already exists" in form.username.errors.0|lower or "already taken" in form.username.errors.0|lower %}
+                                        Ingresá un nombre de usuario válido. Este valor puede contener solo letras, números y @/./+/-/_
+                                    {% elif "required" in form.username.errors.0|lower %}
+                                        Este campo es obligatorio.
+                                    {% else %}
+                                        Ingresá un nombre de usuario válido. Este valor puede contener solo letras, números y @/./+/-/_
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="input-wrapper">
+                            <input type="password" name="password1" class="form-control" placeholder="Contraseña" required>
+                            {% if form.password1.errors %}
+                                <div class="field-error">
+                                    <i class="bi bi-exclamation-circle"></i>
+                                    {% if "corta" in form.password1.errors.0|lower and "8" in form.password1.errors.0 %}
+                                        Esta contraseña es demasiado corta. Debe contener al menos 8 caracteres.
+                                    {% elif "común" in form.password1.errors.0|lower %}
+                                        Esta contraseña es demasiado común.
+                                    {% elif "numérica" in form.password1.errors.0|lower %}
+                                        Esta contraseña es completamente numérica.
+                                    {% elif "similar" in form.password1.errors.0|lower %}
+                                        La contraseña es muy similar a la información personal.
+                                    {% elif "obligatorio" in form.password1.errors.0|lower or "requerido" in form.password1.errors.0|lower %}
+                                        Este campo es obligatorio.
+                                    {% else %}
+                                        {{ form.password1.errors.0 }}
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="input-wrapper">
+                            <input type="password" name="password2" class="form-control" placeholder="Repetir contraseña" required>
+                            {% if form.password2.errors %}
+                                <div class="field-error">
+                                    <i class="bi bi-exclamation-circle"></i>
+                                    {% if "coinciden" in form.password2.errors.0|lower or "iguales" in form.password2.errors.0|lower %}
+                                        Los dos campos de contraseña no coinciden.
+                                    {% elif "obligatorio" in form.password2.errors.0|lower or "requerido" in form.password2.errors.0|lower %}
+                                        Este campo es obligatorio.
+                                    {% else %}
+                                        {{ form.password2.errors.0 }}
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Consejos de seguridad -->
+                        <div class="password-tips">
+                            <div class="tips-title">Requisitos de la Contraseña</div>
+                            <ul class="tips-list">
+                                <li>Tu contraseña no puede ser muy similar a tu otra información personal.</li>
+                                <li>Tu contraseña debe contener al menos 8 caracteres.</li>
+                                <li>Tu contraseña no puede ser una contraseña comúnmente usada.</li>
+                                <li>Tu contraseña no puede ser completamente numérica.</li>
+                            </ul>
+                        </div>
+
+                        <!-- Botón de envío -->
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-primary fw-bold register-btn">Registrarse</button>
+                        </div>
+                    </form>
+
+                    <!-- Login -->
+                    <div class="text-center mt-4 pt-4 border-top">
+                        <span class="text-muted small">¿Ya tenés cuenta? </span>
+                        <a href="{% url 'login' %}" class="login-link">Iniciá sesión</a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -41,13 +102,210 @@
 </div>
 
 <style>
-    input[type="text"], input[type="password"], input[type="email"] {
-        width: 100%;
-        padding: 0.375rem 0.75rem;
-        font-size: 1rem;
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem;
+    /* === CONTENEDOR Y CARD === */
+    .register-container {
+        max-width: 640px;
     }
-    ul.errorlist { color: red; list-style: none; padding: 0; }
+
+    .register-card {
+        background-color: #ffffff;
+        border-radius: 12px;
+        opacity: 0;
+        transform: translateY(6px);
+        animation: cardIn 500ms ease forwards;
+    }
+
+    @keyframes cardIn {
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* === ENCABEZADO === */
+    .icon-circle {
+        width: 92px;
+        height: 92px;
+        background-color: rgba(13, 110, 253, 0.1);
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .register-title {
+        color: #2f3e4c;
+        letter-spacing: 0.5px;
+        font-size: 1.75rem;
+    }
+
+    /* === FORMULARIO === */
+    .register-form {
+        margin-top: 0.5rem;
+    }
+
+    /* === ALERTAS === */
+    .alert-container {
+        min-height: 70px;
+        margin-top: 1rem;
+        margin-bottom: 0;
+    }
+
+    .register-alert {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.65rem 0.95rem;
+        background-color: #f5e8e8;
+        color: #a83a52;
+        border-left: 3px solid #a83a52;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: opacity 0.3s ease;
+    }
+
+    .register-alert i {
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    /* === INPUTS === */
+    .input-wrapper {
+        margin-bottom: 0.75rem;
+    }
+
+    .input-wrapper:first-of-type {
+        margin-top: 2.5rem;
+    }
+
+    .register-form .form-control,
+    .register-form input[type="text"],
+    .register-form input[type="password"],
+    .register-form input[type="email"] {
+        width: 100%;
+        height: 48px;
+        padding: 0.7rem 1.05rem;
+        font-size: 1rem;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .register-form .form-control:focus,
+    .register-form input:focus {
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+        border-color: #0d6efd;
+        outline: none;
+    }
+
+    .form-with-errors .form-control.is-invalid,
+    .form-with-errors input.is-invalid {
+        border-color: #c41c3b;
+        box-shadow: 0 0 0 0.25rem rgba(196, 28, 59, 0.08);
+    }
+
+    /* === HELP TEXT === */
+    .help-text {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.8rem;
+        color: #6c757d;
+        line-height: 1.3;
+    }
+
+    /* === CONSEJOS DE CONTRASEÑA === */
+    .password-tips {
+        background-color: #e7f3ff;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin-top: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .tips-title {
+        color: #2f3e4c;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .tips-list {
+        margin: 0;
+        padding-left: 1.25rem;
+        color: #5a6c7d;
+        font-size: 0.85rem;
+        line-height: 1.3;
+    }
+
+    .tips-list li {
+        margin-bottom: 0.1rem;
+    }
+
+    /* === ERRORES DE CAMPO === */
+    .field-error {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 0.35rem;
+        color: #c41c3b;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .field-error i {
+        font-size: 0.9rem;
+    }
+
+    /* === ENLACES === */
+    .login-link {
+        color: #0d6efd;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .login-link:hover {
+        color: #0b5ed7;
+    }
+
+    /* === BOTÓN === */
+    .register-btn {
+        min-width: 230px;
+        height: 46px;
+        padding: 0 1rem;
+        border-radius: 10px;
+        box-shadow: 0 0.5rem 1rem rgba(13, 110, 253, 0.15);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .register-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 0.9rem 1.2rem rgba(13, 110, 253, 0.22);
+    }
+
+    .register-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 0.5rem 1rem rgba(13, 110, 253, 0.15);
+    }
+
+    /* === OCULTAR ERRORLIST DE DJANGO === */
+    ul.errorlist {
+        display: none;
+    }
+
+    /* === ACCESIBILIDAD === */
+    @media (prefers-reduced-motion: reduce) {
+        .register-card {
+            animation: none;
+            opacity: 1;
+            transform: none;
+        }
+
+        .register-btn,
+        .register-form .form-control,
+        .register-form input {
+            transition: none;
+        }
+    }
 </style>
 {% endblock %}
