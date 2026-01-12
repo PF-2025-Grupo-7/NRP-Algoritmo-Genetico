@@ -14,22 +14,15 @@ from .models import (
     ConfiguracionAlgoritmo, SecuenciaProhibida, DiaSemana,
     Cronograma, Asignacion, TrabajoPlanificacion
 )
-
-# En services.py
-
 def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantilla):
     """
-    RF04 MEJORADO: Verifica capacidad con desglose Junior/Senior, 
-    descuento de ausencias y margen de seguridad.
+    Verifica capacidad con desglose Junior/Senior, descuento de ausencias y margen de seguridad.
     """
-    print(f"\n🔍 --- VALIDACIÓN DE DOTACIÓN INTELIGENTE ---")
-    
     # 1. Configuración Básica
-    MARGEN_SEGURIDAD = 0.10  # 10% extra requerido para cubrir imprevistos/descansos
+    MARGEN_SEGURIDAD = 0.10
     dias_totales = (fecha_fin - fecha_inicio).days + 1
     factor_periodo = dias_totales / 30.0 
     
-    # Obtenemos duración promedio de turnos para estimaciones
     turnos = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
     if not turnos.exists():
         return False, {"error_generico": "No hay tipos de turno definidos."}
@@ -37,13 +30,10 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
     duracion_promedio = sum(t.duracion_horas for t in turnos) / len(turnos)
     duracion_promedio = float(duracion_promedio)
 
-    # ---------------------------------------------------------
-    # A. CÁLCULO DE LA OFERTA (Horas Reales Disponibles)
-    # ---------------------------------------------------------
+    # 2. Cálculo de la Oferta (Horas Reales Disponibles)
     oferta = {'SENIOR': 0.0, 'JUNIOR': 0.0}
     ausencias_total_horas = 0.0
     
-    # Pre-cargamos ausencias en el rango
     ausencias = NoDisponibilidad.objects.filter(
         empleado__in=empleados_qs,
         fecha_fin__gte=fecha_inicio,
@@ -51,54 +41,55 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
     )
 
     for emp in empleados_qs:
-        # 1. Capacidad Teórica (Base)
         t_max = float(emp.max_turnos_mensuales or 0)
         horas_teoricas = t_max * duracion_promedio * factor_periodo
         
-        # 2. Descuento por Ausencias (Impacto real)
         horas_ausencia = 0.0
         mis_ausencias = [a for a in ausencias if a.empleado_id == emp.id]
         
         for aus in mis_ausencias:
-            # Intersección de rangos de fechas
             inicio_cruce = max(aus.fecha_inicio, fecha_inicio)
             fin_cruce = min(aus.fecha_fin, fecha_fin)
             dias_cruce = (fin_cruce - inicio_cruce).days + 1
             
             if dias_cruce > 0:
                 if aus.tipo_turno:
-                    # Si es ausencia de un turno específico, restamos la duración de ESE turno
                     horas_ausencia += (dias_cruce * float(aus.tipo_turno.duracion_horas))
                 else:
-                    # Si es ausencia total (licencia), restamos el promedio diario (o duración turno)
                     horas_ausencia += (dias_cruce * duracion_promedio)
 
         horas_netas = max(0, horas_teoricas - horas_ausencia)
         ausencias_total_horas += horas_ausencia
         
-        # Sumar al bucket correspondiente (Normalizado a mayúsculas)
         rol = emp.experiencia.upper() if emp.experiencia else 'JUNIOR'
-        if rol not in oferta: rol = 'JUNIOR' # Fallback
+        if rol not in oferta: rol = 'JUNIOR'
         oferta[rol] += horas_netas
 
-    print(f"   Oferta Neta: {oferta} (Ausencias descontadas: {int(ausencias_total_horas)}hs)")
-
-    # ---------------------------------------------------------
-    # B. CÁLCULO DE LA DEMANDA (Requerimiento Exacto)
-    # ---------------------------------------------------------
+    # 3. Cálculo de la Demanda (Requerimiento Exacto)
     demanda = {'SENIOR': 0.0, 'JUNIOR': 0.0}
     
     reglas = ReglaDemandaSemanal.objects.filter(plantilla=plantilla).select_related('turno')
-    # Mapa de días (0=Lunes...)
     mapa_reglas = {d: [] for d in range(7)}
     for r in reglas:
         mapa_reglas[r.dia].append(r)
         
+    # --- CORRECCIÓN: REPLICACIÓN DE REGLAS (Lunes->Viernes, Sábado->Domingo) ---
+    # Esto alinea la validación con lo que realmente hace el algoritmo después.
+    if mapa_reglas[0]: # Si hay reglas el Lunes
+        for d in range(1, 5): # Martes(1) a Viernes(4)
+            if not mapa_reglas[d]:
+                mapa_reglas[d] = mapa_reglas[0] # Copiamos la referencia
+    
+    if mapa_reglas[5]: # Si hay reglas el Sábado
+        if not mapa_reglas[6]: # Y Domingo vacío
+            mapa_reglas[6] = mapa_reglas[5]
+    # --------------------------------------------------------------------------
+
     excepciones = ExcepcionDemanda.objects.filter(
         plantilla=plantilla, 
         fecha__range=[fecha_inicio, fecha_fin]
     ).select_related('turno')
-    # Mapa de excepciones por fecha string
+    
     mapa_excepciones = {}
     for ex in excepciones:
         f_str = ex.fecha.strftime("%Y-%m-%d")
@@ -110,14 +101,10 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
         dia_sem = fecha_iter.weekday()
         f_str = fecha_iter.strftime("%Y-%m-%d")
         
-        # Determinamos qué reglas aplican (Excepción > Regla)
         items_dia = []
-        
         if f_str in mapa_excepciones:
-            # Usamos excepciones (feriados, picos)
             items_dia = mapa_excepciones[f_str]
         else:
-            # Usamos regla estándar
             items_dia = mapa_reglas[dia_sem]
             
         for item in items_dia:
@@ -127,18 +114,12 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
             
         fecha_iter += timedelta(days=1)
 
-    # Aplicar Margen de Seguridad
     demanda_con_margen = {k: v * (1 + MARGEN_SEGURIDAD) for k, v in demanda.items()}
     
-    print(f"   Demanda (+{int(MARGEN_SEGURIDAD*100)}%): {demanda_con_margen}")
-
-    # ---------------------------------------------------------
-    # C. BALANCE Y VEREDICTO
-    # ---------------------------------------------------------
+    # 4. Balance y Veredicto
     balance_senior = oferta['SENIOR'] - demanda_con_margen['SENIOR']
     balance_junior = oferta['JUNIOR'] - demanda_con_margen['JUNIOR']
     
-    # Tolerancia mínima (por redondeos de float)
     es_viable_senior = balance_senior >= -5.0 
     es_viable_junior = balance_junior >= -5.0
     
