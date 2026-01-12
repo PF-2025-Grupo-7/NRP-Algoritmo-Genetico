@@ -226,7 +226,6 @@ class ReglaDemandaSemanal(models.Model):
     def __str__(self):
         return f"{self.get_dia_display()} {self.turno.abreviatura}: S={self.cantidad_senior}/J={self.cantidad_junior}"
 
-
 class ExcepcionDemanda(models.Model):
     """Permite sobreescribir la regla semanal para una fecha específica (Ej: Navidad)."""
     plantilla = models.ForeignKey(PlantillaDemanda, on_delete=models.CASCADE, related_name='excepciones', null=True, blank=True)
@@ -235,6 +234,15 @@ class ExcepcionDemanda(models.Model):
     
     cantidad_senior = models.IntegerField(default=0, verbose_name="Req. Senior", validators=[MinValueValidator(0)])
     cantidad_junior = models.IntegerField(default=0, verbose_name="Req. Junior", validators=[MinValueValidator(0)])
+    
+    # --- NUEVO CAMPO ---
+    es_turno_dificil = models.BooleanField(
+        default=False, 
+        verbose_name="Es Turno Difícil", 
+        help_text="Marcar si trabajar este día debe contar doble para la equidad (Ej: Navidad, Año Nuevo)."
+    )
+    # -------------------
+
     motivo = models.CharField(max_length=100, blank=True)
 
     class Meta:
@@ -250,7 +258,6 @@ class ExcepcionDemanda(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
-
 
 # ==============================================================================
 # NOVEDADES Y PREFERENCIAS (Inputs del Empleado)

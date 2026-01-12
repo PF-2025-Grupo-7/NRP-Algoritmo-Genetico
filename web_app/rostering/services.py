@@ -424,7 +424,10 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
             for ex in excepciones_db:
                 demanda_dia[str(ex.turno.id)] = {
                     "junior": ex.cantidad_junior,
-                    "senior": ex.cantidad_senior
+                    "senior": ex.cantidad_senior,
+                    # --- NUEVO: Pasamos el flag al algoritmo ---
+                    "es_dificil": ex.es_turno_dificil 
+                    # -------------------------------------------
                 }
 
         # 4. Agregar a la lista maestra
