@@ -8,8 +8,7 @@ services:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=admin
     volumes:
-      #- postgres_data:/var/lib/postgresql/data
-      - postgres_data_tests:/var/lib/postgresql/data  # <--- Cambié el nombre
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"  # Útil para ver la BD desde DBeaver/PgAdmin 
 
@@ -49,5 +48,4 @@ services:
     
 
 volumes:
-  # postgres_data:  
-  postgres_data_tests: # <-- Creamos uno nuevo vacío
+  postgres_data:  
