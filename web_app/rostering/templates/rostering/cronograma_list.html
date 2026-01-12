@@ -52,7 +52,8 @@
                     <thead class="table-light">
                         <tr>
                             <th>Referencia</th>
-                            <th>Período Planificado</th> <th class="text-center">Estado</th>
+                            <th>Período Planificado</th> 
+                            <th class="text-center">Estado</th>
                             <th>Métricas</th>
                             <th class="text-end">Acciones</th>
                         </tr>
@@ -80,11 +81,23 @@
                             </td>
                             
                             <td class="text-center">
+                                {# --- LÓGICA DE ESTADOS ACTUALIZADA --- #}
                                 {% if c.estado == 'PUBLICADO' %}
                                     <span class="badge bg-success rounded-pill px-3">Publicado</span>
+                                
                                 {% elif c.estado == 'OPTIMIZANDO' %}
-                                    <span class="badge bg-info text-dark rounded-pill px-3">Procesando...</span>
+                                    <span class="badge bg-info text-dark rounded-pill px-3">
+                                        <span class="spinner-border spinner-border-sm me-1" style="width: 0.7em; height: 0.7em;"></span>
+                                        Procesando...
+                                    </span>
+                                
+                                {% elif c.estado == 'FALLIDO' %}
+                                    <span class="badge bg-danger rounded-pill px-3" title="No cumple normativa">
+                                        <i class="bi bi-x-circle-fill me-1"></i> No Viable
+                                    </span>
+                                
                                 {% else %}
+                                    {# Estado por defecto: BORRADOR #}
                                     <span class="badge bg-warning text-dark rounded-pill px-3">Borrador</span>
                                 {% endif %}
                             </td>
@@ -113,12 +126,21 @@
                                     <a href="{% url 'ver_cronograma_diario' c.id %}" class="btn btn-sm btn-outline-primary">
                                         Vista Diaria
                                     </a>
+                                    
                                     {% if c.fitness %}
-                                    <a href="{% url 'cronograma_analisis' c.id %}" class="btn btn-sm btn-outline-info" title="Ver Análisis de Cronograma">
-                                        <i class="bi bi-graph-up"></i>
-                                    </a>
+                                        {# Botón de Análisis: Rojo si falló, Info normal si está bien #}
+                                        {% if c.estado == 'FALLIDO' %}
+                                            <a href="{% url 'cronograma_analisis' c.id %}" class="btn btn-sm btn-danger" title="Ver Motivo de Fallo">
+                                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                            </a>
+                                        {% else %}
+                                            <a href="{% url 'cronograma_analisis' c.id %}" class="btn btn-sm btn-outline-info" title="Ver Análisis de Cronograma">
+                                                <i class="bi bi-graph-up"></i>
+                                            </a>
+                                        {% endif %}
                                     {% endif %}
-                                    <a href="{% url 'cronograma_delete' c.id %}" class="btn btn-sm btn-outline-danger">
+                                    
+                                    <a href="{% url 'cronograma_delete' c.id %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Estás seguro de eliminar este cronograma?');">
                                         Eliminar
                                     </a>
                                 </div>
