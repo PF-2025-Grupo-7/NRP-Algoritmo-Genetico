@@ -4,8 +4,19 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="fw-bold"><i class="bi bi-graph-up-arrow"></i> Análisis de Solución</h2>
-            <p class="text-muted mb-0">
+            <div class="d-flex align-items-center gap-2">
+                <h2 class="fw-bold mb-0"><i class="bi bi-graph-up-arrow"></i> Análisis de Solución</h2>
+                
+                {% if cronograma.estado == 'FALLIDO' %}
+                    <span class="badge bg-danger fs-6 animate__animated animate__flash">
+                        <i class="bi bi-x-octagon-fill"></i> NO VIABLE
+                    </span>
+                {% elif cronograma.estado == 'BORRADOR' %}
+                    <span class="badge bg-secondary fs-6">Borrador</span>
+                {% endif %}
+            </div>
+            
+            <p class="text-muted mb-0 mt-1">
                 Detalle técnico de la planificación: {{ cronograma.get_especialidad_display }} 
                 ({{ cronograma.fecha_inicio|date:"M Y" }})
             </p>
@@ -14,14 +25,35 @@
             <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Volver
             </a>
-            <a href="{% url 'exportar_pdf' cronograma.id %}" target="_blank" class="btn btn-danger shadow-sm">
-                <i class="bi bi-file-earmark-pdf-fill me-2"></i> PDF
-            </a>
-            <a href="{% url 'exportar_excel' cronograma.id %}" class="btn btn-success shadow-sm">
-                <i class="bi bi-file-excel me-2"></i> Excel
-            </a>
+            
+            {% if cronograma.estado != 'FALLIDO' %}
+                <a href="{% url 'exportar_pdf' cronograma.id %}" target="_blank" class="btn btn-danger shadow-sm">
+                    <i class="bi bi-file-earmark-pdf-fill me-2"></i> PDF
+                </a>
+                <a href="{% url 'exportar_excel' cronograma.id %}" class="btn btn-success shadow-sm">
+                    <i class="bi bi-file-excel me-2"></i> Excel
+                </a>
+            {% else %}
+                <button disabled class="btn btn-secondary" title="No se puede exportar un cronograma fallido">
+                    <i class="bi bi-file-earmark-pdf-fill me-2"></i> PDF
+                </button>
+            {% endif %}
         </div>
     </div>
+
+    {# --- Alerta General --- #}
+    {% if cronograma.estado == 'FALLIDO' %}
+    <div class="alert alert-danger d-flex align-items-center mb-4 shadow-sm" role="alert">
+        <i class="bi bi-exclamation-octagon-fill fs-3 me-3"></i>
+        <div>
+            <h5 class="alert-heading fw-bold mb-1">Cronograma Rechazado por Normativa</h5>
+            <p class="mb-0">
+                La solución generada no cumple con los estándares mínimos de seguridad o cobertura. 
+                Revisá el reporte de incidentes para ver los detalles (Seniors faltantes o déficit excesivo).
+            </p>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="row g-4 mb-4">
         <div class="col-md-4">
@@ -41,18 +73,24 @@
                 <div class="card-body text-center">
                     <h6 class="text-muted text-uppercase mb-3">Cobertura de Demanda</h6>
                     
-                    {% if violaciones_duras.deficit_cobertura %}
-                        <div class="text-danger mb-2 animate__animated animate__pulse animate__infinite">
+                    {% if violaciones_duras.deficit_critico_senior %}
+                        <div class="text-danger mb-2 animate__animated animate__tada animate__infinite">
+                            <i class="bi bi-radioactive" style="font-size: 3rem;"></i>
+                        </div>
+                        <h5 class="text-danger fw-bold">Falta Supervisión</h5>
+                        <small class="text-danger fw-bold">Turnos sin Senior a cargo</small>
+                    {% elif violaciones_duras.deficit_cobertura %}
+                        <div class="text-warning mb-2">
                             <i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem;"></i>
                         </div>
-                        <h5 class="text-danger fw-bold">Déficit Detectado</h5>
-                        <small class="text-danger">No se cubrió el 100% de los turnos</small>
+                        <h5 class="text-warning fw-bold text-dark">Déficit Detectado</h5>
+                        <small class="text-muted">Hay huecos en la cobertura</small>
                     {% else %}
                         <div class="text-success mb-2">
                             <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
                         </div>
                         <h5 class="text-success fw-bold">Completa</h5>
-                        <small class="text-muted">Se cumplieron todas las reglas de dotación</small>
+                        <small class="text-muted">Se cumplieron todas las reglas</small>
                     {% endif %}
                 </div>
             </div>
@@ -70,6 +108,28 @@
             </div>
         </div>
     </div>
+    
+    {# --- SECCIÓN NUEVA: DIAGNÓSTICO INTELIGENTE (Solo si hay insights) --- #}
+    {% if cronograma.reporte_analisis.insights %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-info bg-info bg-opacity-10 shadow-sm">
+                <div class="card-body d-flex align-items-start">
+                    <i class="bi bi-lightbulb-fill text-info fs-3 me-3 mt-1"></i>
+                    <div>
+                        <h5 class="card-title fw-bold text-info-emphasis mb-2">Diagnóstico Inteligente</h5>
+                        {% for insight in cronograma.reporte_analisis.insights %}
+                            <div class="mb-1">
+                                <span class="fw-bold text-dark"><i class="bi bi-caret-right-fill"></i> {{ insight.titulo }}:</span>
+                                <span class="text-dark">{{ insight.mensaje }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="row">
         <div class="col-lg-8 mb-4">
@@ -89,26 +149,30 @@
             <div class="card shadow border-0 h-100">
                 <div class="card-header bg-white fw-bold d-flex align-items-center justify-content-between">
                     <span><i class="bi bi-list-check me-2 text-primary"></i> Reporte de Incidentes</span>
+                    {% if violaciones_duras.deficit_critico_senior or violaciones_duras.deficit_cobertura %}
+                        <span class="badge bg-danger">Atención Requerida</span>
+                    {% endif %}
                 </div>
                 <div class="card-body p-0 overflow-auto" style="max-height: 500px;">
                     <ul class="list-group list-group-flush">
                         
-                        {% if violaciones_duras.deficit_cobertura %}
-                            <li class="list-group-item bg-danger bg-opacity-10 fw-bold small text-uppercase text-danger border-bottom-0">
-                                <i class="bi bi-shield-exclamation me-1"></i> Cobertura Insuficiente
+                        {# --- 1. DÉFICIT CRÍTICO SENIOR --- #}
+                        {% if violaciones_duras.deficit_critico_senior %}
+                            <li class="list-group-item bg-danger text-white fw-bold small text-uppercase border-bottom-0">
+                                <i class="bi bi-shield-x me-1"></i> Faltan Seniors (Crítico)
                             </li>
-                            {% for v in violaciones_duras.deficit_cobertura %}
-                                <li class="list-group-item">
+                            {% for v in violaciones_duras.deficit_critico_senior %}
+                                <li class="list-group-item list-group-item-danger bg-opacity-10">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="me-2">
                                             <div class="fw-bold text-danger mb-0">
-                                                <i class="bi bi-x-circle-fill me-1"></i> {{ v.turno }}
+                                                <i class="bi bi-person-x-fill me-1"></i> {{ v.turno }}
                                             </div>
-                                            <small class="text-muted lh-1" style="font-size: 0.85rem;">
+                                            <small class="text-danger lh-1" style="font-size: 0.85rem;">
                                                 {{ v.detalle }}
                                             </small>
                                         </div>
-                                        <span class="badge bg-white text-danger border border-danger">
+                                        <span class="badge bg-danger text-white border border-danger">
                                             {{ v.fecha|slice:"5:" }}
                                         </span>
                                     </div>
@@ -116,58 +180,84 @@
                             {% endfor %}
                         {% endif %}
 
-                        <li class="list-group-item bg-warning bg-opacity-10 fw-bold small text-uppercase text-warning text-dark border-bottom-0 mt-0">
-                            <i class="bi bi-calendar-x me-1"></i> Francos No Respetados
-                        </li>
-                        
-                        {% for v in violaciones_blandas.preferencia_libre_incumplida %}
-                            <li class="list-group-item">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div class="me-2">
-                                        <div class="fw-bold text-dark mb-0">
-                                            <i class="bi bi-person-exclamation text-warning me-1"></i> {{ v.nombre }}
+                        {# --- 2. Déficit General --- #}
+                        {% if violaciones_duras.deficit_cobertura %}
+                            <li class="list-group-item bg-warning bg-opacity-25 fw-bold small text-uppercase text-dark border-bottom-0 mt-2">
+                                <i class="bi bi-cone-striped me-1"></i> Huecos Generales
+                            </li>
+                            {% for v in violaciones_duras.deficit_cobertura %}
+                                <li class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="me-2">
+                                            <div class="fw-bold text-dark mb-0">
+                                                {{ v.turno }}
+                                            </div>
+                                            <small class="text-muted lh-1" style="font-size: 0.85rem;">
+                                                {{ v.detalle }}
+                                            </small>
                                         </div>
-                                        <small class="text-muted lh-1" style="font-size: 0.85rem;">
-                                            {{ v.detalle }}
-                                        </small>
+                                        <span class="badge bg-light text-dark border">
+                                            {{ v.fecha|slice:"5:" }}
+                                        </span>
                                     </div>
-                                    <span class="badge bg-white text-dark border border-warning">
-                                        {{ v.fecha|slice:"5:" }}
-                                    </span>
-                                </div>
-                            </li>
-                        {% empty %}
-                            {% if not violaciones_duras.deficit_cobertura %}
-                                <li class="list-group-item text-center py-3">
-                                    <i class="bi bi-emoji-smile text-success fs-4"></i>
-                                    <div class="small text-muted">Todos tuvieron sus francos.</div>
                                 </li>
-                            {% endif %}
-                        {% endfor %}
+                            {% endfor %}
+                        {% endif %}
 
-                        <li class="list-group-item bg-light fw-bold small text-uppercase text-muted border-bottom-0 mt-0">
-                            <i class="bi bi-clock-history me-1"></i> Turnos Pedidos (Ignorados)
-                        </li>
-                        
-                        {% for v in violaciones_blandas.preferencia_turno_incumplida %}
-                            <li class="list-group-item">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div class="me-2">
-                                        <div class="fw-bold text-dark mb-0">{{ v.nombre }}</div>
-                                        <small class="text-muted lh-1" style="font-size: 0.85rem;">
-                                            {{ v.detalle }}
-                                        </small>
+                        {# --- 3. Francos --- #}
+                        {% if violaciones_blandas.preferencia_libre_incumplida %}
+                            <li class="list-group-item bg-light fw-bold small text-uppercase text-muted border-bottom-0 mt-2">
+                                <i class="bi bi-calendar-x me-1"></i> Francos No Respetados
+                            </li>
+                            {% for v in violaciones_blandas.preferencia_libre_incumplida %}
+                                <li class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="me-2">
+                                            <div class="fw-bold text-dark mb-0">
+                                                <i class="bi bi-person-exclamation text-warning me-1"></i> {{ v.nombre }}
+                                            </div>
+                                            <small class="text-muted lh-1" style="font-size: 0.85rem;">
+                                                {{ v.detalle }}
+                                            </small>
+                                        </div>
+                                        <span class="badge bg-white text-muted border">
+                                            {{ v.fecha|slice:"5:" }}
+                                        </span>
                                     </div>
-                                    <span class="badge bg-light text-muted border">
-                                        {{ v.fecha|slice:"5:" }}
-                                    </span>
-                                </div>
+                                </li>
+                            {% endfor %}
+                        {% endif %}
+
+                        {# --- 4. Turnos Ignorados --- #}
+                        {% if violaciones_blandas.preferencia_turno_incumplida %}
+                            <li class="list-group-item bg-light fw-bold small text-uppercase text-muted border-bottom-0 mt-2">
+                                <i class="bi bi-clock-history me-1"></i> Preferencias Ignoradas
                             </li>
-                        {% empty %}
-                            <li class="list-group-item text-center py-3 text-muted small">
-                                Sin reclamos pendientes.
+                            {% for v in violaciones_blandas.preferencia_turno_incumplida %}
+                                <li class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div class="me-2">
+                                            <div class="fw-bold text-dark mb-0">{{ v.nombre }}</div>
+                                            <small class="text-muted lh-1" style="font-size: 0.85rem;">
+                                                {{ v.detalle }}
+                                            </small>
+                                        </div>
+                                        <span class="badge bg-light text-muted border">
+                                            {{ v.fecha|slice:"5:" }}
+                                        </span>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        {% endif %}
+
+                        {# --- Estado Perfecto --- #}
+                        {% if not violaciones_duras.deficit_critico_senior and not violaciones_duras.deficit_cobertura and not violaciones_blandas.preferencia_libre_incumplida and not violaciones_blandas.preferencia_turno_incumplida %}
+                             <li class="list-group-item text-center py-4 text-muted">
+                                <i class="bi bi-check-circle text-success fs-1 d-block mb-2"></i>
+                                <div class="fw-bold">Sin incidentes</div>
+                                <div class="small">El cronograma es óptimo.</div>
                             </li>
-                        {% endfor %}
+                        {% endif %}
 
                     </ul>
                 </div>
@@ -195,25 +285,20 @@
         const ctxEl = document.getElementById('equityChart');
         if (!ctxEl) return;
 
-        // 1. Cargar Datos
         const horasReales = getData('data-horas', []);
         const nombresCortos = getData('data-nombres-cortos', []);
         const nombresLargos = getData('data-nombres-largos', []);     
         const limites = getData('data-limites', []); 
-        const rangoEquidad = getData('data-rango-equidad', []); 
 
-        // 2. Escala Dinámica
         let minVal = Math.min(...horasReales);
         if (limites.length > 0) {
             const minLimits = limites.map(l => l[0]);
             const minLimit = Math.min(...minLimits);
             if (minLimit < minVal && minLimit > 0) minVal = minLimit;
         }
-        // Ajuste para que empiece en multiplo de 20
         const roundedMin = Math.floor(minVal / 20) * 20;
         const startY = roundedMin > 20 ? (roundedMin - 20) : 0;
 
-        // 3. Configurar Gráfico
         new Chart(ctxEl.getContext('2d'), {
             type: 'bar',
             data: {
@@ -238,9 +323,9 @@
                             const val = context.raw;
                             const range = limites[idx];
                             if (range && (val < range[0] || val > range[1])) {
-                                return 'rgba(220, 53, 69, 0.8)'; // Rojo si viola contrato
+                                return 'rgba(220, 53, 69, 0.8)'; 
                             }
-                            return 'rgba(13, 110, 253, 0.8)'; // Azul Bootstrap
+                            return 'rgba(13, 110, 253, 0.8)'; 
                         },
                         barPercentage: 0.35, 
                         grouped: false,

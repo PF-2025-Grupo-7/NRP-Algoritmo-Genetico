@@ -204,21 +204,34 @@ def api_get_plantillas(request):
 def ver_cronograma(request, cronograma_id):
     """
     Vista Detallada (Matriz): Ahora solo pide los datos procesados al servicio.
+    INCLUYE BLOQUEO DE SEGURIDAD PARA CRONOGRAMAS FALLIDOS.
     """
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
+    
+    # --- BLOQUEO DE SEGURIDAD ---
+    if cronograma.estado == 'FALLIDO':
+        messages.warning(request, "Acceso denegado: El cronograma no es viable. Se redirigió al análisis de errores.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    # ----------------------------
     
     # Delegamos la construcción de la matriz al servicio
     context_data = construir_matriz_cronograma(cronograma)
     
     return render(request, 'rostering/cronograma_detail.html', {
         'cronograma': cronograma,
-        **context_data # Expande 'rango_fechas' y 'filas_tabla'
+        'filter_form': None, # Si usabas filtros en el detalle, sino borralo
+        **context_data 
     })
-
 
 def ver_cronograma_diario(request, cronograma_id):
     """Vista Diaria: Muestra quién trabaja en qué turno para cada día."""
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
+    
+    # --- BLOQUEO DE SEGURIDAD ---
+    if cronograma.estado == 'FALLIDO':
+        messages.warning(request, "Acceso denegado: El cronograma no es viable. Se redirigió al análisis de errores.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    # ----------------------------
     
     asignaciones = Asignacion.objects.filter(cronograma=cronograma).select_related(
         'empleado', 'tipo_turno'
@@ -232,7 +245,6 @@ def ver_cronograma_diario(request, cronograma_id):
         agenda[asig.fecha][t_nom].append(asig.empleado)
 
     return render(request, 'rostering/cronograma_diario.html', {'cronograma': cronograma, 'agenda': agenda})
-
 
 class CronogramaAnalisisView(LoginRequiredMixin, DetailView):
     model = Cronograma
@@ -256,11 +268,17 @@ class CronogramaAnalisisView(LoginRequiredMixin, DetailView):
         context['equidad'] = reporte.get('datos_equidad', {})
         return context
 
-
 @login_required
 @require_POST
 def publicar_cronograma(request, pk):
     cronograma = get_object_or_404(Cronograma, pk=pk)
+    
+    # --- BLOQUEO ---
+    if cronograma.estado == 'FALLIDO':
+        messages.error(request, "Error crítico: No se puede publicar un cronograma marcado como NO VIABLE.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    # ---------------
+
     if cronograma.estado == Cronograma.Estado.PUBLICADO:
         messages.warning(request, "Este cronograma ya está publicado.")
     else:
@@ -268,7 +286,6 @@ def publicar_cronograma(request, pk):
         cronograma.save()
         messages.success(request, f"¡Planificación {cronograma.fecha_inicio} PUBLICADA!")
     return redirect('ver_cronograma', cronograma_id=pk)
-
 
 # ==============================================================================
 # ABM (CRUDs) - SIN CAMBIOS IMPORTANTES (Ya usan CBVs estándar)
@@ -660,6 +677,15 @@ from weasyprint import HTML
 def exportar_cronograma_pdf(request, cronograma_id):
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
     
+    # --- BLOQUEO DE SEGURIDAD ---
+    if cronograma.estado == 'FALLIDO':
+        messages.error(request, "No se puede exportar un cronograma fallido.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    # ----------------------------
+    
+    # 1. Generar encabezado de días en ESPAÑOL manual
+    # ... (El resto de tu código de PDF sigue igual) ...
+    # ...
     # 1. Generar encabezado de días en ESPAÑOL manual
     # Python: 0=Lunes, 6=Domingo
     letras_dias = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
@@ -773,6 +799,12 @@ from .models import Cronograma, Asignacion, Empleado, TipoTurno
 def exportar_cronograma_excel(request, cronograma_id):
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
     
+    # --- BLOQUEO DE SEGURIDAD ---
+    if cronograma.estado == 'FALLIDO':
+        messages.error(request, "No se puede exportar un cronograma fallido.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    # ----------------------------
+
     # 1. Crear el libro y la hoja
     wb = openpyxl.Workbook()
     ws = wb.active

@@ -458,6 +458,7 @@ class Cronograma(models.Model):
         BORRADOR = 'BORRADOR', 'Borrador'
         OPTIMIZANDO = 'OPTIMIZANDO', 'En Proceso'
         PUBLICADO = 'PUBLICADO', 'Publicado'
+        FALLIDO = 'FALLIDO', 'Fallido por Cobertura'
 
     especialidad = models.CharField(max_length=20, choices=Empleado.TipoEspecialidad.choices)
     fecha_inicio = models.DateField()
