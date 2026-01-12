@@ -7,7 +7,6 @@
             <div class="d-flex align-items-center gap-2">
                 <h2 class="fw-bold mb-0"><i class="bi bi-graph-up-arrow"></i> Análisis de Solución</h2>
                 
-                {# --- NUEVO: Badge de Estado Fallido --- #}
                 {% if cronograma.estado == 'FALLIDO' %}
                     <span class="badge bg-danger fs-6 animate__animated animate__flash">
                         <i class="bi bi-x-octagon-fill"></i> NO VIABLE
@@ -27,7 +26,6 @@
                 <i class="bi bi-arrow-left"></i> Volver
             </a>
             
-            {# --- Deshabilitar exportación si es fallido (Opcional, pero recomendado) --- #}
             {% if cronograma.estado != 'FALLIDO' %}
                 <a href="{% url 'exportar_pdf' cronograma.id %}" target="_blank" class="btn btn-danger shadow-sm">
                     <i class="bi bi-file-earmark-pdf-fill me-2"></i> PDF
@@ -43,7 +41,7 @@
         </div>
     </div>
 
-    {# --- NUEVO: Alerta General si es Fallido --- #}
+    {# --- Alerta General --- #}
     {% if cronograma.estado == 'FALLIDO' %}
     <div class="alert alert-danger d-flex align-items-center mb-4 shadow-sm" role="alert">
         <i class="bi bi-exclamation-octagon-fill fs-3 me-3"></i>
@@ -75,21 +73,18 @@
                 <div class="card-body text-center">
                     <h6 class="text-muted text-uppercase mb-3">Cobertura de Demanda</h6>
                     
-                    {# --- LÓGICA ACTUALIZADA PARA FALLOS CRÍTICOS --- #}
                     {% if violaciones_duras.deficit_critico_senior %}
                         <div class="text-danger mb-2 animate__animated animate__tada animate__infinite">
                             <i class="bi bi-radioactive" style="font-size: 3rem;"></i>
                         </div>
                         <h5 class="text-danger fw-bold">Falta Supervisión</h5>
                         <small class="text-danger fw-bold">Turnos sin Senior a cargo</small>
-                        
                     {% elif violaciones_duras.deficit_cobertura %}
                         <div class="text-warning mb-2">
                             <i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem;"></i>
                         </div>
                         <h5 class="text-warning fw-bold text-dark">Déficit Detectado</h5>
                         <small class="text-muted">Hay huecos en la cobertura</small>
-                        
                     {% else %}
                         <div class="text-success mb-2">
                             <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
@@ -113,6 +108,28 @@
             </div>
         </div>
     </div>
+    
+    {# --- SECCIÓN NUEVA: DIAGNÓSTICO INTELIGENTE (Solo si hay insights) --- #}
+    {% if cronograma.reporte_analisis.insights %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-info bg-info bg-opacity-10 shadow-sm">
+                <div class="card-body d-flex align-items-start">
+                    <i class="bi bi-lightbulb-fill text-info fs-3 me-3 mt-1"></i>
+                    <div>
+                        <h5 class="card-title fw-bold text-info-emphasis mb-2">Diagnóstico Inteligente</h5>
+                        {% for insight in cronograma.reporte_analisis.insights %}
+                            <div class="mb-1">
+                                <span class="fw-bold text-dark"><i class="bi bi-caret-right-fill"></i> {{ insight.titulo }}:</span>
+                                <span class="text-dark">{{ insight.mensaje }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="row">
         <div class="col-lg-8 mb-4">
@@ -139,7 +156,7 @@
                 <div class="card-body p-0 overflow-auto" style="max-height: 500px;">
                     <ul class="list-group list-group-flush">
                         
-                        {# --- 1. NUEVO: DÉFICIT CRÍTICO SENIOR (Prioridad Máxima) --- #}
+                        {# --- 1. DÉFICIT CRÍTICO SENIOR --- #}
                         {% if violaciones_duras.deficit_critico_senior %}
                             <li class="list-group-item bg-danger text-white fw-bold small text-uppercase border-bottom-0">
                                 <i class="bi bi-shield-x me-1"></i> Faltan Seniors (Crítico)
@@ -268,14 +285,11 @@
         const ctxEl = document.getElementById('equityChart');
         if (!ctxEl) return;
 
-        // 1. Cargar Datos
         const horasReales = getData('data-horas', []);
         const nombresCortos = getData('data-nombres-cortos', []);
         const nombresLargos = getData('data-nombres-largos', []);     
         const limites = getData('data-limites', []); 
-        const rangoEquidad = getData('data-rango-equidad', []); 
 
-        // 2. Escala Dinámica
         let minVal = Math.min(...horasReales);
         if (limites.length > 0) {
             const minLimits = limites.map(l => l[0]);
@@ -285,7 +299,6 @@
         const roundedMin = Math.floor(minVal / 20) * 20;
         const startY = roundedMin > 20 ? (roundedMin - 20) : 0;
 
-        // 3. Configurar Gráfico
         new Chart(ctxEl.getContext('2d'), {
             type: 'bar',
             data: {
@@ -310,9 +323,9 @@
                             const val = context.raw;
                             const range = limites[idx];
                             if (range && (val < range[0] || val > range[1])) {
-                                return 'rgba(220, 53, 69, 0.8)'; // Rojo si viola contrato
+                                return 'rgba(220, 53, 69, 0.8)'; 
                             }
-                            return 'rgba(13, 110, 253, 0.8)'; // Azul Bootstrap
+                            return 'rgba(13, 110, 253, 0.8)'; 
                         },
                         barPercentage: 0.35, 
                         grouped: false,
