@@ -50,6 +50,8 @@ class DatosProfesional(BaseModel):
     t_min: int = Field(..., description="Mínimo de horas/guardias por contrato.")
     t_max: int = Field(..., description="Máximo de horas/guardias por contrato.")
 
+# EN src/api.py
+
 class DatosProblema(BaseModel):
     num_dias: int = Field(..., gt=0)
     max_turno_val: int = Field(..., description="Valor máximo del turno (ej: 3)") 
@@ -70,6 +72,11 @@ class DatosProblema(BaseModel):
         ..., 
         description="Lista detallada de la nómina de profesionales."
     )
+
+    # --- CAMBIO IMPORTANTE AQUÍ ABAJO ---
+    # Agregamos este campo para que Pydantic no lo borre
+    requerimientos_cobertura_explicita: Optional[List[Dict[str, Any]]] = None 
+    # ------------------------------------
 
     reglas_cobertura: Dict[str, Any]
     secuencias_prohibidas: List[List[int]] = []
