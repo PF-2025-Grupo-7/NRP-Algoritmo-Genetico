@@ -27,7 +27,7 @@ from .models import (
 
 # --- FORMS ---
 from .forms import (
-    EmpleadoForm, TipoTurnoForm, NoDisponibilidadForm, 
+    EmpleadoForm, ConfiguracionTurnosForm, NoDisponibilidadForm, 
     PreferenciaForm, SecuenciaProhibidaForm,
     PlantillaDemandaForm, ReglaDemandaSemanalForm, ExcepcionDemandaForm,
     ConfiguracionSimpleForm, ConfiguracionAvanzadaForm
@@ -354,41 +354,127 @@ class CronogramaDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'rostering/cronograma_confirm_delete.html'
     success_url = reverse_lazy('cronograma_list')
 
-# --- Tipos de Turno ---
-class TipoTurnoListView(LoginRequiredMixin, ListView):
-    model = TipoTurno
-    template_name = 'rostering/tipoturno_list.html'
-    context_object_name = 'turnos'
-    ordering = ['especialidad', 'hora_inicio']
+# En views.py
 
-    def get_queryset(self):
-        qs = super().get_queryset()
-        self.filterset = TipoTurnoFilter(self.request.GET, queryset=qs)
-        return self.filterset.qs
+from datetime import datetime, timedelta
+from .models import ConfiguracionTurnos, TipoTurno
+from .forms import ConfiguracionTurnosForm
 
+class ConfiguracionTurnosListView(LoginRequiredMixin, ListView):
+    """Muestra tarjetas por especialidad para entrar a configurar."""
+    model = ConfiguracionTurnos
+    template_name = 'rostering/config_turnos_list.html' # Nuevo template
+    
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['filter_form'] = self.filterset.form
+        # Identificar qué especialidades ya tienen config
+        configs = {c.especialidad: c for c in self.object_list}
+        
+        # Generar lista maestra de especialidades
+        lista = []
+        for esp_code, esp_label in Empleado.TipoEspecialidad.choices:
+            lista.append({
+                'code': esp_code,
+                'label': esp_label,
+                'config': configs.get(esp_code)
+            })
+        ctx['especialidades'] = lista
         return ctx
 
-class TipoTurnoCreateView(LoginRequiredMixin, CreateView):
-    model = TipoTurno
-    form_class = TipoTurnoForm
-    template_name = 'rostering/tipoturno_form.html'
-    success_url = reverse_lazy('tipoturno_list')
-    extra_context = {'titulo': 'Crear Tipo de Turno'}
+def config_turnos_edit(request, especialidad):
+    """
+    Vista Lógica Principal:
+    1. Procesa el formulario de esquema.
+    2. Si es válido -> 'Opción Nuclear' (Borra turnos viejos).
+    3. Genera matemáticamente los nuevos turnos (2x12 o 3x8).
+    """
+    # Buscar config existente o crear nueva instancia en memoria
+    instance = ConfiguracionTurnos.objects.filter(especialidad=especialidad).first()
+    
+    if request.method == 'POST':
+        form = ConfiguracionTurnosForm(request.POST, instance=instance)
+        if form.is_valid():
+            with transaction.atomic():
+                # 1. Guardar Configuración Maestra
+                config = form.save(commit=False)
+                config.especialidad = especialidad
+                
+                # Guardar metadatos de nombres en el JSONField
+                nombres = {
+                    "t1": {"n": form.cleaned_data['nombre_t1'], "a": form.cleaned_data['abrev_t1'], "noc": form.cleaned_data['nocturno_t1']},
+                    "t2": {"n": form.cleaned_data['nombre_t2'], "a": form.cleaned_data['abrev_t2'], "noc": form.cleaned_data['nocturno_t2']},
+                }
+                if config.esquema == '3x8':
+                    nombres["t3"] = {"n": form.cleaned_data['nombre_t3'], "a": form.cleaned_data['abrev_t3'], "noc": form.cleaned_data['nocturno_t3']}
+                
+                config.nombres_turnos = nombres
+                config.save()
 
-class TipoTurnoUpdateView(LoginRequiredMixin, UpdateView):
-    model = TipoTurno
-    form_class = TipoTurnoForm
-    template_name = 'rostering/tipoturno_form.html'
-    success_url = reverse_lazy('tipoturno_list')
-    extra_context = {'titulo': 'Editar Tipo de Turno'}
+                # 2. OPCIÓN NUCLEAR: Borrar turnos viejos de esta especialidad
+                # Esto dispara CASCADE delete en Asignaciones, Reglas y Preferencias viejas.
+                print(f"☢️ BORRANDO TURNOS VIEJOS PARA: {especialidad}")
+                TipoTurno.objects.filter(especialidad=especialidad).delete()
 
-class TipoTurnoDeleteView(LoginRequiredMixin, DeleteView):
-    model = TipoTurno
-    template_name = 'rostering/tipoturno_confirm_delete.html'
-    success_url = reverse_lazy('tipoturno_list')
+                # 3. GENERACIÓN AUTOMÁTICA DE NUEVOS TURNOS
+                hora_base = config.hora_inicio_base
+                # Truco datetime para sumar horas
+                dummy_date = datetime(2000, 1, 1, hora_base.hour, hora_base.minute)
+                
+                turnos_a_crear = []
+                
+                if config.esquema == '2x12':
+                    # Turno 1
+                    turnos_a_crear.append(TipoTurno(
+                        nombre=nombres['t1']['n'], abreviatura=nombres['t1']['a'], especialidad=especialidad,
+                        hora_inicio=dummy_date.time(),
+                        hora_fin=(dummy_date + timedelta(hours=12)).time(),
+                        es_nocturno=nombres['t1']['noc']
+                    ))
+                    # Turno 2
+                    turnos_a_crear.append(TipoTurno(
+                        nombre=nombres['t2']['n'], abreviatura=nombres['t2']['a'], especialidad=especialidad,
+                        hora_inicio=(dummy_date + timedelta(hours=12)).time(),
+                        hora_fin=(dummy_date + timedelta(hours=24)).time(), # Vuelve a la base
+                        es_nocturno=nombres['t2']['noc']
+                    ))
+
+                elif config.esquema == '3x8':
+                    for i in range(3):
+                        key = f"t{i+1}"
+                        inicio = dummy_date + timedelta(hours=i*8)
+                        fin = dummy_date + timedelta(hours=(i+1)*8)
+                        
+                        turnos_a_crear.append(TipoTurno(
+                            nombre=nombres[key]['n'], abreviatura=nombres[key]['a'], especialidad=especialidad,
+                            hora_inicio=inicio.time(),
+                            hora_fin=fin.time(),
+                            es_nocturno=nombres[key]['noc']
+                        ))
+
+                TipoTurno.objects.bulk_create(turnos_a_crear)
+                print(f"✅ Generados {len(turnos_a_crear)} turnos nuevos para {especialidad}")
+
+            return redirect('tipoturno_list') # Volver al dashboard de configs
+    else:
+        # Pre-llenar form si ya existe config
+        initial_data = {}
+        if instance and instance.nombres_turnos:
+            nt = instance.nombres_turnos
+            if 't1' in nt: 
+                initial_data.update({'nombre_t1': nt['t1']['n'], 'abrev_t1': nt['t1']['a'], 'nocturno_t1': nt['t1'].get('noc', False)})
+            if 't2' in nt:
+                initial_data.update({'nombre_t2': nt['t2']['n'], 'abrev_t2': nt['t2']['a'], 'nocturno_t2': nt['t2'].get('noc', False)})
+            if 't3' in nt:
+                initial_data.update({'nombre_t3': nt['t3']['n'], 'abrev_t3': nt['t3']['a'], 'nocturno_t3': nt['t3'].get('noc', False)})
+        
+        form = ConfiguracionTurnosForm(instance=instance, initial=initial_data)
+
+    context = {
+        'form': form,
+        'especialidad_label': dict(Empleado.TipoEspecialidad.choices).get(especialidad),
+        'especialidad_code': especialidad
+    }
+    return render(request, 'rostering/config_turnos_form.html', context)
 
 # --- Ausencias ---
 class NoDisponibilidadListView(LoginRequiredMixin, ListView):

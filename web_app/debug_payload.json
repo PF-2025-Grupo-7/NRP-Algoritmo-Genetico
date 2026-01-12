@@ -52,66 +52,6 @@
             },
             {
                 "6": {
-                    "junior": 1,
-                    "senior": 2
-                },
-                "8": {
-                    "junior": 0,
-                    "senior": 1
-                }
-            },
-            {
-                "6": {
-                    "junior": 1,
-                    "senior": 2
-                },
-                "8": {
-                    "junior": 0,
-                    "senior": 1
-                }
-            },
-            {
-                "6": {
-                    "junior": 2,
-                    "senior": 3
-                },
-                "8": {
-                    "junior": 1,
-                    "senior": 2
-                }
-            },
-            {
-                "6": {
-                    "junior": 2,
-                    "senior": 3
-                },
-                "8": {
-                    "junior": 1,
-                    "senior": 2
-                }
-            },
-            {
-                "6": {
-                    "junior": 2,
-                    "senior": 3
-                },
-                "8": {
-                    "junior": 1,
-                    "senior": 2
-                }
-            },
-            {
-                "6": {
-                    "junior": 2,
-                    "senior": 3
-                },
-                "8": {
-                    "junior": 1,
-                    "senior": 2
-                }
-            },
-            {
-                "6": {
                     "junior": 2,
                     "senior": 3
                 },
@@ -246,16 +186,14 @@
                     "senior": 3
                 },
                 "8": {
-                    "junior": 4,
-                    "senior": 4,
-                    "es_dificil": true
+                    "junior": 1,
+                    "senior": 2
                 }
             },
             {
                 "6": {
                     "junior": 2,
-                    "senior": 4,
-                    "es_dificil": true
+                    "senior": 3
                 },
                 "8": {
                     "junior": 1,
@@ -290,6 +228,66 @@
                 "8": {
                     "junior": 1,
                     "senior": 2
+                }
+            },
+            {
+                "6": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "8": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "6": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "8": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "6": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "8": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "6": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "8": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "6": {
+                    "junior": 1,
+                    "senior": 2
+                },
+                "8": {
+                    "junior": 0,
+                    "senior": 1
+                }
+            },
+            {
+                "6": {
+                    "junior": 1,
+                    "senior": 2
+                },
+                "8": {
+                    "junior": 0,
+                    "senior": 1
                 }
             },
             {
@@ -324,16 +322,14 @@
             }
         ],
         "dias_no_habiles": [
-            4,
             5,
-            11,
+            6,
             12,
-            18,
+            13,
             19,
-            23,
-            24,
-            25,
-            26
+            20,
+            26,
+            27
         ],
         "reglas_cobertura": {},
         "max_turno_val": 8,

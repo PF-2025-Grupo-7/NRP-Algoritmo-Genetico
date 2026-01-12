@@ -1,7 +1,7 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from .models import (
-    ConfiguracionAlgoritmo, Empleado, TipoTurno, NoDisponibilidad, 
+    ConfiguracionAlgoritmo, ConfiguracionTurnos, Empleado, TipoTurno, NoDisponibilidad, 
     Preferencia, SecuenciaProhibida, PlantillaDemanda, 
     ReglaDemandaSemanal, ExcepcionDemanda
 )
@@ -41,28 +41,42 @@ class EmpleadoForm(BootstrapFormMixin, forms.ModelForm):
         model = Empleado
         fields = '__all__'
 
-class TipoTurnoForm(BootstrapFormMixin, forms.ModelForm):
+# Borrá o comentá la clase TipoTurnoForm vieja
+
+class ConfiguracionTurnosForm(BootstrapFormMixin, forms.ModelForm):
+    # Campos virtuales para definir nombres y abreviaturas (No guardados directamente en este modelo)
+    nombre_t1 = forms.CharField(label="Nombre Turno 1", initial="Mañana")
+    abrev_t1 = forms.CharField(label="Abrev. T1", max_length=5, initial="M")
+    nocturno_t1 = forms.BooleanField(label="Es Nocturno", required=False)
+
+    nombre_t2 = forms.CharField(label="Nombre Turno 2", initial="Noche")
+    abrev_t2 = forms.CharField(label="Abrev. T2", max_length=5, initial="N")
+    nocturno_t2 = forms.BooleanField(label="Es Nocturno", required=False)
+
+    # Opcionales para esquema de 3 turnos
+    nombre_t3 = forms.CharField(label="Nombre Turno 3", required=False, initial="Tarde")
+    abrev_t3 = forms.CharField(label="Abrev. T3", max_length=5, required=False, initial="T")
+    nocturno_t3 = forms.BooleanField(label="Es Nocturno", required=False)
+
     class Meta:
-        model = TipoTurno
-        # Excluimos 'duracion_horas' porque se calcula sola en el modelo
-        fields = ['nombre', 'abreviatura', 'especialidad', 'es_nocturno', 'hora_inicio', 'hora_fin']
+        model = ConfiguracionTurnos
+        fields = ['esquema', 'hora_inicio_base']
         widgets = {
-            'hora_inicio': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
-            'hora_fin': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
-        }
-        help_texts = {
-            'es_nocturno': 'Marcá esto si el turno cruza la medianoche (ej: 22:00 a 06:00) o implica penalizaciones nocturnas.'
+            'esquema': SELECT_WIDGET,
+            'hora_inicio_base': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def clean(self):
+        cleaned_data = super().clean()
+        esquema = cleaned_data.get('esquema')
+
+        # Validación condicional
+        if esquema == ConfiguracionTurnos.TipoEsquema.TURNO_08_HS:
+            if not cleaned_data.get('nombre_t3') or not cleaned_data.get('abrev_t3'):
+                self.add_error('nombre_t3', 'Requerido para esquema de 3 turnos.')
+                self.add_error('abrev_t3', 'Requerido.')
         
-        # Lógica para bloquear Especialidad si es una EDICIÓN
-        if self.instance and self.instance.pk:
-            self.fields['especialidad'].disabled = True
-            self.fields['especialidad'].help_text = "La especialidad no se puede cambiar porque afectaría al historial y reglas vigentes."
-
-
+        return cleaned_data
 
 class NoDisponibilidadForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:

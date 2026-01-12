@@ -96,6 +96,31 @@ class Empleado(models.Model):
         estado = "" if self.activo else "(INACTIVO)"
         return f"{self.nombre_completo} - {self.get_especialidad_display()} {estado}"
 
+class ConfiguracionTurnos(models.Model):
+    """
+    Define el esquema maestro para una especialidad.
+    Actúa como 'Factory' para generar los TipoTurno automáticamente.
+    """
+    class TipoEsquema(models.TextChoices):
+        TURNO_12_HS = '2x12', '2 Turnos de 12 Horas (Total 24hs)'
+        TURNO_08_HS = '3x8',  '3 Turnos de 8 Horas (Total 24hs)'
+
+    especialidad = models.CharField(
+        max_length=20, 
+        choices=Empleado.TipoEspecialidad.choices,
+        unique=True, # Solo una configuración por especialidad
+        verbose_name="Especialidad"
+    )
+    
+    esquema = models.CharField(max_length=10, choices=TipoEsquema.choices, default=TipoEsquema.TURNO_12_HS)
+    hora_inicio_base = models.TimeField(verbose_name="Hora de Inicio (Primer Turno)", help_text="Ej: 08:00. El resto se calcula automáticamente.")
+
+    # Metadatos para persistir los nombres elegidos (JSON para flexibilidad)
+    # Estructura: {"t1": {"nombre": "Mañana", "abrev": "M", "es_nocturno": false}, ...}
+    nombres_turnos = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return f"Esquema {self.get_esquema_display()} - {self.get_especialidad_display()}"
 
 class TipoTurno(models.Model):
     nombre = models.CharField(max_length=50) 

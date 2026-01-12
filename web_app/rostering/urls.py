@@ -68,10 +68,8 @@ urlpatterns = [
     # ==========================================================================
     
     # Tipos de Turno
-    path('config/turnos/', views.TipoTurnoListView.as_view(), name='tipoturno_list'),
-    path('config/turnos/crear/', views.TipoTurnoCreateView.as_view(), name='tipoturno_create'),
-    path('config/turnos/<int:pk>/editar/', views.TipoTurnoUpdateView.as_view(), name='tipoturno_update'),
-    path('config/turnos/<int:pk>/eliminar/', views.TipoTurnoDeleteView.as_view(), name='tipoturno_delete'),
+    path('config/turnos/', views.ConfiguracionTurnosListView.as_view(), name='tipoturno_list'),
+    path('config/turnos/<str:especialidad>/editar/', views.config_turnos_edit, name='tipoturno_edit'),
 
     # Secuencias Prohibidas
     path('config/secuencias/', views.SecuenciaProhibidaListView.as_view(), name='secuencia_list'),
