@@ -173,16 +173,35 @@
 
         // 2. Manejo del Submit con Modal
         btnPreSave.addEventListener('click', function() {
-            // Validamos HTML5 primero (campos required, formats, etc)
             if (form.reportValidity()) {
-                // Si está todo OK, mostramos el modal de miedo
+                // Lógica visual para el mensaje
+                const esquemaOriginal = "{{ esquema_actual|default:'' }}";
+                const esquemaSeleccionado = selectEsquema.value;
+                const alertaDiv = document.querySelector('#modalConfirmacion .alert');
+                const tituloModal = document.querySelector('#modalConfirmacion .modal-title');
+                
+                if (esquemaOriginal && esquemaOriginal !== esquemaSeleccionado) {
+                    // CAMBIO ESTRUCTURAL (NUCLEAR)
+                    tituloModal.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-2"></i>Atención: Acción Destructiva';
+                    alertaDiv.className = 'alert alert-danger bg-danger bg-opacity-10 border-0 mb-0';
+                    alertaDiv.innerHTML = '<ul class="mb-0 small"><li>Se <strong>eliminará</strong> el historial de turnos.</li><li>Se borrarán preferencias asociadas.</li></ul>';
+                    btnConfirmar.className = 'btn btn-danger px-4 fw-bold';
+                    btnConfirmar.textContent = 'Sí, Redefinir Esquema';
+                } else {
+                    // CAMBIO MENOR (UPDATE)
+                    tituloModal.innerHTML = '<i class="bi bi-info-circle-fill me-2"></i>Confirmar Cambios';
+                    alertaDiv.className = 'alert alert-primary bg-primary bg-opacity-10 border-0 mb-0';
+                    alertaDiv.innerHTML = '<div class="small">Se actualizarán los nombres y horarios manteniendo el historial y las preferencias actuales.</div>';
+                    btnConfirmar.className = 'btn btn-primary px-4 fw-bold';
+                    btnConfirmar.textContent = 'Sí, Guardar Cambios';
+                }
+
                 modal.show();
             }
         });
 
-        // 3. Confirmación real
+        // 3. Confirmación real (ESTO FALTABA)
         btnConfirmar.addEventListener('click', function() {
-            // Ahora sí enviamos el form
             form.submit();
         });
     });

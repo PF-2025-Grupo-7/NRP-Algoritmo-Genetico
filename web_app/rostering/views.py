@@ -380,26 +380,23 @@ class ConfiguracionTurnosListView(LoginRequiredMixin, ListView):
             })
         ctx['especialidades'] = lista
         return ctx
-
 def config_turnos_edit(request, especialidad):
     """
-    Vista Lógica Principal:
-    1. Procesa el formulario de esquema.
-    2. Si es válido -> 'Opción Nuclear' (Borra turnos viejos).
-    3. Genera matemáticamente los nuevos turnos (2x12 o 3x8).
+    Vista Lógica Principal (Refactorizada - Smart Update):
+    1. Si cambia el Esquema (2x12 <-> 3x8) -> Opción Nuclear (Borra todo).
+    2. Si el Esquema se mantiene -> Actualiza los objetos existentes (Mantiene IDs).
     """
-    # Buscar config existente o crear nueva instancia en memoria
     instance = ConfiguracionTurnos.objects.filter(especialidad=especialidad).first()
+    esquema_anterior = instance.esquema if instance else None
     
     if request.method == 'POST':
         form = ConfiguracionTurnosForm(request.POST, instance=instance)
+        
         if form.is_valid():
             with transaction.atomic():
-                # 1. Guardar Configuración Maestra
                 config = form.save(commit=False)
                 config.especialidad = especialidad
                 
-                # Guardar metadatos de nombres en el JSONField
                 nombres = {
                     "t1": {"n": form.cleaned_data['nombre_t1'], "a": form.cleaned_data['abrev_t1'], "noc": form.cleaned_data['nocturno_t1']},
                     "t2": {"n": form.cleaned_data['nombre_t2'], "a": form.cleaned_data['abrev_t2'], "noc": form.cleaned_data['nocturno_t2']},
@@ -410,53 +407,70 @@ def config_turnos_edit(request, especialidad):
                 config.nombres_turnos = nombres
                 config.save()
 
-                # 2. OPCIÓN NUCLEAR: Borrar turnos viejos de esta especialidad
-                # Esto dispara CASCADE delete en Asignaciones, Reglas y Preferencias viejas.
-                print(f"☢️ BORRANDO TURNOS VIEJOS PARA: {especialidad}")
-                TipoTurno.objects.filter(especialidad=especialidad).delete()
-
-                # 3. GENERACIÓN AUTOMÁTICA DE NUEVOS TURNOS
+                # --- LÓGICA SMART UPDATE ---
+                
+                # 1. Calculamos los horarios matemáticos (igual que antes)
                 hora_base = config.hora_inicio_base
-                # Truco datetime para sumar horas
-                dummy_date = datetime(2000, 1, 1, hora_base.hour, hora_base.minute)
+                d = datetime(2000, 1, 1, hora_base.hour, hora_base.minute)
                 
-                turnos_a_crear = []
-                
+                nuevos_datos = []
                 if config.esquema == '2x12':
-                    # Turno 1
-                    turnos_a_crear.append(TipoTurno(
-                        nombre=nombres['t1']['n'], abreviatura=nombres['t1']['a'], especialidad=especialidad,
-                        hora_inicio=dummy_date.time(),
-                        hora_fin=(dummy_date + timedelta(hours=12)).time(),
-                        es_nocturno=nombres['t1']['noc']
-                    ))
-                    # Turno 2
-                    turnos_a_crear.append(TipoTurno(
-                        nombre=nombres['t2']['n'], abreviatura=nombres['t2']['a'], especialidad=especialidad,
-                        hora_inicio=(dummy_date + timedelta(hours=12)).time(),
-                        hora_fin=(dummy_date + timedelta(hours=24)).time(), # Vuelve a la base
-                        es_nocturno=nombres['t2']['noc']
-                    ))
-
+                    nuevos_datos = [
+                        {'key': 't1', 'inicio': d.time(), 'fin': (d + timedelta(hours=12)).time()},
+                        {'key': 't2', 'inicio': (d + timedelta(hours=12)).time(), 'fin': (d + timedelta(hours=24)).time()}
+                    ]
                 elif config.esquema == '3x8':
                     for i in range(3):
-                        key = f"t{i+1}"
-                        inicio = dummy_date + timedelta(hours=i*8)
-                        fin = dummy_date + timedelta(hours=(i+1)*8)
+                        nuevos_datos.append({
+                            'key': f"t{i+1}", 
+                            'inicio': (d + timedelta(hours=i*8)).time(), 
+                            'fin': (d + timedelta(hours=(i+1)*8)).time()
+                        })
+
+                # 2. Decisión: ¿Actualizar o Reiniciar?
+                turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
+                
+                # Condición para UPDATE: El esquema es el mismo Y la cantidad de turnos en DB coincide
+                mismo_esquema = (esquema_anterior == config.esquema)
+                consistencia_db = (len(turnos_existentes) == len(nuevos_datos))
+
+                if mismo_esquema and consistencia_db:
+                    print(f"🔄 SMART UPDATE: Actualizando turnos existentes para {especialidad} (IDs conservados)")
+                    
+                    for idx, turno_obj in enumerate(turnos_existentes):
+                        datos = nuevos_datos[idx] # Mapeo posicional (1° turno -> 1° turno)
+                        meta = nombres[datos['key']]
                         
-                        turnos_a_crear.append(TipoTurno(
-                            nombre=nombres[key]['n'], abreviatura=nombres[key]['a'], especialidad=especialidad,
-                            hora_inicio=inicio.time(),
-                            hora_fin=fin.time(),
-                            es_nocturno=nombres[key]['noc']
-                        ))
+                        # Actualizamos campos
+                        turno_obj.nombre = meta['n']
+                        turno_obj.abreviatura = meta['a']
+                        turno_obj.es_nocturno = meta['noc']
+                        turno_obj.hora_inicio = datos['inicio']
+                        turno_obj.hora_fin = datos['fin']
+                        turno_obj.save()
+                        
+                else:
+                    print(f"☢️ NUCLEAR RESET: Esquema cambió o DB inconsistente. Regenerando para {especialidad}.")
+                    # Borrado físico (Cascada se lleva preferencias viejas)
+                    TipoTurno.objects.filter(especialidad=especialidad).delete()
+                    
+                    # Creación desde cero (SIN bulk_create para que calcule duración)
+                    for datos in nuevos_datos:
+                        meta = nombres[datos['key']]
+                        t = TipoTurno(
+                            nombre=meta['n'], 
+                            abreviatura=meta['a'], 
+                            especialidad=especialidad,
+                            hora_inicio=datos['inicio'],
+                            hora_fin=datos['fin'],
+                            es_nocturno=meta['noc']
+                        )
+                        t.save() # <--- IMPORTANTE: Esto dispara el cálculo de duración en models.py
 
-                TipoTurno.objects.bulk_create(turnos_a_crear)
-                print(f"✅ Generados {len(turnos_a_crear)} turnos nuevos para {especialidad}")
-
-            return redirect('tipoturno_list') # Volver al dashboard de configs
+            return redirect('tipoturno_list')
+            
     else:
-        # Pre-llenar form si ya existe config
+        # (El bloque GET queda igual que antes)
         initial_data = {}
         if instance and instance.nombres_turnos:
             nt = instance.nombres_turnos
@@ -472,7 +486,9 @@ def config_turnos_edit(request, especialidad):
     context = {
         'form': form,
         'especialidad_label': dict(Empleado.TipoEspecialidad.choices).get(especialidad),
-        'especialidad_code': especialidad
+        'especialidad_code': especialidad,
+        # Pasamos el esquema actual al template para mejorar la UX del aviso
+        'esquema_actual': esquema_anterior 
     }
     return render(request, 'rostering/config_turnos_form.html', context)
 
