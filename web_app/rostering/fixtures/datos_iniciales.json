@@ -4,7 +4,7 @@
     "pk": 1,
     "fields": {
         "legajo": "ENF-S00",
-        "nombre_completo": "Pablo PÃ©rez",
+        "nombre_completo": "Pablo Pérez",
         "especialidad": "ENFERMERO",
         "experiencia": "SENIOR",
         "activo": false,
@@ -490,7 +490,7 @@
         "nombres_turnos": {
             "t1": {
                 "a": "M",
-                "n": "MaÃ±ana",
+                "n": "Mañana",
                 "noc": false
             },
             "t2": {
@@ -531,7 +531,7 @@
     "model": "rostering.tipoturno",
     "pk": 17,
     "fields": {
-        "nombre": "MaÃ±ana",
+        "nombre": "Mañana",
         "abreviatura": "M",
         "especialidad": "ENFERMERO",
         "es_nocturno": false,
@@ -632,9 +632,9 @@
     "model": "rostering.plantillademanda",
     "pk": 3,
     "fields": {
-        "nombre": "Guardia MÃ©dica",
+        "nombre": "Guardia Médica",
         "especialidad": "MEDICO",
-        "descripcion": "EstÃ¡ndar para planificaciones de mÃ©dicos con turnos de 12 horas."
+        "descripcion": "Estándar para planificaciones de médicos con turnos de 12 horas."
     }
 },
 {
@@ -643,16 +643,16 @@
     "fields": {
         "nombre": "Demanda Excesiva",
         "especialidad": "MEDICO",
-        "descripcion": "Usar para verificar la detecciÃ³n temprana de falta de personal. DeberÃ­a aparecer una advertencia, pues hace falta una cantidad exagerada de profesionales por dÃ­a."
+        "descripcion": "Usar para verificar la detección temprana de falta de personal. Debería aparecer una advertencia, pues hace falta una cantidad exagerada de profesionales por día."
     }
 },
 {
     "model": "rostering.plantillademanda",
     "pk": 9,
     "fields": {
-        "nombre": "EnfermerÃ­a EstÃ¡ndar",
+        "nombre": "Enfermería Estándar",
         "especialidad": "ENFERMERO",
-        "descripcion": "EstÃ¡ndar para planificaciones de enfermeros con turnos de 8 horas."
+        "descripcion": "Estándar para planificaciones de enfermeros con turnos de 8 horas."
     }
 },
 {
@@ -661,7 +661,7 @@
     "fields": {
         "nombre": "Ajustado",
         "especialidad": "MEDICO",
-        "descripcion": "Plantilla que deberÃ­a estar al lÃ­mite entre funcionar y no para 10J y 8S para febrero (28 dÃ­as)."
+        "descripcion": "Plantilla que debería estar al límite entre funcionar y no para 10J y 8S para febrero (28 días)."
     }
 },
 {
@@ -870,14 +870,14 @@
         "fecha_inicio": "2026-01-01",
         "fecha_fin": "2026-01-04",
         "tipo_turno": null,
-        "motivo": "Cuatro dÃ­as no puede"
+        "motivo": "Cuatro días no puede"
     }
 },
 {
     "model": "rostering.configuracionalgoritmo",
     "pk": 1,
     "fields": {
-        "nombre": "ConfiguraciÃ³n RÃ¡pida",
+        "nombre": "Configuración Rápida",
         "activa": true,
         "tamano_poblacion": 100,
         "generaciones": 75,
