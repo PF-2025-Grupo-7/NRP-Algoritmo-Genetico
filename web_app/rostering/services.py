@@ -14,105 +14,140 @@ from .models import (
     ConfiguracionAlgoritmo, SecuenciaProhibida, DiaSemana,
     Cronograma, Asignacion, TrabajoPlanificacion
 )
-
 def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantilla):
     """
-    RF04: Verifica si la capacidad total de horas de los empleados alcanza
-    para cubrir la demanda teórica de la plantilla.
-    Retorna (False, mensaje) si falta gente, o (True, "OK") si alcanza.
+    Verifica capacidad con desglose Junior/Senior, descuento de ausencias y margen de seguridad.
     """
-    print(f"\n🔍 --- INICIO VALIDACIÓN DOTACIÓN (RF04) ---")
-    
+    # 1. Configuración Básica
+    MARGEN_SEGURIDAD = 0.10
     dias_totales = (fecha_fin - fecha_inicio).days + 1
-    print(f"📅 Periodo: {fecha_inicio} al {fecha_fin} ({dias_totales} días)")
-
-    # 1. CALCULAR OFERTA (Horas Disponibles)
-    horas_oferta = 0.0
     factor_periodo = dias_totales / 30.0 
     
-    # Cacheamos duraciones
     turnos = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
-    mapa_duraciones = {t.id: (float(t.duracion_horas) if t.duracion_horas else 12.0) for t in turnos}
-    
-    if mapa_duraciones:
-        duracion_promedio = sum(mapa_duraciones.values()) / len(mapa_duraciones)
-    else:
-        duracion_promedio = 12.0
+    if not turnos.exists():
+        return False, {"error_generico": "No hay tipos de turno definidos."}
+        
+    duracion_promedio = sum(t.duracion_horas for t in turnos) / len(turnos)
+    duracion_promedio = float(duracion_promedio)
 
-    count_emps = 0
+    # 2. Cálculo de la Oferta (Horas Reales Disponibles)
+    oferta = {'SENIOR': 0.0, 'JUNIOR': 0.0}
+    ausencias_total_horas = 0.0
+    
+    ausencias = NoDisponibilidad.objects.filter(
+        empleado__in=empleados_qs,
+        fecha_fin__gte=fecha_inicio,
+        fecha_inicio__lte=fecha_fin
+    )
+
     for emp in empleados_qs:
         t_max = float(emp.max_turnos_mensuales or 0)
-        horas_capacidad = t_max * duracion_promedio * factor_periodo
-        horas_oferta += horas_capacidad
-        count_emps += 1
+        horas_teoricas = t_max * duracion_promedio * factor_periodo
         
-    print(f"👥 Oferta: {count_emps} empleados activos. Total Horas Disponibles: {int(horas_oferta)}")
+        horas_ausencia = 0.0
+        mis_ausencias = [a for a in ausencias if a.empleado_id == emp.id]
+        
+        for aus in mis_ausencias:
+            inicio_cruce = max(aus.fecha_inicio, fecha_inicio)
+            fin_cruce = min(aus.fecha_fin, fecha_fin)
+            dias_cruce = (fin_cruce - inicio_cruce).days + 1
+            
+            if dias_cruce > 0:
+                if aus.tipo_turno:
+                    horas_ausencia += (dias_cruce * float(aus.tipo_turno.duracion_horas))
+                else:
+                    horas_ausencia += (dias_cruce * duracion_promedio)
 
-    # 2. CALCULAR DEMANDA (Horas Requeridas)
-    horas_demanda = 0.0
+        horas_netas = max(0, horas_teoricas - horas_ausencia)
+        ausencias_total_horas += horas_ausencia
+        
+        rol = emp.experiencia.upper() if emp.experiencia else 'JUNIOR'
+        if rol not in oferta: rol = 'JUNIOR'
+        oferta[rol] += horas_netas
+
+    # 3. Cálculo de la Demanda (Requerimiento Exacto)
+    demanda = {'SENIOR': 0.0, 'JUNIOR': 0.0}
     
-    # Usamos filter directo para evitar problemas de atributos
     reglas = ReglaDemandaSemanal.objects.filter(plantilla=plantilla).select_related('turno')
+    mapa_reglas = {d: [] for d in range(7)}
+    for r in reglas:
+        # r.dias es una lista de días (ej: [0, 1, 2, 3, 4] para lunes-viernes)
+        for dia in r.dias:
+            mapa_reglas[dia].append(r)
+        
+    # --- CORRECCIÓN: REPLICACIÓN DE REGLAS (Lunes->Viernes, Sábado->Domingo) ---
+    # Esto alinea la validación con lo que realmente hace el algoritmo después.
+    if mapa_reglas[0]: # Si hay reglas el Lunes
+        for d in range(1, 5): # Martes(1) a Viernes(4)
+            if not mapa_reglas[d]:
+                mapa_reglas[d] = mapa_reglas[0] # Copiamos la referencia
     
-    # IMPRIMIR REGLAS PARA DEBUG
-    print(f"📋 Reglas encontradas en BD para la plantilla: {reglas.count()}")
+    if mapa_reglas[5]: # Si hay reglas el Sábado
+        if not mapa_reglas[6]: # Y Domingo vacío
+            mapa_reglas[6] = mapa_reglas[5]
+    # --------------------------------------------------------------------------
+
+    excepciones = ExcepcionDemanda.objects.filter(
+        plantilla=plantilla, 
+        fecha__range=[fecha_inicio, fecha_fin]
+    ).select_related('turno')
     
-    # MAPA SEGURO: Usamos los valores reales del ENUM DiaSemana
-    # Orden de weekday(): 0=Lunes, 6=Domingo
-    mapa_dias = [
-        DiaSemana.LUNES, DiaSemana.MARTES, DiaSemana.MIERCOLES, 
-        DiaSemana.JUEVES, DiaSemana.VIERNES, DiaSemana.SABADO, DiaSemana.DOMINGO
-    ]
-    
+    mapa_excepciones = {}
+    for ex in excepciones:
+        f_str = ex.fecha.strftime("%Y-%m-%d")
+        if f_str not in mapa_excepciones: mapa_excepciones[f_str] = []
+        mapa_excepciones[f_str].append(ex)
+
     fecha_iter = fecha_inicio
     while fecha_iter <= fecha_fin:
-        # Obtenemos el valor correcto del Enum para este día
-        dia_enum_val = mapa_dias[fecha_iter.weekday()]
+        dia_sem = fecha_iter.weekday()
+        f_str = fecha_iter.strftime("%Y-%m-%d")
         
-        # Excepciones (Días pico)
-        es_pico = False
-        excepciones = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter)
-        
-        if excepciones.exists():
-            es_pico = True
-            for ex in excepciones:
-                cant = ex.cantidad_junior + ex.cantidad_senior
-                dur = float(ex.turno.duracion_horas) if ex.turno and ex.turno.duracion_horas else duracion_promedio
-                horas_demanda += (cant * dur)
-        
-        # Si no es pico, usamos regla semanal
-        if not es_pico:
-            # Comparamos contra el valor del Enum, no contra un string hardcodeado
-            reglas_dia = [r for r in reglas if r.dia == dia_enum_val]
+        items_dia = []
+        if f_str in mapa_excepciones:
+            items_dia = mapa_excepciones[f_str]
+        else:
+            items_dia = mapa_reglas[dia_sem]
             
-            for r in reglas_dia:
-                cant = r.cantidad_junior + r.cantidad_senior
-                dur = float(r.turno.duracion_horas) if r.turno and r.turno.duracion_horas else duracion_promedio
-                horas_demanda += (cant * dur)
+        for item in items_dia:
+            dur = float(item.turno.duracion_horas)
+            demanda['SENIOR'] += (item.cantidad_senior * dur)
+            demanda['JUNIOR'] += (item.cantidad_junior * dur)
             
         fecha_iter += timedelta(days=1)
 
-    print(f"📉 Demanda Calculada: {int(horas_demanda)} horas necesarias.")
-
-    # 3. COMPARACIÓN
-    balance = horas_oferta - horas_demanda
-    margen_error = horas_demanda * 0.10 
+    demanda_con_margen = {k: v * (1 + MARGEN_SEGURIDAD) for k, v in demanda.items()}
     
-    if balance < -margen_error:
-        deficit = abs(int(balance))
-        
-        # CAMBIO: Devolvemos un diccionario con DATOS, no solo texto
+    # 4. Balance y Veredicto
+    balance_senior = oferta['SENIOR'] - demanda_con_margen['SENIOR']
+    balance_junior = oferta['JUNIOR'] - demanda_con_margen['JUNIOR']
+    
+    es_viable_senior = balance_senior >= -5.0 
+    es_viable_junior = balance_junior >= -5.0
+    
+    if not es_viable_senior or not es_viable_junior:
         datos_error = {
-            "horas_necesarias": int(horas_demanda),
-            "horas_disponibles": int(horas_oferta),
-            "deficit": deficit,
-            "porcentaje_cobertura": int((horas_oferta / horas_demanda) * 100) if horas_demanda > 0 else 0,
-            "empleados_activos": empleados_qs.count()
+            "senior": {
+                "oferta": int(oferta['SENIOR']),
+                "demanda": int(demanda_con_margen['SENIOR']),
+                "balance": int(balance_senior),
+                "estado": "CRITICO" if not es_viable_senior else "OK"
+            },
+            "junior": {
+                "oferta": int(oferta['JUNIOR']),
+                "demanda": int(demanda_con_margen['JUNIOR']),
+                "balance": int(balance_junior),
+                "estado": "CRITICO" if not es_viable_junior else "OK"
+            },
+            "global": {
+                "ausencias_impacto": int(ausencias_total_horas),
+                "margen_seguridad": int(MARGEN_SEGURIDAD * 100),
+                "dias": dias_totales
+            }
         }
         return False, datos_error
-    
-    return True, None
 
+    return True, None
 
 # ==============================================================================
 # LÓGICA DE ORQUESTACIÓN Y NEGOCIO (NUEVO)
@@ -312,40 +347,45 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     duracion_turnos = {str(t.id): float(t.duracion_horas) for t in turnos_qs}
     max_turno_val = max(turnos_a_cubrir) if turnos_a_cubrir else 0
 
-    # =========================================================================
-    # 5. GENERACIÓN DE DEMANDA EXPLÍCITA (LISTA PLANA DÍA A DÍA)
-    # =========================================================================
+    # Reglas de Cobertura
+    def extraer_demanda_por_dia(dia_semana):
+        """Extrae la demanda para un día específico de la semana (0=Lunes, 6=Domingo)."""
+        resultado = {}
+        reglas_del_dia = ReglaDemandaSemanal.objects.filter(plantilla=plantilla)
+        for r in reglas_del_dia:
+            if dia_semana in r.dias:
+                resultado[str(r.turno.id)] = {"junior": r.cantidad_junior, "senior": r.cantidad_senior}
+        return resultado
+
+    # Extraemos demanda para día normal (Lunes como referencia) y fin de semana (Sábado)
+    dict_demanda_normal = extraer_demanda_por_dia(0)  # Lunes
+    dict_demanda_finde = extraer_demanda_por_dia(5)  # Sábado
     
-    # A. Cargar reglas base en un diccionario temporal (0=Lunes ... 6=Domingo)
-    plantilla_semanal = {d: {} for d in range(7)}
+    dias_pico_indices = []
+    dict_demanda_pico = {}
     
-    reglas_db = ReglaDemandaSemanal.objects.filter(plantilla=plantilla).select_related('turno')
-    mapa_dias_db = {
-        DiaSemana.LUNES: 0, DiaSemana.MARTES: 1, DiaSemana.MIERCOLES: 2,
-        DiaSemana.JUEVES: 3, DiaSemana.VIERNES: 4, DiaSemana.SABADO: 5, DiaSemana.DOMINGO: 6
+    def extraer_demanda_excepciones(excepcion_qs):
+        """Extrae la demanda de un queryset de excepciones."""
+        resultado = {}
+        for exc in excepcion_qs:
+            resultado[str(exc.turno.id)] = {"junior": exc.cantidad_junior, "senior": exc.cantidad_senior}
+        return resultado
+    
+    fecha_iter = fecha_inicio
+    for i in range(num_dias):
+        excepcion = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter)
+        if excepcion.exists():
+            dias_pico_indices.append(i)
+            if not dict_demanda_pico: 
+                dict_demanda_pico = extraer_demanda_excepciones(excepcion)
+        fecha_iter += timedelta(days=1)
+
+    reglas_cobertura = {
+        "dias_pico": dias_pico_indices,
+        "demanda_pico": dict_demanda_pico if dict_demanda_pico else dict_demanda_normal,
+        "demanda_finde": dict_demanda_finde,
+        "demanda_normal": dict_demanda_normal
     }
-
-    for regla in reglas_db:
-        d_idx = mapa_dias_db.get(regla.dia)
-        if d_idx is not None:
-            # IMPORTANTE: Usamos str(ID) para compatibilidad JSON
-            turno_str = str(regla.turno.id)
-            plantilla_semanal[d_idx][turno_str] = {
-                "junior": regla.cantidad_junior,
-                "senior": regla.cantidad_senior
-            }
-
-    # B. Aplicar lógica de replicación (Lunes->Viernes, Sábado->Domingo)
-    demanda_lunes = plantilla_semanal.get(0)
-    if demanda_lunes: 
-        for d in range(1, 5): # 1, 2, 3, 4
-            if not plantilla_semanal[d]:
-                plantilla_semanal[d] = copy.deepcopy(demanda_lunes)
-    
-    demanda_sabado = plantilla_semanal.get(5)
-    if demanda_sabado: 
-        if not plantilla_semanal[6]: 
-            plantilla_semanal[6] = copy.deepcopy(demanda_sabado)
 
     # C. Construir la LISTA MAESTRA día por día
     requerimientos_cobertura_explicita = []
@@ -356,13 +396,15 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         dia_semana = fecha_iter.weekday() # 0=Lunes
         
         # 1. Obtener base del día de la semana
-        demanda_dia = copy.deepcopy(plantilla_semanal.get(dia_semana, {}))
-        
-        # 2. Detectar Finde (Sábado y Domingo)
-        if dia_semana >= 5: 
+        # Para días de semana (Lunes-Viernes): usar demanda_normal
+        # Para fin de semana (Sábado-Domingo): usar demanda_finde
+        if dia_semana >= 5:
+            demanda_dia = copy.deepcopy(dict_demanda_finde)
             dias_no_habiles_indices.append(i)
+        else:
+            demanda_dia = copy.deepcopy(dict_demanda_normal)
         
-        # 3. Aplicar Excepciones (Feriados, Picos)
+        # 2. Aplicar Excepciones (Feriados, Picos)
         excepciones_db = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter).select_related('turno')
         
         if excepciones_db.exists():
@@ -372,7 +414,10 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
             for ex in excepciones_db:
                 demanda_dia[str(ex.turno.id)] = {
                     "junior": ex.cantidad_junior,
-                    "senior": ex.cantidad_senior
+                    "senior": ex.cantidad_senior,
+                    # --- NUEVO: Pasamos el flag al algoritmo ---
+                    "es_dificil": ex.es_turno_dificil 
+                    # -------------------------------------------
                 }
 
         # 4. Agregar a la lista maestra
@@ -498,8 +543,13 @@ def consultar_resultado_ag(job_id):
         return {"status": "error", "error": str(e)}
 
 def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original, resultado, plantilla_demanda=None):
-    """Persiste el Cronograma, Asignaciones y AUDITA la cobertura."""
-    print("--- DEBUG: INICIANDO GUARDADO CON AUDITORÍA ---")
+    """
+    Persiste el Cronograma y Asignaciones.
+    AHORA INCLUYE: 
+    1. Validación Post-Algoritmo (RF04).
+    2. Detección Inteligente de Patrones (Insights).
+    """
+    print("--- DEBUG: INICIANDO GUARDADO CON VALIDACIÓN Y BI ---")
     try:
         matriz_solucion = resultado.get('matriz_solucion') or resultado.get('solution')
         if not matriz_solucion:
@@ -507,38 +557,29 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
 
         fitness = resultado.get('fitness', 0)
         tiempo = resultado.get('tiempo_ejecucion', 0)
+        explicabilidad = resultado.get('explicabilidad', {})
         
-        # Blindaje Explicabilidad
-        explicabilidad = resultado.get('explicabilidad')
-        if explicabilidad is None: explicabilidad = {}
-        
+        # Estructuras de reporte
         violaciones_blandas = explicabilidad.get('violaciones_blandas', {})
         if 'preferencia_libre_incumplida' not in violaciones_blandas: violaciones_blandas['preferencia_libre_incumplida'] = []
         if 'preferencia_turno_incumplida' not in violaciones_blandas: violaciones_blandas['preferencia_turno_incumplida'] = []
         
         violaciones_duras = explicabilidad.get('violaciones_duras', {})
-        
-        # --- CORRECCIÓN CLAVE: LIMPIEZA DE BASURA DEL AG ---
-        # El AG devuelve incidentes con IDs crudos (6, 8) sin texto.
-        # Los borramos para quedarnos SOLO con nuestra auditoría detallada.
         violaciones_duras['deficit_cobertura'] = [] 
-        # ---------------------------------------------------
+        violaciones_duras['deficit_critico_senior'] = []
 
         config_activa = ConfiguracionAlgoritmo.objects.filter(activa=True).first()
 
-        # Blindaje Payload
         if isinstance(payload_original, str):
             try: payload_original = json.loads(payload_original)
             except: pass
-        
-        # 1. Recuperar empleados y Mapear ID
+
+        # 1. Recuperación de Datos Maestros
         datos_problema = payload_original.get('datos_problema', {})
         lista_empleados_payload = datos_problema.get('lista_profesionales', [])
         
         mapa_idx_a_empleado = {} 
         mapa_empleado_id_a_exp = {} 
-        
-        # Mapa para recuperar por indice del algoritmo
         mapa_idx_a_empleado_id = {idx: emp['id_db'] for idx, emp in enumerate(lista_empleados_payload)}
 
         empleados_ids = [e['id_db'] for e in lista_empleados_payload]
@@ -548,18 +589,15 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             emp_obj = empleados_db.get(emp_p['id_db'])
             if emp_obj:
                 mapa_idx_a_empleado[i] = emp_obj
-                # --- CORRECCIÓN 1: Normalizamos experiencia a MAYÚSCULAS ---
                 mapa_empleado_id_a_exp[emp_obj.id] = emp_obj.experiencia.upper()
 
-        # 2. Datos Visuales (Nombres, Limites)
+        # Datos Visuales
         num_dias = (fecha_fin - fecha_inicio).days + 1
         factor_tiempo = 1.0 if 28 <= num_dias <= 31 else (num_dias / 30.0)
-
         turno_ref = TipoTurno.objects.filter(especialidad=especialidad).first()
         duracion_horas = float(turno_ref.duracion_horas) if (turno_ref and turno_ref.duracion_horas) else 12.0
         
         nombres_cortos, nombres_largos, limites_contractuales = [], [], []
-
         for i, emp_payload in enumerate(lista_empleados_payload):
             emp = empleados_db.get(emp_payload['id_db'])
             if emp:
@@ -570,21 +608,16 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                 
                 min_mensual = float(emp.min_turnos_mensuales or 0)
                 max_mensual = float(emp.max_turnos_mensuales or 0)
-                
-                min_periodo = min_mensual * factor_tiempo * duracion_horas
-                max_periodo = max_mensual * factor_tiempo * duracion_horas
-                
-                limites = [round(min_periodo, 1), round(max_periodo, 1)]
+                limites = [round(min_mensual * factor_tiempo * duracion_horas, 1), 
+                           round(max_mensual * factor_tiempo * duracion_horas, 1)]
             else:
-                n_largo = f"Profesional {i+1}"
-                n_corto = f"P{i+1}"
-                limites = [0.0, 0.0]
+                n_largo, n_corto, limites = f"P{i+1}", f"P{i+1}", [0.0, 0.0]
             
             nombres_cortos.append(n_corto)
             nombres_largos.append(n_largo)
             limites_contractuales.append(limites)
 
-        # 3. Auditoría de Preferencias
+        # 2. Análisis de Asignaciones Reales
         asignaciones_reales = {} 
         conteo_cobertura = {} 
 
@@ -600,15 +633,13 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                     asignaciones_reales[emp.id][fecha_dia] = t_id
                     
                     if fecha_dia not in conteo_cobertura: conteo_cobertura[fecha_dia] = {}
-                    # Inicializamos contadores con claves en MAYÚSCULAS
                     if t_id not in conteo_cobertura[fecha_dia]: conteo_cobertura[fecha_dia][t_id] = {'SENIOR': 0, 'JUNIOR': 0}
                     
-                    # --- CORRECCIÓN 2: Normalizamos al recuperar (seguridad extra) ---
-                    exp = mapa_empleado_id_a_exp.get(emp.id, 'JUNIOR').upper() 
-                    
+                    exp = mapa_empleado_id_a_exp.get(emp.id, 'JUNIOR').upper()
                     if exp in conteo_cobertura[fecha_dia][t_id]:
                         conteo_cobertura[fecha_dia][t_id][exp] += 1
 
+        # 3. Auditoría de Preferencias
         prefs = Preferencia.objects.filter(
             fecha__range=[fecha_inicio, fecha_fin],
             empleado__in=empleados_db.values()
@@ -625,11 +656,9 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                 detalle = ""
                 if turno_asignado_id: 
                     if p.tipo_turno is None:
-                        violation = True
-                        detalle = 'Se asignó guardia pese a pedido de descanso total'
+                        violation = True; detalle = 'Se asignó guardia pese a pedido de descanso total'
                     elif p.tipo_turno.id == turno_asignado_id:
-                        violation = True
-                        detalle = f'Se asignó turno {p.tipo_turno.nombre} pese a bloqueo'
+                        violation = True; detalle = f'Se asignó turno {p.tipo_turno.nombre} pese a bloqueo'
                 if violation:
                     violaciones_blandas['preferencia_libre_incumplida'].append({
                         'empleado_id': p.empleado.id,
@@ -641,11 +670,9 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                 violation = False
                 detalle = ""
                 if not turno_asignado_id:
-                     violation = True
-                     detalle = 'No se asignó turno solicitado'
+                     violation = True; detalle = 'No se asignó turno solicitado'
                 elif p.tipo_turno and turno_asignado_id != p.tipo_turno.id:
-                     violation = True
-                     detalle = f'Se asignó otro turno distinto al {p.tipo_turno.nombre}'
+                     violation = True; detalle = f'Se asignó turno distinto al {p.tipo_turno.nombre}'
                 if violation:
                     violaciones_blandas['preferencia_turno_incumplida'].append({
                         'empleado_id': p.empleado.id,
@@ -654,23 +681,32 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                         'detalle': detalle
                     })
 
-        # ---------------------------------------------------------------------
-        # 4. Auditoría de Cobertura (CON LÓGICA DE RÉPLICA)
-        # ---------------------------------------------------------------------
+        # 4. Auditoría de Cobertura y Detección de Patrones
+        contador_slots_vacios_total = 0
+        contador_slots_vacios_senior = 0
+        demanda_total_teorica = 0
+        
+        # --- NUEVO: Estructuras para detección de patrones ---
+        patron_deficit_semanal = {0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0}
+        nombres_dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+        # -----------------------------------------------------
+
+        estado_cronograma = Cronograma.Estado.BORRADOR
+        mensaje_validacion = "Optimización finalizada correctamente."
+
         if plantilla_demanda:
-            # Traemos todas las reglas y excepciones
             reglas = plantilla_demanda.reglas.all().select_related('turno')
             excepciones = plantilla_demanda.excepciones.filter(fecha__range=[fecha_inicio, fecha_fin]).select_related('turno')
-            
             cache_nombres_turnos = {t.id: t.nombre for t in TipoTurno.objects.filter(especialidad=especialidad)}
 
-            # Mapa de Reglas Base
             mapa_reglas = {}
             for r in reglas:
-                if r.dia not in mapa_reglas: mapa_reglas[r.dia] = {}
-                mapa_reglas[r.dia][r.turno.id] = r
+                # Para cada día en la lista de días de la regla
+                for dia in r.dias:
+                    if dia not in mapa_reglas: 
+                        mapa_reglas[dia] = {}
+                    mapa_reglas[dia][r.turno.id] = r
             
-            # Mapa de Excepciones
             mapa_excepciones = {}
             for ex in excepciones:
                 f_str = ex.fecha.strftime("%Y-%m-%d")
@@ -682,52 +718,56 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             for d in range(delta_dias):
                 fecha_actual = fecha_inicio + timedelta(days=d)
                 fecha_str = fecha_actual.strftime("%Y-%m-%d")
-                dia_semana_real = fecha_actual.weekday() # 0=Lunes, 6=Domingo
+                dia_semana_real = fecha_actual.weekday() 
                 
-                # --- LÓGICA DE NEGOCIO: DÍA DE REFERENCIA ---
-                # Si es día de semana (0-4), usamos LUNES (0) como base.
-                # Si es finde (5-6), usamos SÁBADO (5) como base.
                 dia_referencia = 0 if dia_semana_real < 5 else 5
                 
-                # Turnos a revisar: 
-                # 1. Reglas del día específico (si existen)
-                # 2. Si no, reglas del día de referencia (Lunes/Sábado)
-                # 3. Sumamos Excepciones
-                
                 reglas_del_dia = mapa_reglas.get(dia_semana_real)
-                if not reglas_del_dia:
-                    reglas_del_dia = mapa_reglas.get(dia_referencia, {})
+                if not reglas_del_dia: reglas_del_dia = mapa_reglas.get(dia_referencia, {})
                 
                 ids_reglas = set(reglas_del_dia.keys())
                 ids_excepciones = set(mapa_excepciones.get(fecha_str, {}).keys())
                 todos_turnos_ids = ids_reglas.union(ids_excepciones)
                 
                 for turno_id in todos_turnos_ids:
-                    # Objetivos por defecto (Usando el día de referencia si hace falta)
                     regla = reglas_del_dia.get(turno_id)
-                    
                     obj_senior = regla.cantidad_senior if regla else 0
                     obj_junior = regla.cantidad_junior if regla else 0
                     
-                    # Excepción pisa todo
                     excepcion = mapa_excepciones.get(fecha_str, {}).get(turno_id)
                     if excepcion:
                         obj_senior = excepcion.cantidad_senior
                         obj_junior = excepcion.cantidad_junior
 
-                    # Obtener realidad
+                    demanda_total_teorica += (obj_senior + obj_junior)
+
                     datos_reales = conteo_cobertura.get(fecha_str, {}).get(turno_id, {'SENIOR': 0, 'JUNIOR': 0})
                     real_senior = datos_reales['SENIOR']
                     real_junior = datos_reales['JUNIOR']
                     
-                    # Chequear Déficit
                     falta_senior = max(0, obj_senior - real_senior)
                     falta_junior = max(0, obj_junior - real_junior)
                     
                     if falta_senior > 0 or falta_junior > 0:
                         turno_nombre = cache_nombres_turnos.get(turno_id, f"Turno {turno_id}")
+                        
+                        total_faltantes_evento = falta_senior + falta_junior
+                        contador_slots_vacios_total += total_faltantes_evento
+                        contador_slots_vacios_senior += falta_senior
+                        
+                        # --- NUEVO: Acumular para Insight ---
+                        patron_deficit_semanal[dia_semana_real] += total_faltantes_evento
+                        # ------------------------------------
+
                         detalle = []
-                        if falta_senior > 0: detalle.append(f"Faltan {falta_senior} Seniors")
+                        if falta_senior > 0: 
+                            detalle.append(f"Faltan {falta_senior} Seniors")
+                            violaciones_duras['deficit_critico_senior'].append({
+                                'fecha': fecha_str,
+                                'turno': turno_nombre,
+                                'detalle': f"Faltan {falta_senior} Seniors (Obj: {obj_senior} vs Real: {real_senior})"
+                            })
+                            
                         if falta_junior > 0: detalle.append(f"Faltan {falta_junior} Juniors")
                         
                         violaciones_duras['deficit_cobertura'].append({
@@ -736,8 +776,59 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                             'detalle': ", ".join(detalle) + f" (Obj: S{obj_senior}/J{obj_junior} vs Real: S{real_senior}/J{real_junior})"
                         })
 
+            # 5. Generación de Insights (Detectives de patrones)
+            insights = []
+            total_deficit_mes = sum(patron_deficit_semanal.values())
+
+            if total_deficit_mes > 0:
+                dia_peor_idx = max(patron_deficit_semanal, key=patron_deficit_semanal.get)
+                cantidad_peor = patron_deficit_semanal[dia_peor_idx]
+                
+                # Regla: Si un día concentra más del 25% de los fallos (y hay al menos 3 fallos ese día)
+                porcentaje_concentracion = (cantidad_peor / total_deficit_mes) * 100
+                
+                if porcentaje_concentracion > 25 and cantidad_peor >= 3:
+                    dia_nombre = nombres_dias[dia_peor_idx]
+                    insights.append({
+                        "tipo": "PATRON_DIA",
+                        "titulo": f"Cuello de Botella: {dia_nombre}",
+                        "mensaje": f"El {int(porcentaje_concentracion)}% de los déficits ocurren los días {dia_nombre}. "
+                                   f"Se recomienda revisar ausencias recurrentes o reforzar la dotación para ese día.",
+                        "nivel": "warning"
+                    })
+            
+            explicabilidad['insights'] = insights
+
+            # 6. Validación de Umbrales (RF04)
+            porcentaje_deficit = 0
+            if demanda_total_teorica > 0:
+                porcentaje_deficit = (contador_slots_vacios_total / demanda_total_teorica) * 100
+            
+            print(f"📊 ANÁLISIS FINAL: Vacíos {contador_slots_vacios_total} ({porcentaje_deficit:.2f}%)")
+
+            if contador_slots_vacios_senior > 0:
+                estado_cronograma = 'FALLIDO'
+                mensaje_validacion = f"FALLIDO: Faltan cubrir {contador_slots_vacios_senior} puestos Críticos de Senior."
+                explicabilidad['estado_validacion'] = 'REJECTED'
+                explicabilidad['motivo_rechazo'] = mensaje_validacion
+            
+            elif porcentaje_deficit > 1.5:
+                estado_cronograma = 'FALLIDO'
+                mensaje_validacion = f"FALLIDO: Déficit de cobertura ({porcentaje_deficit:.2f}%) supera el 1.5% permitido."
+                explicabilidad['estado_validacion'] = 'REJECTED'
+                explicabilidad['motivo_rechazo'] = mensaje_validacion
+            
+            else:
+                estado_cronograma = Cronograma.Estado.BORRADOR
+                explicabilidad['estado_validacion'] = 'APPROVED'
+                if porcentaje_deficit > 0:
+                    mensaje_validacion = f"ADVERTENCIA: Cronograma generado con {contador_slots_vacios_total} huecos menores ({porcentaje_deficit:.2f}%)."
+                    explicabilidad['validacion_warning'] = mensaje_validacion
+
+        # Guardar reporte
         explicabilidad['violaciones_duras'] = violaciones_duras
         explicabilidad['violaciones_blandas'] = violaciones_blandas
+        explicabilidad['mensaje_validacion_final'] = mensaje_validacion
         
         if 'datos_equidad' not in explicabilidad: explicabilidad['datos_equidad'] = {}
         explicabilidad['datos_equidad'].update({
@@ -746,13 +837,13 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             'limites_contractuales': limites_contractuales
         })
 
-        # 5. Guardado
+        # 7. Persistencia
         with transaction.atomic():
             cronograma = Cronograma.objects.create(
                 especialidad=especialidad,
                 fecha_inicio=fecha_inicio,
                 fecha_fin=fecha_fin,
-                estado=Cronograma.Estado.BORRADOR,
+                estado=estado_cronograma,
                 plantilla_demanda=plantilla_demanda,
                 configuracion_usada=config_activa,
                 fitness=fitness,
@@ -776,7 +867,6 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                         ))
             if nuevas_asignaciones: Asignacion.objects.bulk_create(nuevas_asignaciones)
             
-        print(f"--- DEBUG: GUARDADO EXITOSO (ID: {cronograma.id}) ---")
         return cronograma
 
     except Exception as e:

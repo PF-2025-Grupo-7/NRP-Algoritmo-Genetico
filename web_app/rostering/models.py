@@ -96,6 +96,31 @@ class Empleado(models.Model):
         estado = "" if self.activo else "(INACTIVO)"
         return f"{self.nombre_completo} - {self.get_especialidad_display()} {estado}"
 
+class ConfiguracionTurnos(models.Model):
+    """
+    Define el esquema maestro para una especialidad.
+    Actúa como 'Factory' para generar los TipoTurno automáticamente.
+    """
+    class TipoEsquema(models.TextChoices):
+        TURNO_12_HS = '2x12', '2 Turnos de 12 Horas (Total 24hs)'
+        TURNO_08_HS = '3x8',  '3 Turnos de 8 Horas (Total 24hs)'
+
+    especialidad = models.CharField(
+        max_length=20, 
+        choices=Empleado.TipoEspecialidad.choices,
+        unique=True, # Solo una configuración por especialidad
+        verbose_name="Especialidad"
+    )
+    
+    esquema = models.CharField(max_length=10, choices=TipoEsquema.choices, default=TipoEsquema.TURNO_12_HS)
+    hora_inicio_base = models.TimeField(verbose_name="Hora de Inicio (Primer Turno)", help_text="Ej: 08:00. El resto se calcula automáticamente.")
+
+    # Metadatos para persistir los nombres elegidos (JSON para flexibilidad)
+    # Estructura: {"t1": {"nombre": "Mañana", "abrev": "M", "es_nocturno": false}, ...}
+    nombres_turnos = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return f"Esquema {self.get_esquema_display()} - {self.get_especialidad_display()}"
 
 class TipoTurno(models.Model):
     nombre = models.CharField(max_length=50) 
@@ -203,14 +228,15 @@ class DiaSemana(models.IntegerChoices):
 
 class ReglaDemandaSemanal(models.Model):
     plantilla = models.ForeignKey(PlantillaDemanda, on_delete=models.CASCADE, related_name='reglas')
-    dia = models.IntegerField(choices=DiaSemana.choices)
+    dias = models.JSONField(default=list, verbose_name="Días aplicables", 
+                           help_text="Lista de días (0=Lunes, 1=Martes, ..., 6=Domingo)")
     turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
     
     cantidad_senior = models.IntegerField(default=1, verbose_name="Min. Senior", validators=[MinValueValidator(0)])
     cantidad_junior = models.IntegerField(default=2, verbose_name="Min. Junior", validators=[MinValueValidator(0)])
+    es_excepcion = models.BooleanField(default=False, verbose_name="Es una excepción")
     
     class Meta:
-        unique_together = ('plantilla', 'dia', 'turno')
         verbose_name = "Regla de Demanda Semanal"
         verbose_name_plural = "Reglas de Demanda Semanal"
 
@@ -218,14 +244,29 @@ class ReglaDemandaSemanal(models.Model):
         super().clean()
         if self.plantilla_id and self.turno_id:
             validar_consistencia_especialidad(self.plantilla, self.turno, 'turno')
+        
+        # Validar que dias sea una lista
+        if not isinstance(self.dias, list):
+            raise ValidationError({'dias': 'El campo días debe ser una lista.'})
+        
+        # Validar que los días estén en el rango correcto
+        if any(d < 0 or d > 6 for d in self.dias):
+            raise ValidationError({'dias': 'Los días deben estar entre 0 (Lunes) y 6 (Domingo).'})
 
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+    
+    def get_dias_display(self):
+        """Retorna los nombres de los días seleccionados."""
+        nombres = []
+        for dia in sorted(self.dias):
+            nombres.append(DiaSemana(dia).label)
+        return ", ".join(nombres) if nombres else "Ningún día"
 
     def __str__(self):
-        return f"{self.get_dia_display()} {self.turno.abreviatura}: S={self.cantidad_senior}/J={self.cantidad_junior}"
-
+        dias_str = self.get_dias_display()
+        return f"{self.turno.abreviatura} [{dias_str}]: S={self.cantidad_senior}/J={self.cantidad_junior}"
 
 class ExcepcionDemanda(models.Model):
     """Permite sobreescribir la regla semanal para una fecha específica (Ej: Navidad)."""
@@ -235,6 +276,15 @@ class ExcepcionDemanda(models.Model):
     
     cantidad_senior = models.IntegerField(default=0, verbose_name="Req. Senior", validators=[MinValueValidator(0)])
     cantidad_junior = models.IntegerField(default=0, verbose_name="Req. Junior", validators=[MinValueValidator(0)])
+    
+    # --- NUEVO CAMPO ---
+    es_turno_dificil = models.BooleanField(
+        default=False, 
+        verbose_name="Es Turno Difícil", 
+        help_text="Marcar si trabajar este día debe contar doble para la equidad (Ej: Navidad, Año Nuevo)."
+    )
+    # -------------------
+
     motivo = models.CharField(max_length=100, blank=True)
 
     class Meta:
@@ -250,7 +300,6 @@ class ExcepcionDemanda(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
-
 
 # ==============================================================================
 # NOVEDADES Y PREFERENCIAS (Inputs del Empleado)
@@ -458,6 +507,7 @@ class Cronograma(models.Model):
         BORRADOR = 'BORRADOR', 'Borrador'
         OPTIMIZANDO = 'OPTIMIZANDO', 'En Proceso'
         PUBLICADO = 'PUBLICADO', 'Publicado'
+        FALLIDO = 'FALLIDO', 'Fallido por Cobertura'
 
     especialidad = models.CharField(max_length=20, choices=Empleado.TipoEspecialidad.choices)
     fecha_inicio = models.DateField()

@@ -1,7 +1,7 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from .models import (
-    ConfiguracionAlgoritmo, Empleado, TipoTurno, NoDisponibilidad, 
+    ConfiguracionAlgoritmo, ConfiguracionTurnos, Empleado, TipoTurno, NoDisponibilidad, 
     Preferencia, SecuenciaProhibida, PlantillaDemanda, 
     ReglaDemandaSemanal, ExcepcionDemanda
 )
@@ -41,28 +41,42 @@ class EmpleadoForm(BootstrapFormMixin, forms.ModelForm):
         model = Empleado
         fields = '__all__'
 
-class TipoTurnoForm(BootstrapFormMixin, forms.ModelForm):
+# Borrá o comentá la clase TipoTurnoForm vieja
+
+class ConfiguracionTurnosForm(BootstrapFormMixin, forms.ModelForm):
+    # Campos virtuales para definir nombres y abreviaturas (No guardados directamente en este modelo)
+    nombre_t1 = forms.CharField(label="Nombre Turno 1", initial="Mañana")
+    abrev_t1 = forms.CharField(label="Abrev. T1", max_length=5, initial="M")
+    nocturno_t1 = forms.BooleanField(label="Es Nocturno", required=False)
+
+    nombre_t2 = forms.CharField(label="Nombre Turno 2", initial="Noche")
+    abrev_t2 = forms.CharField(label="Abrev. T2", max_length=5, initial="N")
+    nocturno_t2 = forms.BooleanField(label="Es Nocturno", required=False)
+
+    # Opcionales para esquema de 3 turnos
+    nombre_t3 = forms.CharField(label="Nombre Turno 3", required=False, initial="Tarde")
+    abrev_t3 = forms.CharField(label="Abrev. T3", max_length=5, required=False, initial="T")
+    nocturno_t3 = forms.BooleanField(label="Es Nocturno", required=False)
+
     class Meta:
-        model = TipoTurno
-        # Excluimos 'duracion_horas' porque se calcula sola en el modelo
-        fields = ['nombre', 'abreviatura', 'especialidad', 'es_nocturno', 'hora_inicio', 'hora_fin']
+        model = ConfiguracionTurnos
+        fields = ['esquema', 'hora_inicio_base']
         widgets = {
-            'hora_inicio': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
-            'hora_fin': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
-        }
-        help_texts = {
-            'es_nocturno': 'Marcá esto si el turno cruza la medianoche (ej: 22:00 a 06:00) o implica penalizaciones nocturnas.'
+            'esquema': SELECT_WIDGET,
+            'hora_inicio_base': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def clean(self):
+        cleaned_data = super().clean()
+        esquema = cleaned_data.get('esquema')
+
+        # Validación condicional
+        if esquema == ConfiguracionTurnos.TipoEsquema.TURNO_08_HS:
+            if not cleaned_data.get('nombre_t3') or not cleaned_data.get('abrev_t3'):
+                self.add_error('nombre_t3', 'Requerido para esquema de 3 turnos.')
+                self.add_error('abrev_t3', 'Requerido.')
         
-        # Lógica para bloquear Especialidad si es una EDICIÓN
-        if self.instance and self.instance.pk:
-            self.fields['especialidad'].disabled = True
-            self.fields['especialidad'].help_text = "La especialidad no se puede cambiar porque afectaría al historial y reglas vigentes."
-
-
+        return cleaned_data
 
 class NoDisponibilidadForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
@@ -131,32 +145,19 @@ class PlantillaDemandaUpdateForm(forms.ModelForm):
             self.fields['especialidad'].help_text = "La especialidad no se puede modificar una vez creada la plantilla."
 
 class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
+    # Creamos campos individuales para cada día de la semana
+    dia_lunes = forms.BooleanField(required=False, label='Lunes')
+    dia_martes = forms.BooleanField(required=False, label='Martes')
+    dia_miercoles = forms.BooleanField(required=False, label='Miércoles')
+    dia_jueves = forms.BooleanField(required=False, label='Jueves')
+    dia_viernes = forms.BooleanField(required=False, label='Viernes')
+    dia_sabado = forms.BooleanField(required=False, label='Sábado')
+    dia_domingo = forms.BooleanField(required=False, label='Domingo')
+    
     class Meta:
         model = ReglaDemandaSemanal
-        fields = ['dia', 'turno', 'cantidad_senior', 'cantidad_junior']
+        fields = ['turno', 'cantidad_senior', 'cantidad_junior']
         widgets = {
-            'dia': SELECT_WIDGET,
-            'turno': SELECT_WIDGET,
-        }
-
-    def __init__(self, *args, **kwargs):
-        """Filtra los turnos disponibles según la especialidad de la plantilla padre."""
-        plantilla_id = kwargs.pop('plantilla_id', None)
-        super().__init__(*args, **kwargs)
-        
-        if plantilla_id:
-            try:
-                plantilla = PlantillaDemanda.objects.get(id=plantilla_id)
-                self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
-            except PlantillaDemanda.DoesNotExist:
-                pass # Si no existe (raro), dejamos el queryset por defecto vacío o completo
-
-class ExcepcionDemandaForm(BootstrapFormMixin, forms.ModelForm):
-    class Meta:
-        model = ExcepcionDemanda
-        fields = ['fecha', 'turno', 'cantidad_senior', 'cantidad_junior', 'motivo']
-        widgets = {
-            'fecha': DATE_INPUT,
             'turno': SELECT_WIDGET,
         }
 
@@ -171,7 +172,83 @@ class ExcepcionDemandaForm(BootstrapFormMixin, forms.ModelForm):
                 self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
             except PlantillaDemanda.DoesNotExist:
                 pass
+        
+        # Si estamos editando, marcar los días seleccionados
+        if self.instance and self.instance.pk:
+            dias_seleccionados = self.instance.dias or []
+            if 0 in dias_seleccionados:
+                self.fields['dia_lunes'].initial = True
+            if 1 in dias_seleccionados:
+                self.fields['dia_martes'].initial = True
+            if 2 in dias_seleccionados:
+                self.fields['dia_miercoles'].initial = True
+            if 3 in dias_seleccionados:
+                self.fields['dia_jueves'].initial = True
+            if 4 in dias_seleccionados:
+                self.fields['dia_viernes'].initial = True
+            if 5 in dias_seleccionados:
+                self.fields['dia_sabado'].initial = True
+            if 6 in dias_seleccionados:
+                self.fields['dia_domingo'].initial = True
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        # Construir la lista de días seleccionados
+        dias_seleccionados = []
+        if cleaned_data.get('dia_lunes'):
+            dias_seleccionados.append(0)
+        if cleaned_data.get('dia_martes'):
+            dias_seleccionados.append(1)
+        if cleaned_data.get('dia_miercoles'):
+            dias_seleccionados.append(2)
+        if cleaned_data.get('dia_jueves'):
+            dias_seleccionados.append(3)
+        if cleaned_data.get('dia_viernes'):
+            dias_seleccionados.append(4)
+        if cleaned_data.get('dia_sabado'):
+            dias_seleccionados.append(5)
+        if cleaned_data.get('dia_domingo'):
+            dias_seleccionados.append(6)
+        
+        # Validar que se haya seleccionado al menos un día
+        if not dias_seleccionados:
+            raise ValidationError("Debe seleccionar al menos un día de la semana.")
+        
+        cleaned_data['dias'] = dias_seleccionados
+        return cleaned_data
+    
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.dias = self.cleaned_data['dias']
+        if commit:
+            instance.save()
+        return instance
 
+class ExcepcionDemandaForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = ExcepcionDemanda
+        # Agregamos 'es_turno_dificil' a la lista de campos
+        fields = ['fecha', 'turno', 'cantidad_senior', 'cantidad_junior', 'es_turno_dificil', 'motivo']
+        widgets = {
+            'fecha': DATE_INPUT,
+            'turno': SELECT_WIDGET,
+            # Checkbox estilizado (opcional, el mixin ya le pone form-check-input)
+            'es_turno_dificil': forms.CheckboxInput(attrs={'class': 'form-check-input ms-2'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        """Filtra los turnos disponibles según la especialidad de la plantilla padre."""
+        plantilla_id = kwargs.pop('plantilla_id', None)
+        super().__init__(*args, **kwargs)
+        
+        if plantilla_id:
+            try:
+                plantilla = PlantillaDemanda.objects.get(id=plantilla_id)
+                self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
+            except PlantillaDemanda.DoesNotExist:
+                pass
+            
 # ==============================================================================
 # FORMULARIOS DE CONFIGURACIÓN DEL MOTOR
 # ==============================================================================

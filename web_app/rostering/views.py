@@ -27,7 +27,7 @@ from .models import (
 
 # --- FORMS ---
 from .forms import (
-    EmpleadoForm, TipoTurnoForm, NoDisponibilidadForm, 
+    EmpleadoForm, ConfiguracionTurnosForm, NoDisponibilidadForm, 
     PreferenciaForm, SecuenciaProhibidaForm,
     PlantillaDemandaForm, ReglaDemandaSemanalForm, ExcepcionDemandaForm,
     ConfiguracionSimpleForm, ConfiguracionAvanzadaForm
@@ -204,21 +204,34 @@ def api_get_plantillas(request):
 def ver_cronograma(request, cronograma_id):
     """
     Vista Detallada (Matriz): Ahora solo pide los datos procesados al servicio.
+    INCLUYE BLOQUEO DE SEGURIDAD PARA CRONOGRAMAS FALLIDOS.
     """
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
+    
+    # --- BLOQUEO DE SEGURIDAD ---
+    if cronograma.estado == 'FALLIDO':
+        messages.warning(request, "Acceso denegado: El cronograma no es viable. Se redirigió al análisis de errores.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    # ----------------------------
     
     # Delegamos la construcción de la matriz al servicio
     context_data = construir_matriz_cronograma(cronograma)
     
     return render(request, 'rostering/cronograma_detail.html', {
         'cronograma': cronograma,
-        **context_data # Expande 'rango_fechas' y 'filas_tabla'
+        'filter_form': None, # Si usabas filtros en el detalle, sino borralo
+        **context_data 
     })
-
 
 def ver_cronograma_diario(request, cronograma_id):
     """Vista Diaria: Muestra quién trabaja en qué turno para cada día."""
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
+    
+    # --- BLOQUEO DE SEGURIDAD ---
+    if cronograma.estado == 'FALLIDO':
+        messages.warning(request, "Acceso denegado: El cronograma no es viable. Se redirigió al análisis de errores.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    # ----------------------------
     
     asignaciones = Asignacion.objects.filter(cronograma=cronograma).select_related(
         'empleado', 'tipo_turno'
@@ -232,7 +245,6 @@ def ver_cronograma_diario(request, cronograma_id):
         agenda[asig.fecha][t_nom].append(asig.empleado)
 
     return render(request, 'rostering/cronograma_diario.html', {'cronograma': cronograma, 'agenda': agenda})
-
 
 class CronogramaAnalisisView(LoginRequiredMixin, DetailView):
     model = Cronograma
@@ -256,11 +268,17 @@ class CronogramaAnalisisView(LoginRequiredMixin, DetailView):
         context['equidad'] = reporte.get('datos_equidad', {})
         return context
 
-
 @login_required
 @require_POST
 def publicar_cronograma(request, pk):
     cronograma = get_object_or_404(Cronograma, pk=pk)
+    
+    # --- BLOQUEO ---
+    if cronograma.estado == 'FALLIDO':
+        messages.error(request, "Error crítico: No se puede publicar un cronograma marcado como NO VIABLE.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    # ---------------
+
     if cronograma.estado == Cronograma.Estado.PUBLICADO:
         messages.warning(request, "Este cronograma ya está publicado.")
     else:
@@ -268,7 +286,6 @@ def publicar_cronograma(request, pk):
         cronograma.save()
         messages.success(request, f"¡Planificación {cronograma.fecha_inicio} PUBLICADA!")
     return redirect('ver_cronograma', cronograma_id=pk)
-
 
 # ==============================================================================
 # ABM (CRUDs) - SIN CAMBIOS IMPORTANTES (Ya usan CBVs estándar)
@@ -281,18 +298,14 @@ class EmpleadoListView(LoginRequiredMixin, ListView):
     paginate_by = 15 
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().order_by('id')
         self.filterset = EmpleadoFilter(self.request.GET, queryset=qs)
         qs = self.filterset.qs
-        order = self.request.GET.get('order_by')
-        if order and order.lstrip('-') in ['legajo', 'nombre_completo', 'especialidad', 'experiencia', 'activo']:
-            qs = qs.order_by(order)
         return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['filter_form'] = self.filterset.form
-        ctx['current_order'] = self.request.GET.get('order_by', '')
         return ctx
 
 class EmpleadoCreateView(LoginRequiredMixin, CreateView):
@@ -337,41 +350,166 @@ class CronogramaDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'rostering/cronograma_confirm_delete.html'
     success_url = reverse_lazy('cronograma_list')
 
-# --- Tipos de Turno ---
-class TipoTurnoListView(LoginRequiredMixin, ListView):
-    model = TipoTurno
-    template_name = 'rostering/tipoturno_list.html'
-    context_object_name = 'turnos'
-    ordering = ['especialidad', 'hora_inicio']
+# En views.py
 
-    def get_queryset(self):
-        qs = super().get_queryset()
-        self.filterset = TipoTurnoFilter(self.request.GET, queryset=qs)
-        return self.filterset.qs
+from datetime import datetime, timedelta
+from .models import ConfiguracionTurnos, TipoTurno
+from .forms import ConfiguracionTurnosForm
 
+class ConfiguracionTurnosListView(LoginRequiredMixin, ListView):
+    """Muestra tarjetas por especialidad para entrar a configurar."""
+    model = ConfiguracionTurnos
+    template_name = 'rostering/config_turnos_list.html' # Nuevo template
+    
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['filter_form'] = self.filterset.form
+        # Identificar qué especialidades ya tienen config
+        configs = {c.especialidad: c for c in self.object_list}
+        
+        # Generar lista maestra de especialidades
+        lista = []
+        for esp_code, esp_label in Empleado.TipoEspecialidad.choices:
+            lista.append({
+                'code': esp_code,
+                'label': esp_label,
+                'config': configs.get(esp_code)
+            })
+        ctx['especialidades'] = lista
         return ctx
+    
+def config_turnos_edit(request, especialidad):
+    """
+    Vista Lógica Principal (Refactorizada - Smart Update + Auto Secuencias):
+    1. Si cambia el Esquema (2x12 <-> 3x8) -> Opción Nuclear (Borra todo).
+    2. Si el Esquema se mantiene -> Actualiza los objetos existentes.
+    3. AUTOMÁTICO: Regenera las secuencias prohibidas según la topología.
+    """
+    instance = ConfiguracionTurnos.objects.filter(especialidad=especialidad).first()
+    esquema_anterior = instance.esquema if instance else None
+    
+    if request.method == 'POST':
+        form = ConfiguracionTurnosForm(request.POST, instance=instance)
+        
+        if form.is_valid():
+            with transaction.atomic():
+                config = form.save(commit=False)
+                config.especialidad = especialidad
+                
+                nombres = {
+                    "t1": {"n": form.cleaned_data['nombre_t1'], "a": form.cleaned_data['abrev_t1'], "noc": form.cleaned_data['nocturno_t1']},
+                    "t2": {"n": form.cleaned_data['nombre_t2'], "a": form.cleaned_data['abrev_t2'], "noc": form.cleaned_data['nocturno_t2']},
+                }
+                if config.esquema == '3x8':
+                    nombres["t3"] = {"n": form.cleaned_data['nombre_t3'], "a": form.cleaned_data['abrev_t3'], "noc": form.cleaned_data['nocturno_t3']}
+                
+                config.nombres_turnos = nombres
+                config.save()
 
-class TipoTurnoCreateView(LoginRequiredMixin, CreateView):
-    model = TipoTurno
-    form_class = TipoTurnoForm
-    template_name = 'rostering/tipoturno_form.html'
-    success_url = reverse_lazy('tipoturno_list')
-    extra_context = {'titulo': 'Crear Tipo de Turno'}
+                # --- LÓGICA SMART UPDATE DE TURNOS ---
+                hora_base = config.hora_inicio_base
+                d = datetime(2000, 1, 1, hora_base.hour, hora_base.minute)
+                
+                nuevos_datos = []
+                if config.esquema == '2x12':
+                    nuevos_datos = [
+                        {'key': 't1', 'inicio': d.time(), 'fin': (d + timedelta(hours=12)).time()},
+                        {'key': 't2', 'inicio': (d + timedelta(hours=12)).time(), 'fin': (d + timedelta(hours=24)).time()}
+                    ]
+                elif config.esquema == '3x8':
+                    for i in range(3):
+                        nuevos_datos.append({
+                            'key': f"t{i+1}", 
+                            'inicio': (d + timedelta(hours=i*8)).time(), 
+                            'fin': (d + timedelta(hours=(i+1)*8)).time()
+                        })
 
-class TipoTurnoUpdateView(LoginRequiredMixin, UpdateView):
-    model = TipoTurno
-    form_class = TipoTurnoForm
-    template_name = 'rostering/tipoturno_form.html'
-    success_url = reverse_lazy('tipoturno_list')
-    extra_context = {'titulo': 'Editar Tipo de Turno'}
+                turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
+                mismo_esquema = (esquema_anterior == config.esquema)
+                consistencia_db = (len(turnos_existentes) == len(nuevos_datos))
 
-class TipoTurnoDeleteView(LoginRequiredMixin, DeleteView):
-    model = TipoTurno
-    template_name = 'rostering/tipoturno_confirm_delete.html'
-    success_url = reverse_lazy('tipoturno_list')
+                if mismo_esquema and consistencia_db:
+                    print(f"🔄 SMART UPDATE: Actualizando turnos existentes para {especialidad} (IDs conservados)")
+                    for idx, turno_obj in enumerate(turnos_existentes):
+                        datos = nuevos_datos[idx]
+                        meta = nombres[datos['key']]
+                        turno_obj.nombre = meta['n']
+                        turno_obj.abreviatura = meta['a']
+                        turno_obj.es_nocturno = meta['noc']
+                        turno_obj.hora_inicio = datos['inicio']
+                        turno_obj.hora_fin = datos['fin']
+                        turno_obj.save()
+                else:
+                    print(f"☢️ NUCLEAR RESET: Esquema cambió o DB inconsistente. Regenerando para {especialidad}.")
+                    TipoTurno.objects.filter(especialidad=especialidad).delete()
+                    
+                    # Creación con .save() individual para calcular duración
+                    for datos in nuevos_datos:
+                        meta = nombres[datos['key']]
+                        t = TipoTurno(
+                            nombre=meta['n'], abreviatura=meta['a'], especialidad=especialidad,
+                            hora_inicio=datos['inicio'], hora_fin=datos['fin'], es_nocturno=meta['noc']
+                        )
+                        t.save()
+
+                # --- LÓGICA AUTOMÁTICA DE SECUENCIAS PROHIBIDAS ---
+                # 1. Borrar reglas viejas para esta especialidad (limpieza total)
+                SecuenciaProhibida.objects.filter(especialidad=especialidad).delete()
+                
+                # 2. Obtener los turnos frescos y ordenados
+                turnos_ordenados = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
+                secuencias_nuevas = []
+
+                if len(turnos_ordenados) == 2: 
+                    # CASO A: ESQUEMA 2x12 (Día, Noche)
+                    # Regla: Prohibido Noche -> Día (T2 -> T1 del día siguiente)
+                    # Asumimos T1=Mañana/Día, T2=Noche (ordenados por hora)
+                    secuencias_nuevas.append(SecuenciaProhibida(
+                        especialidad=especialidad,
+                        turno_previo=turnos_ordenados[1], # 2do turno (Noche)
+                        turno_siguiente=turnos_ordenados[0] # 1er turno (Día)
+                    ))
+                
+                elif len(turnos_ordenados) == 3:
+                    # CASO B: ESQUEMA 3x8 (Mañana, Tarde, Noche)
+                    # T1=M, T2=T, T3=N
+                    
+                    # 1. Noche -> Mañana (Crítico)
+                    secuencias_nuevas.append(SecuenciaProhibida(
+                        especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[0]
+                    ))
+                    # 2. Noche -> Tarde (Descanso insuficiente)
+                    secuencias_nuevas.append(SecuenciaProhibida(
+                        especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[1]
+                    ))
+                    # 3. Tarde -> Mañana (Quick Return < 12hs)
+                    secuencias_nuevas.append(SecuenciaProhibida(
+                        especialidad=especialidad, turno_previo=turnos_ordenados[1], turno_siguiente=turnos_ordenados[0]
+                    ))
+
+                if secuencias_nuevas:
+                    SecuenciaProhibida.objects.bulk_create(secuencias_nuevas)
+                    print(f"🔒 Se generaron automáticamente {len(secuencias_nuevas)} reglas de descanso para {especialidad}")
+
+            return redirect('tipoturno_list')
+            
+    else:
+        # GET (Carga del formulario)
+        initial_data = {}
+        if instance and instance.nombres_turnos:
+            nt = instance.nombres_turnos
+            if 't1' in nt: initial_data.update({'nombre_t1': nt['t1']['n'], 'abrev_t1': nt['t1']['a'], 'nocturno_t1': nt['t1'].get('noc', False)})
+            if 't2' in nt: initial_data.update({'nombre_t2': nt['t2']['n'], 'abrev_t2': nt['t2']['a'], 'nocturno_t2': nt['t2'].get('noc', False)})
+            if 't3' in nt: initial_data.update({'nombre_t3': nt['t3']['n'], 'abrev_t3': nt['t3']['a'], 'nocturno_t3': nt['t3'].get('noc', False)})
+        
+        form = ConfiguracionTurnosForm(instance=instance, initial=initial_data)
+
+    context = {
+        'form': form,
+        'especialidad_label': dict(Empleado.TipoEspecialidad.choices).get(especialidad),
+        'especialidad_code': especialidad,
+        'esquema_actual': esquema_anterior 
+    }
+    return render(request, 'rostering/config_turnos_form.html', context)
 
 # --- Ausencias ---
 class NoDisponibilidadListView(LoginRequiredMixin, ListView):
@@ -447,41 +585,6 @@ class PreferenciaDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'rostering/confirm_delete_generic.html'
     success_url = reverse_lazy('preferencia_list')
 
-# --- Secuencias Prohibidas ---
-class SecuenciaProhibidaListView(LoginRequiredMixin, ListView):
-    model = SecuenciaProhibida
-    template_name = 'rostering/secuenciaprohibida_list.html'
-    context_object_name = 'secuencias'
-    ordering = ['especialidad', 'turno_previo']
-
-    def get_queryset(self):
-        qs = super().get_queryset().select_related('turno_previo', 'turno_siguiente')
-        self.filterset = SecuenciaProhibidaFilter(self.request.GET, queryset=qs)
-        return self.filterset.qs
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['filter_form'] = self.filterset.form
-        return ctx
-
-class SecuenciaProhibidaCreateView(LoginRequiredMixin, CreateView):
-    model = SecuenciaProhibida
-    form_class = SecuenciaProhibidaForm
-    template_name = 'rostering/secuenciaprohibida_form.html'
-    success_url = reverse_lazy('secuencia_list')
-    extra_context = {'titulo': 'Nueva Secuencia'}
-
-class SecuenciaProhibidaUpdateView(LoginRequiredMixin, UpdateView):
-    model = SecuenciaProhibida
-    form_class = SecuenciaProhibidaForm
-    template_name = 'rostering/secuenciaprohibida_form.html'
-    success_url = reverse_lazy('secuencia_list')
-    extra_context = {'titulo': 'Editar Regla'}
-
-class SecuenciaProhibidaDeleteView(LoginRequiredMixin, DeleteView):
-    model = SecuenciaProhibida
-    template_name = 'rostering/confirm_delete_generic.html'
-    success_url = reverse_lazy('secuencia_list')
 
 # --- Plantillas ---
 class PlantillaListView(LoginRequiredMixin, ListView):
@@ -503,8 +606,10 @@ class PlantillaDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['reglas'] = self.object.reglas.all().order_by('dia', 'turno__hora_inicio')
+        ctx['reglas'] = self.object.reglas.all().order_by('turno__hora_inicio')
         ctx['excepciones'] = self.object.excepciones.all().order_by('fecha')
+        # Pasar todos los turnos de la especialidad para el dropdown
+        ctx['turnos'] = TipoTurno.objects.filter(especialidad=self.object.especialidad).order_by('hora_inicio')
         return ctx
 
 # Asegurate de importar el form nuevo arriba
@@ -541,7 +646,35 @@ class ReglaCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.plantilla = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
+        
+        # Resolver conflictos: quitar días de otras reglas con el mismo turno
+        self._resolver_conflictos_dias(form)
+        
         return super().form_valid(form)
+    
+    def _resolver_conflictos_dias(self, form):
+        """Remueve los días seleccionados de otras reglas que tengan el mismo turno."""
+        dias_nuevos = form.cleaned_data['dias']
+        turno = form.instance.turno
+        plantilla = form.instance.plantilla
+        
+        # Buscar otras reglas con el mismo turno en la misma plantilla
+        otras_reglas = ReglaDemandaSemanal.objects.filter(
+            plantilla=plantilla,
+            turno=turno
+        ).exclude(pk=form.instance.pk if form.instance.pk else None)
+        
+        for regla in otras_reglas:
+            dias_actuales = regla.dias or []
+            # Quitar los días que están en la nueva regla
+            dias_actualizados = [d for d in dias_actuales if d not in dias_nuevos]
+            
+            if dias_actualizados != dias_actuales:
+                if dias_actualizados:  # Si quedan días, actualizar
+                    regla.dias = dias_actualizados
+                    regla.save()
+                else:  # Si no quedan días, eliminar la regla
+                    regla.delete()
 
     def get_success_url(self):
         return reverse_lazy('plantilla_detail', kwargs={'pk': self.kwargs['plantilla_id']})
@@ -550,6 +683,53 @@ class ReglaCreateView(LoginRequiredMixin, CreateView):
         ctx = super().get_context_data(**kwargs)
         p = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
         ctx['titulo'] = f"Agregar Regla a {p.nombre}"
+        return ctx
+
+class ReglaUpdateView(LoginRequiredMixin, UpdateView):
+    model = ReglaDemandaSemanal
+    form_class = ReglaDemandaSemanalForm
+    template_name = 'rostering/regla_form.html'
+
+    def get_form_kwargs(self):
+        kw = super().get_form_kwargs()
+        kw['plantilla_id'] = self.object.plantilla.id
+        return kw
+
+    def form_valid(self, form):
+        # Resolver conflictos: quitar días de otras reglas con el mismo turno
+        self._resolver_conflictos_dias(form)
+        return super().form_valid(form)
+    
+    def _resolver_conflictos_dias(self, form):
+        """Remueve los días seleccionados de otras reglas que tengan el mismo turno."""
+        dias_nuevos = form.cleaned_data['dias']
+        turno = form.instance.turno
+        plantilla = form.instance.plantilla
+        
+        # Buscar otras reglas con el mismo turno en la misma plantilla
+        otras_reglas = ReglaDemandaSemanal.objects.filter(
+            plantilla=plantilla,
+            turno=turno
+        ).exclude(pk=form.instance.pk)
+        
+        for regla in otras_reglas:
+            dias_actuales = regla.dias or []
+            # Quitar los días que están en la nueva regla
+            dias_actualizados = [d for d in dias_actuales if d not in dias_nuevos]
+            
+            if dias_actualizados != dias_actuales:
+                if dias_actualizados:  # Si quedan días, actualizar
+                    regla.dias = dias_actualizados
+                    regla.save()
+                else:  # Si no quedan días, eliminar la regla
+                    regla.delete()
+
+    def get_success_url(self):
+        return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.plantilla.id})
+    
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['titulo'] = f"Editar Regla: {self.object.turno.nombre}"
         return ctx
 
 class ReglaDeleteView(LoginRequiredMixin, DeleteView):
@@ -660,6 +840,15 @@ from weasyprint import HTML
 def exportar_cronograma_pdf(request, cronograma_id):
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
     
+    # --- BLOQUEO DE SEGURIDAD ---
+    if cronograma.estado == 'FALLIDO':
+        messages.error(request, "No se puede exportar un cronograma fallido.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    # ----------------------------
+    
+    # 1. Generar encabezado de días en ESPAÑOL manual
+    # ... (El resto de tu código de PDF sigue igual) ...
+    # ...
     # 1. Generar encabezado de días en ESPAÑOL manual
     # Python: 0=Lunes, 6=Domingo
     letras_dias = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
@@ -773,6 +962,12 @@ from .models import Cronograma, Asignacion, Empleado, TipoTurno
 def exportar_cronograma_excel(request, cronograma_id):
     cronograma = get_object_or_404(Cronograma, pk=cronograma_id)
     
+    # --- BLOQUEO DE SEGURIDAD ---
+    if cronograma.estado == 'FALLIDO':
+        messages.error(request, "No se puede exportar un cronograma fallido.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    # ----------------------------
+
     # 1. Crear el libro y la hoja
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -939,7 +1134,7 @@ def duplicar_plantilla(request, pk):
             for regla in original.reglas.all():
                 reglas_a_crear.append(ReglaDemandaSemanal(
                     plantilla=nueva_plantilla,
-                    dia=regla.dia,
+                    dias=regla.dias,  # Copiamos la lista de días
                     turno=regla.turno,
                     cantidad_senior=regla.cantidad_senior,
                     cantidad_junior=regla.cantidad_junior
@@ -968,3 +1163,146 @@ def duplicar_plantilla(request, pk):
     except Exception as e:
         messages.error(request, f"Error al duplicar la plantilla: {str(e)}")
         return redirect('plantilla_list')
+
+
+# ==============================================================================
+# VISTAS AJAX PARA REGLAS DE DEMANDA (EDICIÓN INLINE)
+# ==============================================================================
+
+@login_required
+@require_POST
+@csrf_exempt
+def api_crear_regla(request, plantilla_id):
+    """AJAX: Crear una nueva regla de demanda."""
+    try:
+        plantilla = PlantillaDemanda.objects.get(pk=plantilla_id)
+        
+        turno_id = request.POST.get('turno_id')
+        cantidad_senior = int(request.POST.get('cantidad_senior', 0))
+        cantidad_junior = int(request.POST.get('cantidad_junior', 0))
+        es_excepcion = request.POST.get('es_excepcion', '0') == '1'
+        dias = request.POST.getlist('dias[]')  # Lista de días seleccionados
+        dias = [int(d) for d in dias if d]
+        
+        if not dias:
+            return JsonResponse({'error': 'Debe seleccionar al menos un día'}, status=400)
+        
+        turno = TipoTurno.objects.get(pk=turno_id)
+        
+        # Validar consistencia de especialidad
+        if turno.especialidad != plantilla.especialidad:
+            return JsonResponse({'error': 'El turno no corresponde a la especialidad'}, status=400)
+        
+        # Resolver conflictos
+        otras_reglas = ReglaDemandaSemanal.objects.filter(
+            plantilla=plantilla,
+            turno=turno
+        )
+        
+        for regla in otras_reglas:
+            dias_actuales = regla.dias or []
+            dias_actualizados = [d for d in dias_actuales if d not in dias]
+            
+            if dias_actualizados != dias_actuales:
+                if dias_actualizados:
+                    regla.dias = dias_actualizados
+                    regla.save()
+                else:
+                    regla.delete()
+        
+        # Crear la nueva regla
+        nueva_regla = ReglaDemandaSemanal.objects.create(
+            plantilla=plantilla,
+            turno=turno,
+            dias=dias,
+            cantidad_senior=cantidad_senior,
+            cantidad_junior=cantidad_junior,
+            es_excepcion=es_excepcion
+        )
+        
+        # Retornar los datos en JSON para actualizar la tabla
+        return JsonResponse({
+            'success': True,
+            'regla': {
+                'id': nueva_regla.pk,
+                'turno_nombre': turno.nombre,
+                'turno_abreviatura': turno.abreviatura,
+                'cantidad_senior': nueva_regla.cantidad_senior,
+                'cantidad_junior': nueva_regla.cantidad_junior,
+                'dias': nueva_regla.dias,
+                'dias_display': nueva_regla.get_dias_display(),
+                'es_excepcion': nueva_regla.es_excepcion
+            }
+        })
+    
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+@require_POST
+@csrf_exempt
+def api_actualizar_regla(request, regla_id):
+    """AJAX: Actualizar una regla existente."""
+    try:
+        regla = ReglaDemandaSemanal.objects.get(pk=regla_id)
+        
+        cantidad_senior = int(request.POST.get('cantidad_senior', regla.cantidad_senior))
+        cantidad_junior = int(request.POST.get('cantidad_junior', regla.cantidad_junior))
+        es_excepcion = request.POST.get('es_excepcion', '0') == '1'
+        dias = request.POST.getlist('dias[]')
+        dias = [int(d) for d in dias if d]
+        
+        if not dias:
+            return JsonResponse({'error': 'Debe seleccionar al menos un día'}, status=400)
+        
+        # Resolver conflictos
+        otras_reglas = ReglaDemandaSemanal.objects.filter(
+            plantilla=regla.plantilla,
+            turno=regla.turno
+        ).exclude(pk=regla_id)
+        
+        for otra in otras_reglas:
+            dias_actuales = otra.dias or []
+            dias_actualizados = [d for d in dias_actuales if d not in dias]
+            
+            if dias_actualizados != dias_actuales:
+                if dias_actualizados:
+                    otra.dias = dias_actualizados
+                    otra.save()
+                else:
+                    otra.delete()
+        
+        # Actualizar la regla
+        regla.cantidad_senior = cantidad_senior
+        regla.cantidad_junior = cantidad_junior
+        regla.dias = dias
+        regla.es_excepcion = es_excepcion
+        regla.save()
+        
+        return JsonResponse({
+            'success': True,
+            'regla': {
+                'cantidad_senior': regla.cantidad_senior,
+                'cantidad_junior': regla.cantidad_junior,
+                'dias': regla.dias,
+                'dias_display': regla.get_dias_display(),
+                'es_excepcion': regla.es_excepcion
+            }
+        })
+    
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+@require_POST
+@csrf_exempt
+def api_eliminar_regla(request, regla_id):
+    """AJAX: Eliminar una regla."""
+    try:
+        regla = ReglaDemandaSemanal.objects.get(pk=regla_id)
+        regla.delete()
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)

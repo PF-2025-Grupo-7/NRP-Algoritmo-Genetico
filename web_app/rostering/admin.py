@@ -38,7 +38,16 @@ class TipoTurnoAdmin(admin.ModelAdmin):
 class ReglaInline(admin.TabularInline):
     model = ReglaDemandaSemanal
     extra = 0
-    ordering = ('dia', 'turno')
+    # Ordenamos solo por turno ya que dias es ahora un JSONField
+    ordering = ('turno',)
+    readonly_fields = ('get_dias_display',)
+    
+    def get_dias_display(self, obj):
+        """Muestra los días seleccionados en formato legible."""
+        if obj and obj.pk:
+            return obj.get_dias_display()
+        return "-"
+    get_dias_display.short_description = "Días"
 
 class ExcepcionInline(admin.TabularInline):
     model = ExcepcionDemanda

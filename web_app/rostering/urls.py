@@ -68,16 +68,8 @@ urlpatterns = [
     # ==========================================================================
     
     # Tipos de Turno
-    path('config/turnos/', views.TipoTurnoListView.as_view(), name='tipoturno_list'),
-    path('config/turnos/crear/', views.TipoTurnoCreateView.as_view(), name='tipoturno_create'),
-    path('config/turnos/<int:pk>/editar/', views.TipoTurnoUpdateView.as_view(), name='tipoturno_update'),
-    path('config/turnos/<int:pk>/eliminar/', views.TipoTurnoDeleteView.as_view(), name='tipoturno_delete'),
-
-    # Secuencias Prohibidas
-    path('config/secuencias/', views.SecuenciaProhibidaListView.as_view(), name='secuencia_list'),
-    path('config/secuencias/crear/', views.SecuenciaProhibidaCreateView.as_view(), name='secuencia_create'),
-    path('config/secuencias/<int:pk>/editar/', views.SecuenciaProhibidaUpdateView.as_view(), name='secuencia_update'),
-    path('config/secuencias/<int:pk>/eliminar/', views.SecuenciaProhibidaDeleteView.as_view(), name='secuencia_delete'),
+    path('config/turnos/', views.ConfiguracionTurnosListView.as_view(), name='tipoturno_list'),
+    path('config/turnos/<str:especialidad>/editar/', views.config_turnos_edit, name='tipoturno_edit'),
 
     # Plantillas de Demanda (Maestro)
     path('config/plantillas/', views.PlantillaListView.as_view(), name='plantilla_list'),
@@ -89,7 +81,13 @@ urlpatterns = [
 
     # Reglas y Excepciones (Detalle - Hijos de Plantilla)
     path('config/plantillas/<int:plantilla_id>/regla/nueva/', views.ReglaCreateView.as_view(), name='regla_create'),
+    path('config/regla/<int:pk>/editar/', views.ReglaUpdateView.as_view(), name='regla_update'),
     path('config/regla/<int:pk>/eliminar/', views.ReglaDeleteView.as_view(), name='regla_delete'),
+    
+    # APIs AJAX para edición inline
+    path('api/plantillas/<int:plantilla_id>/regla/crear/', views.api_crear_regla, name='api_crear_regla'),
+    path('api/regla/<int:regla_id>/actualizar/', views.api_actualizar_regla, name='api_actualizar_regla'),
+    path('api/regla/<int:regla_id>/eliminar/', views.api_eliminar_regla, name='api_eliminar_regla'),
     
     path('config/plantillas/<int:plantilla_id>/excepcion/nueva/', views.ExcepcionCreateView.as_view(), name='excepcion_create'),
     path('config/excepcion/<int:pk>/eliminar/', views.ExcepcionDeleteView.as_view(), name='excepcion_delete'),

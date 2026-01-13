@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 800px;">
+    <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'tipoturno_list' %}" class="btn btn-outline-secondary me-3">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h2 class="fw-bold mb-0">Configurar: {{ especialidad_label }}</h2>
+            <p class="text-muted mb-0 small">Definición de esquema rotativo automático</p>
+        </div>
+    </div>
+
+    <div class="card shadow-lg border-0">
+        <div class="card-body p-4 p-lg-5">
+            
+            <div class="alert alert-warning d-flex align-items-center mb-4 border-warning" role="alert">
+                <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+                <div>
+                    <div class="fw-bold">Funcionamiento del Esquema</div>
+                    <div class="small">
+                        Definí la hora de inicio del primer turno. El sistema calculará automáticamente el resto para cubrir las 24 horas sin huecos.
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" id="schemaForm" novalidate>
+                {% csrf_token %}
+                
+                <h5 class="text-primary fw-bold mb-3 border-bottom pb-2">1. Estructura General</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold">Esquema Horario</label>
+                        {{ form.esquema }} </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Hora Inicio (1° Turno)</label>
+                        {{ form.hora_inicio_base }}
+                        <div class="form-text">El resto se calcula solo.</div>
+                    </div>
+                </div>
+
+                <h5 class="text-primary fw-bold mb-3 border-bottom pb-2">2. Nombres y Roles</h5>
+                
+                <div class="bg-light p-3 rounded mb-3">
+                    <div class="row align-items-center g-2">
+                        <div class="col-1 text-center fw-bold text-muted">T1</div>
+                        <div class="col-md-5">
+                            <label class="small text-muted fw-bold">Nombre</label>
+                            {{ form.nombre_t1 }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small text-muted fw-bold">Abreviatura</label>
+                            {{ form.abrev_t1 }}
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-check form-switch mt-4">
+                                {{ form.nocturno_t1 }}
+                                <label class="form-check-label small" for="{{ form.nocturno_t1.id_for_label }}">Nocturno</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-light p-3 rounded mb-3">
+                    <div class="row align-items-center g-2">
+                        <div class="col-1 text-center fw-bold text-muted">T2</div>
+                        <div class="col-md-5">
+                            <label class="small text-muted fw-bold">Nombre</label>
+                            {{ form.nombre_t2 }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small text-muted fw-bold">Abreviatura</label>
+                            {{ form.abrev_t2 }}
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-check form-switch mt-4">
+                                {{ form.nocturno_t2 }}
+                                <label class="form-check-label small" for="{{ form.nocturno_t2.id_for_label }}">Nocturno</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="bloque-t3" class="bg-light p-3 rounded mb-3" style="display: none;">
+                    <div class="row align-items-center g-2">
+                        <div class="col-1 text-center fw-bold text-muted">T3</div>
+                        <div class="col-md-5">
+                            <label class="small text-muted fw-bold">Nombre</label>
+                            {{ form.nombre_t3 }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small text-muted fw-bold">Abreviatura</label>
+                            {{ form.abrev_t3 }}
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-check form-switch mt-4">
+                                {{ form.nocturno_t3 }}
+                                <label class="form-check-label small" for="{{ form.nocturno_t3.id_for_label }}">Nocturno</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-grid mt-5">
+                    <button type="button" id="btnPreSave" class="btn btn-primary btn-lg fw-bold">
+                        <i class="bi bi-save me-2"></i> Guardar y Generar Turnos
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-danger text-white border-bottom-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Atención: Acción Destructiva
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="mb-3">Estás a punto de <strong>redefinir el esquema horario</strong> para {{ especialidad_label }}.</p>
+                
+                <div class="alert alert-danger bg-danger bg-opacity-10 border-0 mb-0">
+                    <ul class="mb-0 small">
+                        <li>Se <strong>eliminarán</strong> todos los Tipos de Turno anteriores.</li>
+                        <li>Se generarán nuevos turnos automáticamente.</li>
+                        <li>Las preferencias o reglas asociadas a los turnos viejos <strong>se perderán</strong>.</li>
+                    </ul>
+                </div>
+                
+                <p class="mt-4 mb-0 fw-bold text-center">¿Estás seguro de que querés continuar?</p>
+            </div>
+            <div class="modal-footer border-top-0 pt-0 pb-4 px-4 justify-content-center">
+                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="btnConfirmarNuclear" class="btn btn-danger px-4 fw-bold">
+                    Sí, Redefinir Esquema
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Referencias
+        const form = document.getElementById('schemaForm');
+        const selectEsquema = document.getElementById('{{ form.esquema.id_for_label }}');
+        const bloqueT3 = document.getElementById('bloque-t3');
+        const btnPreSave = document.getElementById('btnPreSave');
+        const btnConfirmar = document.getElementById('btnConfirmarNuclear');
+        
+        // Modal Instance
+        const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+
+        // 1. Lógica T3 (Mostrar/Ocultar)
+        function toggleT3() {
+            if (selectEsquema.value === '3x8') {
+                bloqueT3.style.display = 'block';
+                document.getElementById('{{ form.nombre_t3.id_for_label }}').required = true;
+                document.getElementById('{{ form.abrev_t3.id_for_label }}').required = true;
+            } else {
+                bloqueT3.style.display = 'none';
+                document.getElementById('{{ form.nombre_t3.id_for_label }}').required = false;
+                document.getElementById('{{ form.abrev_t3.id_for_label }}').required = false;
+            }
+        }
+        selectEsquema.addEventListener('change', toggleT3);
+        toggleT3(); // Init
+
+        // 2. Manejo del Submit con Modal
+        btnPreSave.addEventListener('click', function() {
+            if (form.reportValidity()) {
+                // Lógica visual para el mensaje
+                const esquemaOriginal = "{{ esquema_actual|default:'' }}";
+                const esquemaSeleccionado = selectEsquema.value;
+                const alertaDiv = document.querySelector('#modalConfirmacion .alert');
+                const tituloModal = document.querySelector('#modalConfirmacion .modal-title');
+                
+                if (esquemaOriginal && esquemaOriginal !== esquemaSeleccionado) {
+                    // CAMBIO ESTRUCTURAL (NUCLEAR)
+                    tituloModal.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-2"></i>Atención: Acción Destructiva';
+                    alertaDiv.className = 'alert alert-danger bg-danger bg-opacity-10 border-0 mb-0';
+                    alertaDiv.innerHTML = '<ul class="mb-0 small"><li>Se <strong>eliminará</strong> el historial de turnos.</li><li>Se borrarán preferencias asociadas.</li></ul>';
+                    btnConfirmar.className = 'btn btn-danger px-4 fw-bold';
+                    btnConfirmar.textContent = 'Sí, Redefinir Esquema';
+                } else {
+                    // CAMBIO MENOR (UPDATE)
+                    tituloModal.innerHTML = '<i class="bi bi-info-circle-fill me-2"></i>Confirmar Cambios';
+                    alertaDiv.className = 'alert alert-primary bg-primary bg-opacity-10 border-0 mb-0';
+                    alertaDiv.innerHTML = '<div class="small">Se actualizarán los nombres y horarios manteniendo el historial y las preferencias actuales.</div>';
+                    btnConfirmar.className = 'btn btn-primary px-4 fw-bold';
+                    btnConfirmar.textContent = 'Sí, Guardar Cambios';
+                }
+
+                modal.show();
+            }
+        });
+
+        // 3. Confirmación real (ESTO FALTABA)
+        btnConfirmar.addEventListener('click', function() {
+            form.submit();
+        });
+    });
+</script>
+{% endblock %}
