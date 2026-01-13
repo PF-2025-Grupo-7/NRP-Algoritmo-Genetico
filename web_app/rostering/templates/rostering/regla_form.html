@@ -1,49 +1,6 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<<<<<<< HEAD
-<div class="container mt-5" style="max-width: 600px;">
-    <div class="card shadow-sm border-0">
-        <div class="card-header bg-light">
-            <h4 class="mb-0">{{ titulo }}</h4>
-        </div>
-        <div class="card-body p-4">
-            <form method="post" novalidate>
-                {% csrf_token %}
-                
-                {% if form.fecha %} <div class="mb-3">
-                        <label class="form-label fw-bold">Fecha de la Excepción</label>
-                        {{ form.fecha }}
-                        {% if form.fecha.errors %}
-                            <div class="text-danger small">{{ form.fecha.errors }}</div>
-                        {% endif %}
-                    </div>
-                {% endif %}
-
-                {% if form.dia %} <div class="mb-3">
-                        <label class="form-label fw-bold">Día de la Semana</label>
-                        {{ form.dia }}
-                    </div>
-                {% endif %}
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Tipo de Turno</label>
-                    {{ form.turno }}
-                    {% if form.turno.errors %}
-                        <div class="text-danger small">{{ form.turno.errors }}</div>
-                    {% endif %}
-                </div>
-
-                <div class="row g-3 mb-3">
-                    <div class="col-6">
-                        <label class="form-label fw-bold text-muted small">MÍNIMO SENIORS</label>
-                        {{ form.cantidad_senior }}
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label fw-bold text-muted small">MÍNIMO JUNIORS</label>
-                        {{ form.cantidad_junior }}
-                    </div>
-=======
 <div class="container mt-5">
     <div class="row justify-content-center">
         <div class="col-md-8">
@@ -131,7 +88,6 @@
                             <button type="submit" class="btn btn-success">Guardar</button>
                         </div>
                     </form>
->>>>>>> experiencia-usuario
                 </div>
 
                 {% if form.es_turno_dificil %}
