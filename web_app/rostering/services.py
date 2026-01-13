@@ -71,7 +71,9 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
     reglas = ReglaDemandaSemanal.objects.filter(plantilla=plantilla).select_related('turno')
     mapa_reglas = {d: [] for d in range(7)}
     for r in reglas:
-        mapa_reglas[r.dia].append(r)
+        # r.dias es una lista de días (ej: [0, 1, 2, 3, 4] para lunes-viernes)
+        for dia in r.dias:
+            mapa_reglas[dia].append(r)
         
     # --- CORRECCIÓN: REPLICACIÓN DE REGLAS (Lunes->Viernes, Sábado->Domingo) ---
     # Esto alinea la validación con lo que realmente hace el algoritmo después.
@@ -101,30 +103,11 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
         dia_sem = fecha_iter.weekday()
         f_str = fecha_iter.strftime("%Y-%m-%d")
         
-<<<<<<< HEAD
         items_dia = []
         if f_str in mapa_excepciones:
             items_dia = mapa_excepciones[f_str]
         else:
             items_dia = mapa_reglas[dia_sem]
-=======
-        # Excepciones (Días pico)
-        es_pico = False
-        excepciones = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter)
-        
-        if excepciones.exists():
-            es_pico = True
-            for ex in excepciones:
-                cant = ex.cantidad_junior + ex.cantidad_senior
-                dur = float(ex.turno.duracion_horas) if ex.turno and ex.turno.duracion_horas else duracion_promedio
-                horas_demanda += (cant * dur)
-        
-        # Si no es pico, usamos regla semanal
-        if not es_pico:
-            # Ahora cada regla puede tener múltiples días
-            # Filtramos reglas que tengan el día actual en su lista de días
-            reglas_dia = [r for r in reglas if dia_enum_val in r.dias]
->>>>>>> experiencia-usuario
             
         for item in items_dia:
             dur = float(item.turno.duracion_horas)
@@ -364,19 +347,6 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     duracion_turnos = {str(t.id): float(t.duracion_horas) for t in turnos_qs}
     max_turno_val = max(turnos_a_cubrir) if turnos_a_cubrir else 0
 
-<<<<<<< HEAD
-    # =========================================================================
-    # 5. GENERACIÓN DE DEMANDA EXPLÍCITA (LISTA PLANA DÍA A DÍA)
-    # =========================================================================
-    
-    # A. Cargar reglas base en un diccionario temporal (0=Lunes ... 6=Domingo)
-    plantilla_semanal = {d: {} for d in range(7)}
-    
-    reglas_db = ReglaDemandaSemanal.objects.filter(plantilla=plantilla).select_related('turno')
-    mapa_dias_db = {
-        DiaSemana.LUNES: 0, DiaSemana.MARTES: 1, DiaSemana.MIERCOLES: 2,
-        DiaSemana.JUEVES: 3, DiaSemana.VIERNES: 4, DiaSemana.SABADO: 5, DiaSemana.DOMINGO: 6
-=======
     # Reglas de Cobertura
     def extraer_demanda_por_dia(dia_semana):
         """Extrae la demanda para un día específico de la semana (0=Lunes, 6=Domingo)."""
@@ -388,8 +358,8 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         return resultado
 
     # Extraemos demanda para día normal (Lunes como referencia) y fin de semana (Sábado)
-    dict_demanda_normal = extraer_demanda_por_dia(DiaSemana.LUNES)
-    dict_demanda_finde = extraer_demanda_por_dia(DiaSemana.SABADO)
+    dict_demanda_normal = extraer_demanda_por_dia(0)  # Lunes
+    dict_demanda_finde = extraer_demanda_por_dia(5)  # Sábado
     
     dias_pico_indices = []
     dict_demanda_pico = {}
@@ -415,30 +385,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         "demanda_pico": dict_demanda_pico if dict_demanda_pico else dict_demanda_normal,
         "demanda_finde": dict_demanda_finde,
         "demanda_normal": dict_demanda_normal
->>>>>>> experiencia-usuario
     }
-
-    for regla in reglas_db:
-        d_idx = mapa_dias_db.get(regla.dia)
-        if d_idx is not None:
-            # IMPORTANTE: Usamos str(ID) para compatibilidad JSON
-            turno_str = str(regla.turno.id)
-            plantilla_semanal[d_idx][turno_str] = {
-                "junior": regla.cantidad_junior,
-                "senior": regla.cantidad_senior
-            }
-
-    # B. Aplicar lógica de replicación (Lunes->Viernes, Sábado->Domingo)
-    demanda_lunes = plantilla_semanal.get(0)
-    if demanda_lunes: 
-        for d in range(1, 5): # 1, 2, 3, 4
-            if not plantilla_semanal[d]:
-                plantilla_semanal[d] = copy.deepcopy(demanda_lunes)
-    
-    demanda_sabado = plantilla_semanal.get(5)
-    if demanda_sabado: 
-        if not plantilla_semanal[6]: 
-            plantilla_semanal[6] = copy.deepcopy(demanda_sabado)
 
     # C. Construir la LISTA MAESTRA día por día
     requerimientos_cobertura_explicita = []
@@ -449,13 +396,15 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         dia_semana = fecha_iter.weekday() # 0=Lunes
         
         # 1. Obtener base del día de la semana
-        demanda_dia = copy.deepcopy(plantilla_semanal.get(dia_semana, {}))
-        
-        # 2. Detectar Finde (Sábado y Domingo)
-        if dia_semana >= 5: 
+        # Para días de semana (Lunes-Viernes): usar demanda_normal
+        # Para fin de semana (Sábado-Domingo): usar demanda_finde
+        if dia_semana >= 5:
+            demanda_dia = copy.deepcopy(dict_demanda_finde)
             dias_no_habiles_indices.append(i)
+        else:
+            demanda_dia = copy.deepcopy(dict_demanda_normal)
         
-        # 3. Aplicar Excepciones (Feriados, Picos)
+        # 2. Aplicar Excepciones (Feriados, Picos)
         excepciones_db = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter).select_related('turno')
         
         if excepciones_db.exists():
@@ -746,19 +695,10 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
         mensaje_validacion = "Optimización finalizada correctamente."
 
         if plantilla_demanda:
-<<<<<<< HEAD
             reglas = plantilla_demanda.reglas.all().select_related('turno')
             excepciones = plantilla_demanda.excepciones.filter(fecha__range=[fecha_inicio, fecha_fin]).select_related('turno')
             cache_nombres_turnos = {t.id: t.nombre for t in TipoTurno.objects.filter(especialidad=especialidad)}
 
-=======
-            # Traemos todas las reglas y excepciones para comparar
-            reglas = plantilla_demanda.reglas.all()
-            excepciones = plantilla_demanda.excepciones.filter(fecha__range=[fecha_inicio, fecha_fin])
-            
-            # Mapa rápido de reglas: {dia_semana_int: {turno_id: ReglaObj}}
-            # Como ahora una regla puede tener múltiples días, creamos un mapa diferente
->>>>>>> experiencia-usuario
             mapa_reglas = {}
             for r in reglas:
                 # Para cada día en la lista de días de la regla

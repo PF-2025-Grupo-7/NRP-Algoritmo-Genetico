@@ -167,35 +167,6 @@
                     return cookieValue;
                 }
 
-<<<<<<< HEAD
-        <div class="col-lg-4">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-warning bg-opacity-25 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0 text-dark">Excepciones</h5>
-                    <a href="{% url 'excepcion_create' plantilla.id %}" class="btn btn-sm btn-warning text-dark border-dark">
-                        <i class="bi bi-calendar-event"></i> Agregar
-                    </a>
-                </div>
-                <div class="card-body p-0">
-                    <ul class="list-group list-group-flush">
-                        {% for ex in excepciones %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <div class="fw-bold">
-                                    {{ ex.fecha|date:"d/m/Y" }}
-                                    
-                                    {# --- NUEVO INDICADOR --- #}
-                                    {% if ex.es_turno_dificil %}
-                                        <span class="badge rounded-pill bg-danger ms-1" title="Turno Difícil (Mayor peso en equidad)">
-                                            <i class="bi bi-fire"></i>
-                                        </span>
-                                    {% endif %}
-                                    {# ----------------------- #}
-                                </div>
-                                <div class="small">
-                                    <span class="badge bg-secondary">{{ ex.turno.abreviatura }}</span>
-                                    S:{{ ex.cantidad_senior }} / J:{{ ex.cantidad_junior }}
-=======
                 function agregarFilaRegla() {
                     const fila = document.getElementById('filaEdicion');
                     reglaModoEdicion = null;
@@ -269,7 +240,6 @@
                     
                     htmlEdicion += `
                                     </div>
->>>>>>> experiencia-usuario
                                 </div>
                             </div>
                         </td>
