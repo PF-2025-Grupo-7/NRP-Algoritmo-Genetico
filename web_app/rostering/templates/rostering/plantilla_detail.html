@@ -1,81 +1,173 @@
 {% extends 'base.html' %}
+{% csrf_token %}
+
+{% block title %}{{ plantilla.nombre }} - Plantillas de Demanda{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <div class="d-flex align-items-center gap-2">
-                <h2 class="mb-0"><i class="bi bi-sliders"></i> {{ plantilla.nombre }}</h2>
-                
-                <a href="{% url 'plantilla_update' plantilla.id %}" class="btn btn-link text-muted p-0 ms-2" title="Editar nombre/descripción">
-                    <i class="bi bi-pencil-square fs-5"></i>
-                </a>
-            </div>
-            
-            <span class="badge bg-secondary">{{ plantilla.get_especialidad_display }}</span>
-            <small class="text-muted ms-2">{{ plantilla.descripcion|default:"Sin descripción" }}</small>
+<div class="container py-2" style="max-width: 1400px;">
+    
+    <!-- Header al estilo Panel de Control -->
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Plantilla de Demanda - {{ plantilla.nombre }}</h1>
+            <p class="text-muted fs-5 mb-0">Configuración de reglas semanales y excepciones</p>
         </div>
-        <a href="{% url 'plantilla_list' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Volver
-        </a>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <button type="button" class="btn btn-primary px-4 shadow-sm me-2" onclick="agregarFilaRegla()">
+                <i class="bi bi-plus-lg me-2"></i>Nueva Regla
+            </button>
+            <a href="{% url 'plantilla_update' plantilla.id %}" class="btn btn-outline-primary px-4 shadow-sm">
+                <i class="bi bi-pencil-square me-1"></i> Editar
+            </a>
+        </div>
     </div>
 
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-light d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Reglas Semanales</h5>
-                    <a href="{% url 'regla_create' plantilla.id %}" class="btn btn-sm btn-primary">
-                        <i class="bi bi-plus-circle"></i> Agregar Regla
-                    </a>
-                </div>
-                
-                <div class="card-body p-0">
-                    <div class="alert alert-info m-3 small border-0">
-                        <i class="bi bi-info-circle-fill"></i> <strong>Lógica de Aplicación:</strong>
-                        <ul class="mb-0 ps-3">
-                            <li>Lo definido el <strong>Lunes</strong> se replica de Martes a Viernes (si están vacíos).</li>
-                            <li>Lo definido el <strong>Sábado</strong> se replica el Domingo (si está vacío).</li>
-                        </ul>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
+    <div class="row g-4">
+        <!-- Columna Principal: Reglas Semanales -->
+        <div class="col-12">
+            <div class="card shadow-sm border-0" style="overflow: visible;">
+                <div class="card-body p-0" style="overflow: visible;">
+                    <div class="table-responsive" style="overflow: visible;">
+                        <table class="table table-hover align-middle mb-0" id="tablasReglas">
+                            <thead class="bg-light text-muted">
                                 <tr>
-                                    <th>Día</th>
-                                    <th>Turno</th>
-                                    <th class="text-center">Seniors</th>
-                                    <th class="text-center">Juniors</th>
-                                    <th></th>
+                                    <th class="text-center col-group-info">Turno</th>
+                                    <th class="text-center col-group-info">Seniors</th>
+                                    <th class="text-center col-group-info">Juniors</th>
+                                    <th class="text-center col-group-dias col-group-dias-first">L</th>
+                                    <th class="text-center col-group-dias">M</th>
+                                    <th class="text-center col-group-dias">X</th>
+                                    <th class="text-center col-group-dias">J</th>
+                                    <th class="text-center col-group-dias">V</th>
+                                    <th class="text-center col-group-dias">S</th>
+                                    <th class="text-center col-group-dias">D</th>
+                                    <th class="text-center col-group-excepcion">Excepción</th>
+                                    <th class="text-center col-group-acciones">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="bodyReglas" class="small">
                                 {% for r in reglas %}
-                                <tr>
-                                    <td class="fw-bold">{{ r.get_dia_display }}</td>
-                                    <td>
-                                        <span class="badge bg-light text-dark border">{{ r.turno.abreviatura }}</span>
-                                        <small class="text-muted">{{ r.turno.nombre }}</small>
+                                <tr class="regla-row" data-regla-id="{{ r.pk }}" data-turno-id="{{ r.turno.pk }}">
+                                    <td class="text-center col-group-info">
+                                        {{ r.turno.nombre }}
                                     </td>
-                                    <td class="text-center fw-bold">{{ r.cantidad_senior }}</td>
-                                    <td class="text-center fw-bold">{{ r.cantidad_junior }}</td>
-                                    <td class="text-end pe-3">
-                                        <a href="{% url 'regla_delete' r.pk %}" class="text-danger" title="Eliminar Regla">
-                                            <i class="bi bi-x-circle-fill"></i>
-                                        </a>
+                                    <td class="text-center col-group-info"><span class="fw-bold cantidad-senior">{{ r.cantidad_senior }}</span></td>
+                                    <td class="text-center col-group-info"><span class="fw-bold cantidad-junior">{{ r.cantidad_junior }}</span></td>
+                                    <!-- Días de la semana con puntos -->
+                                    {% for dia_num in "0123456" %}
+                                    <td class="text-center dia-cell col-group-dias{% if forloop.first %} col-group-dias-first{% endif %}" data-dia="{{ dia_num }}">
+                                        {% if dia_num|add:"0" in r.dias %}
+                                        <span class="dia-punto dia-activo" aria-hidden="true"></span>
+                                        {% else %}
+                                        <span class="dia-punto dia-inactivo" aria-hidden="true"></span>
+                                        {% endif %}
+                                    </td>
+                                    {% endfor %}
+                                    <td class="text-center col-group-excepcion">
+                                        {% if r.es_excepcion %}
+                                        <span class="badge badge-status bg-success-subtle-custom">SÍ</span>
+                                        {% else %}
+                                        <span class="badge badge-status bg-danger-subtle-custom">NO</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center pe-2 col-group-acciones">
+                                        <div class="action-buttons">
+                                            <button class="btn btn-sm btn-action btn-action-edit" onclick="editarRegla({{ r.pk }})" title="Editar regla">
+                                                <i class="bi bi-pencil-square"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-action btn-action-delete" onclick="eliminarRegla({{ r.pk }})" title="Eliminar regla">
+                                                <i class="bi bi-trash-fill"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% empty %}
-                                <tr><td colspan="5" class="text-center py-4 text-muted">Sin reglas base definidas.</td></tr>
+                                <tr>
+                                    <td colspan="11" class="text-center empty-state">
+                                        <i class="bi bi-inbox"></i>
+                                        <h6>Sin reglas configuradas</h6>
+                                        <p>Comienza agregando una nueva regla de demanda.</p>
+                                    </td>
+                                </tr>
                                 {% endfor %}
+                            </tbody>
+                            <tbody id="nuevaRegla">
+                                <!-- Fila de edición inline (inicialmente oculta) -->
+                                <tr id="filaEdicion" style="display: none; background-color: #f8f9fa;">
+                                    <td class="text-center col-group-info">
+                                        <div class="custom-select-wrapper">
+                                            <select id="selectTurno" class="form-select d-none">
+                                                <option value="">Seleccionar Turno</option>
+                                                {% for turno in turnos %}
+                                                <option value="{{ turno.pk }}">{{ turno.nombre }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <div class="custom-dropdown">
+                                                <div class="custom-dropdown-header" tabindex="0" id="selectTurno_header" data-placeholder="Seleccionar Turno">Seleccionar Turno</div>
+                                                <div class="custom-dropdown-menu" id="selectTurno_menu">
+                                                    <div class="custom-option option-all" data-value="">Seleccionar Turno</div>
+                                                    {% for turno in turnos %}
+                                                    <div class="custom-option" data-value="{{ turno.pk }}">{{ turno.nombre }}</div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-center col-group-info">
+                                        <input type="number" id="inputSenior" class="form-control form-control-sm custom-input-number" min="0" max="999" value="0" style="width: 70px; margin: 0 auto;">
+                                    </td>
+                                    <td class="text-center col-group-info">
+                                        <input type="number" id="inputJunior" class="form-control form-control-sm custom-input-number" min="0" max="999" value="0" style="width: 70px; margin: 0 auto;">
+                                    </td>
+                                    <!-- Días con checkboxes -->
+                                    {% for dia_num in "0123456" %}
+                                    <td class="text-center col-group-dias{% if forloop.first %} col-group-dias-first{% endif %}">
+                                        <input type="checkbox" class="form-check-input dia-checkbox custom-checkbox" value="{{ dia_num }}" style="cursor: pointer; width: 18px; height: 18px;">
+                                    </td>
+                                    {% endfor %}
+                                    <td class="text-center col-group-excepcion">
+                                        <div class="form-check form-switch" style="display: flex; justify-content: center;">
+                                            <input class="form-check-input custom-switch" type="checkbox" id="checkExcepcion" style="cursor: pointer;">
+                                        </div>
+                                    </td>
+                                    <td class="text-center pe-2 col-group-acciones">
+                                        <div class="action-buttons-inline" role="group">
+                                            <button type="button" class="btn btn-primary" onclick="guardarRegla()" title="Guardar">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary" onclick="cancelarEdicion()" title="Cancelar">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-            </div>
-        </div>
+            </div>            <script>
+                // Variables globales
+                const plantillaId = {{ plantilla.pk }};
+                let reglaModoEdicion = null;
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || getCookie('csrftoken');
+                
+                // Función para obtener CSRF token de las cookies
+                function getCookie(name) {
+                    let cookieValue = null;
+                    if (document.cookie && document.cookie !== '') {
+                        const cookies = document.cookie.split(';');
+                        for (let i = 0; i < cookies.length; i++) {
+                            const cookie = cookies[i].trim();
+                            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                                break;
+                            }
+                        }
+                    }
+                    return cookieValue;
+                }
 
+<<<<<<< HEAD
         <div class="col-lg-4">
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-warning bg-opacity-25 d-flex justify-content-between align-items-center">
@@ -103,22 +195,935 @@
                                 <div class="small">
                                     <span class="badge bg-secondary">{{ ex.turno.abreviatura }}</span>
                                     S:{{ ex.cantidad_senior }} / J:{{ ex.cantidad_junior }}
+=======
+                function agregarFilaRegla() {
+                    const fila = document.getElementById('filaEdicion');
+                    reglaModoEdicion = null;
+                    limpiarFormulario();
+                    fila.style.display = 'table-row';
+                    document.getElementById('selectTurno').focus();
+                }
+
+                function editarRegla(reglaPk) {
+                    const fila = document.querySelector(`tr[data-regla-id="${reglaPk}"]`);
+                    if (!fila) return;
+
+                    // Guardar HTML original si no está guardado
+                    if (!fila.dataset.originalHtml) {
+                        fila.dataset.originalHtml = fila.innerHTML;
+                    }
+
+                    reglaModoEdicion = reglaPk;
+
+                    // Extraer datos de la fila
+                    const turnoId = fila.dataset.turnoId;
+                    const seniors = parseInt(fila.querySelector('.cantidad-senior').textContent);
+                    const juniors = parseInt(fila.querySelector('.cantidad-junior').textContent);
+                    const esExcepcion = fila.textContent.includes('SÍ');
+                    
+                    // Obtener los días seleccionados
+                    const diasSeleccionados = [];
+                    fila.querySelectorAll('.dia-punto').forEach((punto, idx) => {
+                        if (punto.classList.contains('dia-activo')) {
+                            diasSeleccionados.push(idx);
+                        }
+                    });
+
+                    // Obtener lista de turnos del DOM (de la fila de nueva regla)
+                    const selectNuevoRegla = document.getElementById('selectTurno');
+                    const turnos = [];
+                    if (selectNuevoRegla) {
+                        for (let i = 1; i < selectNuevoRegla.options.length; i++) {
+                            turnos.push({
+                                pk: selectNuevoRegla.options[i].value,
+                                nombre: selectNuevoRegla.options[i].textContent
+                            });
+                        }
+                    }
+
+                    // Generar HTML de edición
+                    let htmlEdicion = `
+                        <td class="text-center col-group-info">
+                            <div class="custom-select-wrapper">
+                                <select class="form-select d-none edit-turno-select">
+                                    <option value="">Seleccionar Turno</option>`;
+                    
+                    // Agregar opciones de turnos
+                    turnos.forEach(turno => {
+                        const selected = turnoId === turno.pk ? 'selected' : '';
+                        htmlEdicion += `<option value="${turno.pk}" ${selected}>${turno.nombre}</option>`;
+                    });
+                    
+                    htmlEdicion += `
+                                </select>
+                                <div class="custom-dropdown">
+                                    <div class="custom-dropdown-header edit-turno-header" tabindex="0" data-placeholder="Seleccionar Turno">Seleccionar Turno</div>
+                                    <div class="custom-dropdown-menu edit-turno-menu">
+                                        <div class="custom-option option-all" data-value="">Seleccionar Turno</div>`;
+                    
+                    // Agregar opciones al dropdown customizado
+                    turnos.forEach(turno => {
+                        const isSelected = turnoId === turno.pk ? 'data-selected="true"' : '';
+                        htmlEdicion += `<div class="custom-option" data-value="${turno.pk}" ${isSelected}>${turno.nombre}</div>`;
+                    });
+                    
+                    htmlEdicion += `
+                                    </div>
+>>>>>>> experiencia-usuario
                                 </div>
-                                <div class="text-muted small fst-italic">{{ ex.motivo }}</div>
                             </div>
-                            <a href="{% url 'excepcion_delete' ex.pk %}" class="text-danger">
-                                <i class="bi bi-trash"></i>
-                            </a>
-                        </li>
-                        {% empty %}
-                        <li class="list-group-item text-center text-muted py-4">
-                            No hay excepciones (feriados, etc.)
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
+                        </td>
+                        <td class="text-center col-group-info">
+                            <input type="number" class="form-control form-control-sm custom-input-number edit-senior" min="0" max="999" value="${seniors}" style="width: 70px; margin: 0 auto;">
+                        </td>
+                        <td class="text-center col-group-info">
+                            <input type="number" class="form-control form-control-sm custom-input-number edit-junior" min="0" max="999" value="${juniors}" style="width: 70px; margin: 0 auto;">
+                        </td>`;
+                    
+                    // Añadir checkboxes de días
+                    for (let i = 0; i < 7; i++) {
+                        const checked = diasSeleccionados.includes(i) ? 'checked' : '';
+                        const firstClass = i === 0 ? ' col-group-dias-first' : '';
+                        htmlEdicion += `
+                        <td class="text-center dia-cell col-group-dias${firstClass}">
+                            <input type="checkbox" class="form-check-input custom-checkbox edit-dia-checkbox" value="${i}" ${checked} style="cursor: pointer; width: 18px; height: 18px;">
+                        </td>`;
+                    }
+                    
+                    htmlEdicion += `
+                        <td class="text-center col-group-excepcion">
+                            <div class="form-check form-switch" style="display: flex; justify-content: center;">
+                                <input class="form-check-input custom-switch edit-excepcion" type="checkbox" ${esExcepcion ? 'checked' : ''} style="cursor: pointer;">
+                            </div>
+                        </td>
+                        <td class="text-center pe-2 col-group-acciones">
+                            <div class="action-buttons-inline" role="group">
+                                <button type="button" class="btn btn-primary" onclick="guardarReglaInline(${reglaPk})" title="Guardar">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="cancelarEdicionInline(${reglaPk})" title="Cancelar">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                        </td>`;
+                    
+                    fila.innerHTML = htmlEdicion;
+                    fila.style.backgroundColor = '#f8f9fa';
+                    fila.classList.add('editing-mode');
+                    
+                    // Inicializar el custom dropdown para editar
+                    setTimeout(() => {
+                        const wrapper = fila.querySelector('.custom-select-wrapper');
+                        if (wrapper) {
+                            setupCustomDropdownEdit(wrapper, turnoId);
+                        }
+                    }, 0);
+                }
+
+                function guardarReglaInline(reglaPk) {
+                    const fila = document.querySelector(`tr[data-regla-id="${reglaPk}"]`);
+                    if (!fila) return;
+
+                    const turnoId = fila.querySelector('.edit-turno-select').value;
+                    const seniors = parseInt(fila.querySelector('.edit-senior').value) || 0;
+                    const juniors = parseInt(fila.querySelector('.edit-junior').value) || 0;
+                    const esExcepcion = fila.querySelector('.edit-excepcion').checked;
+
+                    const diasSeleccionados = [];
+                    fila.querySelectorAll('.edit-dia-checkbox:checked').forEach(checkbox => {
+                        diasSeleccionados.push(parseInt(checkbox.value));
+                    });
+
+                    if (!turnoId) {
+                        alert('Selecciona un turno');
+                        return;
+                    }
+
+                    if (diasSeleccionados.length === 0) {
+                        alert('Selecciona al menos un día');
+                        return;
+                    }
+
+                    // Detectar conflictos
+                    const nombresDesDias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+                    const conflictos = [];
+                    
+                    document.querySelectorAll('.regla-row').forEach(row => {
+                        const rowTurnoId = row.dataset.turnoId;
+                        const rowId = row.dataset.reglaId;
+                        
+                        if (rowTurnoId === turnoId && rowId !== String(reglaPk)) {
+                            const rowDias = [];
+                            row.querySelectorAll('.dia-punto').forEach((punto, idx) => {
+                                if (punto.classList.contains('dia-activo')) {
+                                    rowDias.push(idx);
+                                }
+                            });
+                            
+                            const diasSuperpuestos = diasSeleccionados.filter(d => rowDias.includes(d));
+                            if (diasSuperpuestos.length > 0) {
+                                const diasNombres = diasSuperpuestos.map(d => nombresDesDias[d]).join(', ');
+                                conflictos.push(`${diasNombres}`);
+                            }
+                        }
+                    });
+
+                    if (conflictos.length > 0) {
+                        const diasConflicto = conflictos.join(' y ');
+                        const mensaje = `⚠️ Existe otra regla para este turno en ${diasConflicto}.\n\nLa nueva regla se aplicará y la anterior será actualizada.\n\n¿Deseas continuar?`;
+                        
+                        if (!confirm(mensaje)) {
+                            return;
+                        }
+                    }
+
+                    const formData = new FormData();
+                    formData.append('turno_id', turnoId);
+                    formData.append('cantidad_senior', seniors);
+                    formData.append('cantidad_junior', juniors);
+                    formData.append('es_excepcion', esExcepcion ? '1' : '0');
+                    diasSeleccionados.forEach(dia => {
+                        formData.append('dias[]', dia);
+                    });
+
+                    fetch(`/api/regla/${reglaPk}/actualizar/`, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Error: ' + (data.error || 'No se pudo guardar'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error al guardar');
+                    });
+                }
+
+                function cancelarEdicionInline(reglaPk) {
+                    const fila = document.querySelector(`tr[data-regla-id="${reglaPk}"]`);
+                    if (!fila || !fila.dataset.originalHtml) return;
+
+                    fila.innerHTML = fila.dataset.originalHtml;
+                    fila.style.backgroundColor = '';
+                    fila.classList.remove('editing-mode');
+                    reglaModoEdicion = null;
+                }
+
+                function guardarRegla() {
+                    const turnoId = document.getElementById('selectTurno').value;
+                    const seniors = parseInt(document.getElementById('inputSenior').value) || 0;
+                    const juniors = parseInt(document.getElementById('inputJunior').value) || 0;
+
+                    const diasSeleccionados = [];
+                    document.querySelectorAll('.dia-checkbox:checked').forEach(checkbox => {
+                        diasSeleccionados.push(parseInt(checkbox.value));
+                    });
+
+                    if (!turnoId) {
+                        alert('Selecciona un turno');
+                        return;
+                    }
+
+                    if (diasSeleccionados.length === 0) {
+                        alert('Selecciona al menos un día');
+                        return;
+                    }
+
+                    // Detectar conflictos con otras reglas del mismo turno
+                    const nombresDesDias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+                    const conflictos = [];
+                    
+                    document.querySelectorAll('.regla-row').forEach(row => {
+                        const rowTurnoId = row.dataset.turnoId;
+                        const rowId = row.dataset.reglaId;
+                        
+                        // Solo verificar si es el mismo turno y no es la regla siendo editada
+                        if (rowTurnoId === turnoId && rowId !== String(reglaModoEdicion)) {
+                            const rowDias = [];
+                            row.querySelectorAll('.dia-punto').forEach((punto, idx) => {
+                                if (punto.classList.contains('dia-activo')) {
+                                    rowDias.push(idx);
+                                }
+                            });
+                            
+                            // Buscar días que se superponen
+                            const diasSuperpuestos = diasSeleccionados.filter(d => rowDias.includes(d));
+                            if (diasSuperpuestos.length > 0) {
+                                const diasNombres = diasSuperpuestos.map(d => nombresDesDias[d]).join(', ');
+                                conflictos.push(`${diasNombres}`);
+                            }
+                        }
+                    });
+
+                    // Si hay conflictos, mostrar confirmación
+                    if (conflictos.length > 0) {
+                        const diasConflicto = conflictos.join(' y ');
+                        const mensaje = `⚠️ Existe otra regla para este turno en ${diasConflicto}.\n\nLa nueva regla se aplicará y la anterior será actualizada.\n\n¿Deseas continuar?`;
+                        
+                        if (!confirm(mensaje)) {
+                            return; // Usuario cancela
+                        }
+                    }
+
+                    // Preparar FormData
+                    const formData = new FormData();
+                    formData.append('turno_id', turnoId);
+                    formData.append('cantidad_senior', seniors);
+                    formData.append('cantidad_junior', juniors);
+                    formData.append('es_excepcion', document.getElementById('checkExcepcion').checked ? '1' : '0');
+                    diasSeleccionados.forEach(dia => {
+                        formData.append('dias[]', dia);
+                    });
+
+                    // URL según si es creación o edición
+                    const url = reglaModoEdicion
+                        ? `/api/regla/${reglaModoEdicion}/actualizar/`
+                        : `/api/plantillas/${plantillaId}/regla/crear/`;
+
+                    fetch(url, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload(); // Recargar para ver los cambios
+                        } else {
+                            alert('Error: ' + (data.error || 'No se pudo guardar'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error al guardar');
+                    });
+                }
+
+                function eliminarRegla(reglaPk) {
+                    if (!confirm('¿Eliminar esta regla?')) return;
+
+                    fetch(`/api/regla/${reglaPk}/eliminar/`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Error: ' + (data.error || 'No se pudo eliminar'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error al eliminar');
+                    });
+                }
+
+                function cancelarEdicion() {
+                    reglaModoEdicion = null;
+                    document.getElementById('filaEdicion').style.display = 'none';
+                    limpiarFormulario();
+                }
+
+                function limpiarFormulario() {
+                    const selectTurno = document.getElementById('selectTurno');
+                    selectTurno.value = '';
+                    
+                    // Resetear el custom dropdown header
+                    const header = document.getElementById('selectTurno_header');
+                    if (header) {
+                        header.textContent = 'Seleccionar Turno';
+                    }
+                    
+                    document.getElementById('inputSenior').value = '0';
+                    document.getElementById('inputJunior').value = '0';
+                    document.getElementById('checkExcepcion').checked = false;
+                    document.querySelectorAll('.dia-checkbox').forEach(checkbox => {
+                        checkbox.checked = false;
+                    });
+                }
+
+                // Configurar custom dropdown
+                function setupCustomDropdown(wrapper){
+                    const nativeSelect = wrapper.querySelector('.form-select');
+                    const header = wrapper.querySelector('.custom-dropdown-header');
+                    const dropdown = wrapper.querySelector('.custom-dropdown');
+                    const menu = wrapper.querySelector('.custom-dropdown-menu');
+
+                    if (!header || !dropdown || !menu || !nativeSelect) return;
+
+                    const placeholderText = header.dataset.placeholder || nativeSelect.options[0]?.textContent || header.textContent;
+
+                    // Inicializar el header con el texto de la opción seleccionada actualmente
+                    const selectedOption = nativeSelect.options[nativeSelect.selectedIndex];
+                    if (selectedOption && selectedOption.value !== '') {
+                        header.textContent = selectedOption.textContent;
+                    } else {
+                        header.textContent = placeholderText;
+                    }
+
+                    // Abrir/cerrar
+                    header.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropdown.classList.toggle('open');
+                    };
+
+                    // Selección
+                    menu.querySelectorAll('.custom-option').forEach((option) => {
+                        option.onclick = (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            const value = option.getAttribute('data-value') ?? '';
+                            const text = option.textContent;
+                            
+                            // Remover atributo data-selected de todas las opciones
+                            menu.querySelectorAll('.custom-option').forEach(opt => {
+                                opt.removeAttribute('data-selected');
+                            });
+                            
+                            // Agregar atributo data-selected a la opción seleccionada
+                            if (value !== '') {
+                                option.setAttribute('data-selected', 'true');
+                            }
+                            
+                            // Establecer el valor en el select nativo
+                            nativeSelect.value = value;
+                            const matchingIndex = Array.from(nativeSelect.options).findIndex(opt => opt.value === value);
+                            if (matchingIndex >= 0) {
+                                nativeSelect.selectedIndex = matchingIndex;
+                            }
+                            
+                            // Actualizar el header
+                            header.textContent = value === '' ? placeholderText : text;
+                            
+                            // Cerrar el dropdown
+                            dropdown.classList.remove('open');
+
+                            // Notificar cambio
+                            nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                        };
+                    });
+
+                    // Cerrar al click fuera
+                    document.addEventListener('click', (e) => {
+                        if (!wrapper.contains(e.target)) {
+                            dropdown.classList.remove('open');
+                        }
+                    });
+                }
+
+                // Configurar custom dropdown para edición inline
+                function setupCustomDropdownEdit(wrapper, turnoId){
+                    const nativeSelect = wrapper.querySelector('.form-select');
+                    const header = wrapper.querySelector('.custom-dropdown-header');
+                    const dropdown = wrapper.querySelector('.custom-dropdown');
+                    const menu = wrapper.querySelector('.custom-dropdown-menu');
+
+                    if (!header || !dropdown || !menu || !nativeSelect) return;
+
+                    const placeholderText = header.dataset.placeholder || 'Seleccionar Turno';
+
+                    // Inicializar el header con el turno seleccionado
+                    if (turnoId) {
+                        const selectedOption = Array.from(nativeSelect.options).find(opt => opt.value === turnoId);
+                        if (selectedOption) {
+                            header.textContent = selectedOption.textContent;
+                            nativeSelect.value = turnoId;
+                        }
+                    } else {
+                        header.textContent = placeholderText;
+                    }
+
+                    // Abrir/cerrar
+                    header.onclick = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropdown.classList.toggle('open');
+                    };
+
+                    // Selección
+                    menu.querySelectorAll('.custom-option').forEach((option) => {
+                        option.onclick = (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            const value = option.getAttribute('data-value') ?? '';
+                            const text = option.textContent;
+                            
+                            // Remover atributo data-selected de todas las opciones
+                            menu.querySelectorAll('.custom-option').forEach(opt => {
+                                opt.removeAttribute('data-selected');
+                            });
+                            
+                            // Agregar atributo data-selected a la opción seleccionada
+                            if (value !== '') {
+                                option.setAttribute('data-selected', 'true');
+                            }
+                            
+                            // Establecer el valor en el select nativo
+                            nativeSelect.value = value;
+                            const matchingIndex = Array.from(nativeSelect.options).findIndex(opt => opt.value === value);
+                            if (matchingIndex >= 0) {
+                                nativeSelect.selectedIndex = matchingIndex;
+                            }
+                            
+                            // Actualizar el header
+                            header.textContent = value === '' ? placeholderText : text;
+                            
+                            // Cerrar el dropdown
+                            dropdown.classList.remove('open');
+
+                            // Notificar cambio
+                            nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                        };
+                    });
+
+                    // Cerrar al click fuera
+                    document.addEventListener('click', (e) => {
+                        if (!wrapper.contains(e.target)) {
+                            dropdown.classList.remove('open');
+                        }
+                    });
+                }
+
+                // Inicializar dropdown cuando se muestre la fila
+                const originalAgregarFilaRegla = agregarFilaRegla;
+                agregarFilaRegla = function() {
+                    originalAgregarFilaRegla();
+                    setTimeout(() => {
+                        const wrapper = document.querySelector('#filaEdicion .custom-select-wrapper');
+                        if (wrapper) {
+                            setupCustomDropdown(wrapper);
+                        }
+                    }, 0);
+                };
+            </script>
         </div>
     </div>
 </div>
+
+<style>
+    /* Background y body */
+    body { background-color: #edf1f7e2 !important; }
+    
+    /* Cards consistentes */
+    .card {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important;
+        border-radius: 12px;
+    }
+    
+    .card-header {
+        padding: 0.75rem 1.25rem;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Tabla */
+    #tablasReglas tbody tr {
+        border-bottom: 1px solid #e9ecef;
+        transition: background-color 0.15s ease;
+    }
+    
+    #tablasReglas tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    /* Dots de días: tamaño, forma y espaciado uniformes */
+    #tablasReglas .dia-punto {
+        width: 12px;
+        height: 12px;
+        display: inline-block;
+        border-radius: 50%;
+        vertical-align: middle;
+        line-height: 12px;
+    }
+
+    #tablasReglas .dia-activo {
+        background-color: #0d6efd;
+    }
+
+    #tablasReglas .dia-inactivo {
+        background-color: transparent;
+        border: 2px solid #ced4da;
+        opacity: 0.8;
+    }
+    
+    #tablasReglas .badge {
+        font-weight: 600;
+        padding: 0.4rem 0.7rem;
+    }
+    
+    /* Botones */
+    .btn-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        font-weight: 600;
+    }
+    
+    .btn-primary:hover {
+        background-color: #0b5ed7;
+        border-color: #0b5ed7;
+    }
+    
+    /* Inputs en fila de edición */
+    #filaEdicion .form-control {
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+        font-size: 0.9rem;
+    }
+    
+    #filaEdicion .form-control:focus {
+        border-color: #dee2e6;
+        box-shadow: none;
+        outline: none;
+    }
+
+    /* Custom dropdown styles */
+    .custom-select-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .form-select.d-none {
+        display: none !important;
+    }
+
+    .custom-dropdown {
+        position: relative;
+        pointer-events: auto;
+    }
+
+    .custom-dropdown-header {
+        height: 38px;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        background-color: #ffffff;
+        padding: 8px 12px;
+        font-size: 0.875rem;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 14px;
+        padding-right: 32px;
+        pointer-events: auto;
+        min-width: 200px;
+        max-width: 200px;
+        justify-content: flex-start;
+    }
+
+    .custom-dropdown-header:hover {
+        background-color: #f5f7fb;
+        border-color: #dee2e6;
+    }
+
+    .custom-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #ffffff;
+        border: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        border-radius: 8px;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        pointer-events: none;
+        z-index: 9999;
+        margin-top: 0;
+        padding: 0;
+        min-width: 200px;
+        max-width: 200px;
+    }
+
+    .custom-dropdown.open .custom-dropdown-menu {
+        max-height: 9999px;
+        pointer-events: auto;
+        opacity: 1;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0;
+        overflow-y: visible;
+    }
+
+    .custom-option {
+        padding: 0.5rem 1rem;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.875rem;
+        border-bottom: none;
+        font-weight: 500;
+    }
+
+    .custom-option[data-selected="true"] {
+        color: #0d6efd;
+        font-weight: 600;
+    }
+
+    .custom-option:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.2rem;
+    }
+
+    .custom-option.option-all {
+        font-weight: 500;
+        color: #6c757d;
+        cursor: pointer;
+    }
+
+    .custom-option.option-all:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.2rem;
+    }
+
+    .custom-input-number:focus,
+    .custom-checkbox:focus,
+    .custom-switch:focus {
+        border-color: #dee2e6;
+        box-shadow: none;
+        outline: none;
+    }
+
+    /* Estilos para botones de acciones inline */
+    .action-buttons-inline {
+        display: flex;
+        gap: 0.35rem;
+        justify-content: center;
+    }
+
+    /* Botones en modo edición (aplica a #filaEdicion, #nuevaRegla y filas con clase editing-mode) */
+    tr.editing-mode .btn-primary,
+    #filaEdicion .btn-primary,
+    #nuevaRegla .btn-primary {
+        background-color: #0d6efd;
+        border: none;
+        border-radius: 6px;
+        padding: 0;
+        transition: all 0.2s ease;
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+    }
+
+    tr.editing-mode .btn-primary:hover,
+    #filaEdicion .btn-primary:hover,
+    #nuevaRegla .btn-primary:hover {
+        background-color: #0b5ed7;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+    }
+
+    tr.editing-mode .btn-outline-secondary,
+    #filaEdicion .btn-outline-secondary,
+    #nuevaRegla .btn-outline-secondary {
+        border: 1px solid #dee2e6;
+        background-color: #ffffff;
+        color: #6c757d;
+        border-radius: 6px;
+        padding: 0;
+        transition: all 0.2s ease;
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+    }
+
+    tr.editing-mode .btn-outline-secondary:hover,
+    #filaEdicion .btn-outline-secondary:hover,
+    #nuevaRegla .btn-outline-secondary:hover {
+        background-color: #f8f9fa;
+        color: #495057;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    /* ===== ESTILOS PARA ARMONÍA CON CRONOGRAMA LIST ===== */
+    
+    /* Tabla */
+    .table thead th { 
+        padding: 1rem 0.75rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    /* Columnas agrupadas (Turno, Seniors, Juniors) con menos espaciado */
+    .col-group-info {
+        padding-left: 0.25rem !important;
+        padding-right: 0.25rem !important;
+    }
+
+    /* Columnas de días agrupadas con menos espaciado */
+    .col-group-dias {
+        padding-left: 0.25rem !important;
+        padding-right: 0.25rem !important;
+    }
+
+    /* Primera columna de días: separa el bloque y ajusta espacio con M */
+    .col-group-dias-first {
+        padding-left: 0.3rem !important;   /* separa bloque desde info */
+        padding-right: 0.15rem !important;  /* ajuste más fino L–M */
+    }
+
+    /* Columna de excepción */
+    .col-group-excepcion {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }
+
+    /* Columna de acciones con separación */
+    .col-group-acciones {
+        padding-left: 2.5rem !important;
+    }
+
+    .table tbody td {
+        color: #6c757d;
+        padding: 1rem 0.75rem;
+        vertical-align: middle;
+    }
+
+    /* Filas con efecto hover */
+    .regla-row {
+        transition: all 0.2s ease;
+    }
+
+    .regla-row:hover {
+        background-color: rgba(13, 110, 253, 0.02);
+    }
+
+    /* Badges de estado */
+    .badge-status {
+        display: inline-block;
+        width: 50px;
+        padding: 0.4em 0;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-radius: 6px;
+        text-align: center;
+        line-height: 1.2;
+    }
+
+    .bg-success-subtle-custom { 
+        background-color: #d1e7dd !important; 
+        color: #678d7b !important; 
+    }
+
+    .bg-danger-subtle-custom { 
+        background-color: #f8d7da !important; 
+        color: #915c61 !important; 
+    }
+
+    /* Dots de días seleccionados: usar azul en lugar de verde */
+    .dia-punto.bg-success {
+        background-color: #0d6efd !important;
+    }
+
+    /* Botones de acción */
+    .action-buttons {
+        display: inline-flex;
+        gap: 0.5rem;
+    }
+
+    .btn-action {
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        border: 1px solid #dee2e6;
+        background-color: white;
+        color: #6c757d;
+    }
+
+    .btn-action i {
+        font-size: 1.1rem;
+    }
+
+    .btn-action:hover {
+        transform: translateY(-2px);
+    }
+
+    .btn-action-edit {
+        border-color: rgba(108, 117, 125, 0.2);
+    }
+
+    .btn-action-edit:hover {
+        background-color: rgba(108, 117, 125, 0.1);
+        border-color: #6c757d;
+        color: #6c757d;
+        box-shadow: 0 4px 8px rgba(108, 117, 125, 0.2);
+    }
+
+    .btn-action-delete {
+        color: #dc3545;
+        border-color: rgba(220, 53, 69, 0.2);
+    }
+
+    .btn-action-delete:hover {
+        background-color: rgba(220, 53, 69, 0.1);
+        border-color: #dc3545;
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
+    }
+
+    /* Empty state */
+    .empty-state {
+        padding: 4rem 2rem !important;
+        text-align: center;
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        color: #dee2e6;
+        margin-bottom: 1rem;
+    }
+
+    .empty-state h6 {
+        color: #6c757d;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        font-size: 1.1rem;
+    }
+
+    .empty-state p {
+        color: #adb5bd;
+        margin: 0;
+        font-size: 0.9rem;
+    }
+    
+    /* Responsivo */
+    @media (max-width: 991px) {
+        .col-lg-9, .col-lg-3 {
+            margin-bottom: 2rem;
+        }
+    }
+</style>
 {% endblock %}

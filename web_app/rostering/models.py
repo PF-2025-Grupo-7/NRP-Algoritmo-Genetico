@@ -228,14 +228,15 @@ class DiaSemana(models.IntegerChoices):
 
 class ReglaDemandaSemanal(models.Model):
     plantilla = models.ForeignKey(PlantillaDemanda, on_delete=models.CASCADE, related_name='reglas')
-    dia = models.IntegerField(choices=DiaSemana.choices)
+    dias = models.JSONField(default=list, verbose_name="Días aplicables", 
+                           help_text="Lista de días (0=Lunes, 1=Martes, ..., 6=Domingo)")
     turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
     
     cantidad_senior = models.IntegerField(default=1, verbose_name="Min. Senior", validators=[MinValueValidator(0)])
     cantidad_junior = models.IntegerField(default=2, verbose_name="Min. Junior", validators=[MinValueValidator(0)])
+    es_excepcion = models.BooleanField(default=False, verbose_name="Es una excepción")
     
     class Meta:
-        unique_together = ('plantilla', 'dia', 'turno')
         verbose_name = "Regla de Demanda Semanal"
         verbose_name_plural = "Reglas de Demanda Semanal"
 
@@ -243,13 +244,29 @@ class ReglaDemandaSemanal(models.Model):
         super().clean()
         if self.plantilla_id and self.turno_id:
             validar_consistencia_especialidad(self.plantilla, self.turno, 'turno')
+        
+        # Validar que dias sea una lista
+        if not isinstance(self.dias, list):
+            raise ValidationError({'dias': 'El campo días debe ser una lista.'})
+        
+        # Validar que los días estén en el rango correcto
+        if any(d < 0 or d > 6 for d in self.dias):
+            raise ValidationError({'dias': 'Los días deben estar entre 0 (Lunes) y 6 (Domingo).'})
 
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+    
+    def get_dias_display(self):
+        """Retorna los nombres de los días seleccionados."""
+        nombres = []
+        for dia in sorted(self.dias):
+            nombres.append(DiaSemana(dia).label)
+        return ", ".join(nombres) if nombres else "Ningún día"
 
     def __str__(self):
-        return f"{self.get_dia_display()} {self.turno.abreviatura}: S={self.cantidad_senior}/J={self.cantidad_junior}"
+        dias_str = self.get_dias_display()
+        return f"{self.turno.abreviatura} [{dias_str}]: S={self.cantidad_senior}/J={self.cantidad_junior}"
 
 class ExcepcionDemanda(models.Model):
     """Permite sobreescribir la regla semanal para una fecha específica (Ej: Navidad)."""

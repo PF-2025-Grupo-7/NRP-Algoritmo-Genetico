@@ -1,168 +1,199 @@
 {% extends 'base.html' %}
 
+{% block title %}Planificaciones - Hospital Planner{% endblock %}
+
 {% block content %}
-<div class="container-fluid mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>Planificaciones</h2>
-        <a href="{% url 'vista_generador' %}" class="btn btn-primary">
-            + Nueva Planificación
-        </a>
+<div class="container py-2" style="max-width: 1400px;">
+    
+    <!-- Header al estilo Panel de Control -->
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Planificaciones</h1>
+            <p class="text-muted fs-5 mb-0">Historial y gestión de cronogramas generados</p>
+        </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <a href="{% url 'vista_generador' %}" class="btn btn-primary px-4 shadow-sm fw-bold">
+                <i class="bi bi-plus-lg me-2"></i>Nueva Planificación
+            </a>
+        </div>
     </div>
 
-    <div class="card shadow-sm border-0">
-        <div class="card-header bg-light">
-            <form method="get" class="row g-2 align-items-center">
+    <!-- Card principal con filtros y tabla -->
+    <div class="card shadow-sm border-0 bg-white">
+        <!-- Filtros en el header (custom selects estilo generador) -->
+        <div class="card-header bg-white border-bottom py-3">
+            <form method="get" class="row g-3 align-items-center filters-row">
                 <div class="col-auto">
-                    <span class="fw-bold text-muted small text-uppercase">Filtrar:</span>
+                    <div class="custom-select-wrapper select-wide">
+                        <select class="form-select d-none" id="f_especialidad" name="especialidad">
+                            <option value="">Todas las Especialidades</option>
+                            {% for value,label in filter_form.especialidad.field.choices %}
+                                {% if value != '' %}
+                                <option value="{{ value }}" {% if filter_form.data.especialidad == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <div class="custom-dropdown">
+                            <div class="custom-dropdown-header" tabindex="0" id="f_especialidad_header" data-placeholder="Todas las Especialidades">Todas las Especialidades</div>
+                            <div class="custom-dropdown-menu" id="f_especialidad_menu">
+                                <div class="custom-option option-all" data-value="">Todas las Especialidades</div>
+                                {% for value,label in filter_form.especialidad.field.choices %}
+                                    {% if value != '' %}
+                                    <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-auto">
+                    <div class="custom-select-wrapper">
+                        <select class="form-select d-none" id="f_estado" name="estado">
+                            <option value="">Todos los Estados</option>
+                            {% for value,label in filter_form.estado.field.choices %}
+                                {% if value != '' %}
+                                <option value="{{ value }}" {% if filter_form.data.estado == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <div class="custom-dropdown">
+                            <div class="custom-dropdown-header" tabindex="0" id="f_estado_header" data-placeholder="Todos los Estados">Todos los Estados</div>
+                            <div class="custom-dropdown-menu" id="f_estado_menu">
+                                <div class="custom-option option-all" data-value="">Todos los Estados</div>
+                                {% for value,label in filter_form.estado.field.choices %}
+                                    {% if value != '' %}
+                                    <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-auto">
+                    <div class="date-input-wrapper">
+                        <input type="date" name="fecha_desde" value="{{ filter_form.data.fecha_desde }}" class="form-control form-control-sm date-input" aria-label="Fecha desde" data-placeholder="Fecha inicio">
+                    </div>
                 </div>
                 
                 <div class="col-auto">
-                    {{ filter_form.especialidad }}
-                </div>
-
-                <div class="col-auto">
-                    {{ filter_form.estado }}
-                </div>
-
-                <div class="col-auto">
-                    <div class="input-group">
-                        <span class="input-group-text bg-white border-end-0 text-muted small">Desde</span>
-                        {{ filter_form.fecha_desde }}
-                    </div>
-                </div>
-                <div class="col-auto">
-                    <div class="input-group">
-                        <span class="input-group-text bg-white border-end-0 text-muted small">Hasta</span>
-                        {{ filter_form.fecha_hasta }}
+                    <div class="date-input-wrapper">
+                        <input type="date" name="fecha_hasta" value="{{ filter_form.data.fecha_hasta }}" class="form-control form-control-sm date-input" aria-label="Fecha hasta" data-placeholder="Fecha fin">
                     </div>
                 </div>
 
-                <div class="col-auto">
-                    <button type="submit" class="btn btn-dark btn-sm">Buscar</button>
-                    {% if request.GET %}
-                        <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                <div class="col-auto ms-auto d-flex align-items-center gap-2">
+                    {% if filter_form.data.especialidad or filter_form.data.estado or filter_form.data.fecha_desde or filter_form.data.fecha_hasta %}
+                        <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary btn-sm fw-semibold filter-btn">
+                            Limpiar
+                        </a>
                     {% endif %}
+                    <button type="submit" class="btn btn-primary btn-sm fw-semibold filter-btn">
+                        Buscar
+                    </button>
                 </div>
             </form>
         </div>
 
+        <!-- Tabla de planificaciones -->
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
+                    <thead class="bg-light text-muted">
                         <tr>
-                            <th>Referencia</th>
-                            <th>Período Planificado</th> 
+                            <th class="text-center">Periodo</th>
+                            <th class="text-center">Período Planificado</th>
+                            <th class="text-center">Especialidad</th>
                             <th class="text-center">Estado</th>
-                            <th>Métricas</th>
-                            <th class="text-end">Acciones</th>
+                            <th class="text-center">Fecha de Creación</th>
+                            <th class="text-center">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="small">
                         {% for c in cronogramas %}
-                        <tr>
-                            <td>
-                                <div class="fw-bold text-capitalize fs-5 text-primary">
-                                    {{ c.fecha_inicio|date:"F Y" }}
-                                </div>
-                                <span class="badge bg-secondary">{{ c.get_especialidad_display }}</span>
+                        <tr class="planning-row">
+                            <td class="text-center">
+                                {{ c.fecha_inicio|date:"F Y"|capfirst }}
                             </td>
                             
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <i class="bi bi-calendar-range text-muted me-2"></i>
-                                    <span class="fw-bold text-dark">
-                                        {{ c.fecha_inicio|date:"d/m/Y" }} - {{ c.fecha_fin|date:"d/m/Y" }}
-                                    </span>
-                                </div>
-                                <div class="small text-muted mt-1">
-                                    Creado: {{ c.fecha_creacion|date:"d/m H:i" }}
-                                </div>
+                            <td class="text-center">
+                                {{ c.fecha_inicio|date:"d/m/Y" }} - {{ c.fecha_fin|date:"d/m/Y" }}
+                            </td>
+                            
+                            <td class="text-center">
+                                {{ c.get_especialidad_display }}
                             </td>
                             
                             <td class="text-center">
                                 {# --- LÓGICA DE ESTADOS ACTUALIZADA --- #}
                                 {% if c.estado == 'PUBLICADO' %}
-                                    <span class="badge bg-success rounded-pill px-3">Publicado</span>
-                                
+                                    <span class="badge badge-status bg-success-subtle-custom">Publicado</span>
                                 {% elif c.estado == 'OPTIMIZANDO' %}
-                                    <span class="badge bg-info text-dark rounded-pill px-3">
-                                        <span class="spinner-border spinner-border-sm me-1" style="width: 0.7em; height: 0.7em;"></span>
-                                        Procesando...
-                                    </span>
-                                
+                                    <span class="badge badge-status bg-info-subtle-custom">Procesando</span>
                                 {% elif c.estado == 'FALLIDO' %}
-                                    <span class="badge bg-danger rounded-pill px-3" title="No cumple normativa">
-                                        <i class="bi bi-x-circle-fill me-1"></i> No Viable
-                                    </span>
-                                
+                                    <span class="badge badge-status bg-danger-subtle-custom">No Viable</span>
                                 {% else %}
                                     {# Estado por defecto: BORRADOR #}
-                                    <span class="badge bg-warning text-dark rounded-pill px-3">Borrador</span>
+                                    <span class="badge badge-status bg-warning-subtle-custom">Borrador</span>
                                 {% endif %}
                             </td>
 
-                            <td>
-                                {% if c.fitness is not None %}
-                                    <div class="small" title="Puntaje de la función objetivo">
-                                        <strong>Fitness:</strong> {{ c.fitness|floatformat:2 }}
-                                    </div>
-                                {% else %}
-                                    <span class="text-muted small">-</span>
-                                {% endif %}
-                                
-                                {% if c.tiempo_ejecucion %}
-                                    <div class="small text-muted">
-                                        Tiempo: {{ c.tiempo_ejecucion|floatformat:1 }}s
-                                    </div>
-                                {% endif %}
+                            <td class="text-center">
+                                {{ c.fecha_creacion|date:"d/m/Y" }}
                             </td>
 
-                            <td class="text-end">
-                                <div class="btn-group" role="group" aria-label="Acciones de cronograma">
-                                    
-                                    {# --- LÓGICA DE BLOQUEO VISUAL --- #}
-                                    {% if c.estado == 'FALLIDO' %}
-                                        {# Botones deshabilitados visualmente pero presentes #}
-                                        <button class="btn btn-sm btn-outline-secondary" disabled title="No disponible en cronogramas fallidos">
-                                            Vista de Matriz
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-secondary" disabled title="No disponible en cronogramas fallidos">
-                                            Vista Diaria
-                                        </button>
-                                        
-                                        {# Botón de Análisis DESTACADO #}
-                                        <a href="{% url 'cronograma_analisis' c.id %}" class="btn btn-sm btn-danger" title="Ver Motivo de Fallo">
-                                            <i class="bi bi-exclamation-triangle-fill"></i>
-                                        </a>
-
-                                    {% else %}
-                                        {# Botones Normales #}
-                                        <a href="{% url 'ver_cronograma' c.id %}" class="btn btn-sm btn-outline-primary">
-                                            Vista de Matriz
-                                        </a>
-                                        <a href="{% url 'ver_cronograma_diario' c.id %}" class="btn btn-sm btn-outline-primary">
-                                            Vista Diaria
-                                        </a>
-                                        
-                                        {% if c.fitness %}
-                                            <a href="{% url 'cronograma_analisis' c.id %}" class="btn btn-sm btn-outline-info" title="Ver Análisis">
-                                                <i class="bi bi-graph-up"></i>
-                                            </a>
-                                        {% endif %}
-                                    {% endif %}
-                                    
-                                    <a href="{% url 'cronograma_delete' c.id %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Estás seguro de eliminar este cronograma?');" title="Eliminar">
-                                        Eliminar
+                            <td class="text-center">
+                                <div class="action-buttons">
+                                    <a href="{% url 'ver_cronograma' c.id %}" 
+                                       class="btn btn-sm btn-action btn-action-view" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-title="Vista de Matriz">
+                                        <i class="bi bi-grid-3x3-gap-fill"></i>
                                     </a>
+                                    <a href="{% url 'ver_cronograma_diario' c.id %}" 
+                                       class="btn btn-sm btn-action btn-action-calendar" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-title="Vista Diaria">
+                                        <i class="bi bi-calendar-week-fill"></i>
+                                    </a>
+                                    {% if c.fitness %}
+                                    <a href="{% url 'cronograma_analisis' c.id %}" 
+                                       class="btn btn-sm btn-action btn-action-chart" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-title="Ver Análisis">
+                                        <i class="bi bi-graph-up"></i>
+                                    </a>
+                                    {% endif %}
+                                    <button type="button"
+                                       class="btn btn-sm btn-action btn-action-delete" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-title="Eliminar"
+                                       onclick="openDeleteModal('{{ c.get_especialidad_display }}', '{{ c.fecha_inicio|date:"d/m/Y" }}', '{{ c.fecha_fin|date:"d/m/Y" }}', '{% url 'cronograma_delete' c.id %}')">
+                                        <i class="bi bi-trash-fill"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="text-center py-5 text-muted">
-                                <h4><i class="bi bi-inbox"></i></h4>
-                                <p>No se encontraron planificaciones con estos filtros.</p>
+                            <td colspan="6" class="text-center py-5">
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">
+                                        <i class="bi bi-inbox"></i>
+                                    </div>
+                                    <h5 class="fw-bold mb-2" style="color: #5a5c69;">No se encontraron planificaciones</h5>
+                                    <p class="text-muted mb-3">No hay registros que coincidan con los filtros aplicados.</p>
+                                    {% if request.GET %}
+                                        <a href="{% url 'cronograma_list' %}" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-arrow-counterclockwise me-1"></i>Limpiar filtros
+                                        </a>
+                                    {% else %}
+                                        <a href="{% url 'vista_generador' %}" class="btn btn-primary btn-sm">
+                                            <i class="bi bi-plus-lg me-1"></i>Crear primera planificación
+                                        </a>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -172,30 +203,636 @@
         </div>
     </div>
     
+    <!-- Paginación -->
     {% if is_paginated %}
-    <nav aria-label="Navegación" class="mt-4">
-      <ul class="pagination justify-content-center">
-        {% if page_obj.has_previous %}
-          <li class="page-item">
-            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode|cut:'page=' }}">Anterior</a>
-          </li>
-        {% else %}
-          <li class="page-item disabled"><span class="page-link">Anterior</span></li>
-        {% endif %}
+    <nav aria-label="Navegación de páginas" class="mt-4">
+        <ul class="pagination justify-content-center pagination-custom">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode|cut:'page=' }}">
+                        <i class="bi bi-chevron-left"></i> Anterior
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-left"></i> Anterior</span>
+                </li>
+            {% endif %}
 
-        <li class="page-item disabled">
-            <span class="page-link">Pág {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-        </li>
+            <li class="page-item active">
+                <span class="page-link fw-semibold">
+                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                </span>
+            </li>
 
-        {% if page_obj.has_next %}
-          <li class="page-item">
-            <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode|cut:'page=' }}">Siguiente</a>
-          </li>
-        {% else %}
-          <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
-        {% endif %}
-      </ul>
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode|cut:'page=' }}">
+                        Siguiente <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Siguiente <i class="bi bi-chevron-right"></i></span>
+                </li>
+            {% endif %}
+        </ul>
     </nav>
     {% endif %}
 </div>
+
+<!-- Modal de confirmación de eliminación -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4" style="background: white;">
+                <button type="button" class="btn-close position-absolute" style="top: 16px; right: 16px; opacity: 0.5;" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center px-5 pb-4 pt-2">
+                <!-- Icono de alerta -->
+                <div class="mb-4">
+                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #dc3545;">
+                        <i class="bi bi-x-lg" style="font-size: 2.5rem; color: #dc3545; font-weight: bold;"></i>
+                    </div>
+                </div>
+                
+                <!-- Título -->
+                <h4 class="fw-bold mb-3" style="color: #2f3e4c;">¿Estás seguro?</h4>
+                
+                <!-- Información del cronograma -->
+                <div class="mb-3 p-4" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+                    <p class="mb-2 small text-muted">Estás a punto de eliminar la planificación de:</p>
+                    <p class="mb-1 fw-bold" style="color: #2f3e4c; font-size: 1.05rem;"><span id="deleteEspecialidad"></span></p>
+                    <p class="mb-0 fw-bold" style="color: #2f3e4c; font-size: 1.1rem;" id="deletePeriodo"></p>
+                </div>
+                
+                <!-- Mensaje de advertencia -->
+                <p class="text-muted small mb-0" style="line-height: 1.6;">
+                    <i class="bi bi-info-circle me-1"></i>Esta acción es irreversible. Se eliminarán todas las asignaciones de turnos asociadas a esta versión.
+                </p>
+            </div>
+            <div class="modal-footer border-0 bg-white justify-content-center gap-2 pb-4">
+                <button type="button" class="btn btn-light px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 600; border: 1px solid #dee2e6; min-width: 120px;">
+                    Cancelar
+                </button>
+                <form id="deleteForm" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger px-4 py-2" style="border-radius: 10px; font-weight: 600; min-width: 120px;">
+                        Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    body { 
+        font-size: 1rem; 
+        background-color: #edf1f7e2; 
+    }
+
+    /* Cards generales */
+    .card { 
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important; 
+        border-radius: 12px;
+    }
+
+    /* Tabla */
+    .table thead th { 
+        padding: 1rem 0.75rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .table tbody td {
+        color: #6c757d;
+        padding: 1rem 0.75rem;
+        vertical-align: middle;
+    }
+
+    .planning-row {
+        transition: all 0.2s ease;
+    }
+
+    .planning-row:hover {
+        background-color: rgba(13, 110, 253, 0.02);
+    }
+
+    /* Badges de estado */
+    .badge-status {
+        display: inline-block;
+        width: 100px;
+        padding: 0.5em 0;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-radius: 6px;
+    }
+
+    .bg-success-subtle-custom { 
+        background-color: #d1e7dd !important; 
+        color: #678d7b !important; 
+    }
+    
+    .bg-warning-subtle-custom { 
+        background-color: #fff3cd !important; 
+        color: #928560 !important; 
+    }
+
+    .bg-info-subtle-custom { 
+        background-color: #cff4fc !important; 
+        color: #6c9aa5 !important; 
+    }
+
+    /* Botones de acción */
+    .action-buttons {
+        display: inline-flex;
+        gap: 0.5rem;
+    }
+
+    .btn-action {
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        border: 1px solid #dee2e6;
+        background-color: white;
+    }
+
+    .btn-action i {
+        font-size: 1.1rem;
+    }
+
+    .btn-action-view {
+        color: #6c757d;
+        border-color: rgba(108, 117, 125, 0.2);
+    }
+
+    .btn-action-view:hover {
+        background-color: rgba(108, 117, 125, 0.1);
+        border-color: #6c757d;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(108, 117, 125, 0.2);
+    }
+
+    .btn-action-calendar {
+        color: #6c757d;
+        border-color: rgba(108, 117, 125, 0.2);
+    }
+
+    .btn-action-calendar:hover {
+        background-color: rgba(108, 117, 125, 0.1);
+        border-color: #6c757d;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(108, 117, 125, 0.2);
+    }
+
+    .btn-action-chart {
+        color: #6c757d;
+        border-color: rgba(108, 117, 125, 0.2);
+    }
+
+    .btn-action-chart:hover {
+        background-color: rgba(108, 117, 125, 0.1);
+        border-color: #6c757d;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(108, 117, 125, 0.2);
+    }
+
+    .btn-action-delete {
+        color: #dc3545;
+        border-color: rgba(220, 53, 69, 0.2);
+    }
+
+    .btn-action-delete:hover {
+        background-color: rgba(220, 53, 69, 0.1);
+        border-color: #dc3545;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
+    }
+
+    /* Estado vacío */
+    .empty-state {
+        padding: 2rem;
+    }
+
+    .empty-state-icon {
+        font-size: 4rem;
+        color: #dee2e6;
+        margin-bottom: 1rem;
+    }
+
+    /* Paginación */
+    .pagination-custom .page-link {
+        color: #495057;
+        border: 1px solid #dee2e6;
+        padding: 0.5rem 1rem;
+        margin: 0 0.25rem;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .pagination-custom .page-link:hover {
+        background-color: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+        transform: translateY(-2px);
+    }
+
+    .pagination-custom .page-item.active .page-link {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: white;
+    }
+
+    .pagination-custom .page-item.disabled .page-link {
+        background-color: #f8f9fa;
+        color: #adb5bd;
+        border-color: #dee2e6;
+    }
+
+    /* Custom Select Styles (replica generador) */
+    .custom-select-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .form-select.d-none {
+        display: none !important;
+    }
+
+    .custom-dropdown {
+        position: relative;
+        pointer-events: auto;
+    }
+
+    .custom-dropdown-header {
+        height: 46px;
+        border-radius: 10px;
+        border: 1px solid #e0e5ec;
+        background-color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 16px;
+        padding-right: 40px;
+        pointer-events: auto;
+        min-width: 220px;
+    }
+
+    .custom-select-wrapper.select-wide .custom-dropdown-header {
+        min-width: 260px;
+    }
+
+    .custom-dropdown-header:hover {
+        background-color: #f5f7fb;
+    }
+
+    .custom-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: #ffffff;
+        border: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        pointer-events: none;
+        z-index: 100;
+        margin-top: 0;
+        padding: 0;
+        animation: fadeInDown 0.3s ease;
+    }
+
+    .custom-dropdown.open .custom-dropdown-menu {
+        max-height: 300px;
+        pointer-events: auto;
+        opacity: 1;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0;
+    }
+
+    .custom-option {
+        padding: 0.5rem 1.2rem;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.95rem;
+        border-bottom: none;
+        font-weight: 500;
+    }
+
+    .custom-option:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.4rem;
+    }
+
+    .custom-option.option-all {
+        font-weight: 500;
+        color: #495057;
+        cursor: pointer;
+    }
+
+    .custom-option.option-all:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.4rem;
+    }
+
+    .form-select:disabled ~ .custom-dropdown .custom-dropdown-header {
+        background-color: #f5f5f5;
+        border-color: #e0e5ec;
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* Inputs de fecha y botones same height */
+    .date-input-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .filters-row input[type="date"].date-input {
+        font-size: 0.95rem;
+        padding: 0.55rem 0.85rem;
+        border-radius: 10px;
+        height: 46px;
+        border: 1px solid #e0e5ec;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+        min-width: 165px;
+        color: #495057;
+        font-weight: 400;
+    }
+
+    .filters-row input[type="date"].date-input:hover {
+        background-color: #f5f7fb;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .filters-row input[type="date"].date-input:focus {
+        outline: none;
+        border-color: #0d6efd;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+    }
+
+    /* Ocultar el placeholder nativo dd/mm/aaaa */
+    .filters-row input[type="date"].date-input::-webkit-datetime-edit-text,
+    .filters-row input[type="date"].date-input::-webkit-datetime-edit-month-field,
+    .filters-row input[type="date"].date-input::-webkit-datetime-edit-day-field,
+    .filters-row input[type="date"].date-input::-webkit-datetime-edit-year-field {
+        color: transparent;
+    }
+
+    /* Mostrar los valores cuando el input tiene valor o está en focus */
+    .filters-row input[type="date"].date-input:focus::-webkit-datetime-edit-text,
+    .filters-row input[type="date"].date-input:focus::-webkit-datetime-edit-month-field,
+    .filters-row input[type="date"].date-input:focus::-webkit-datetime-edit-day-field,
+    .filters-row input[type="date"].date-input:focus::-webkit-datetime-edit-year-field,
+    .filters-row input[type="date"].date-input[data-has-value="true"]::-webkit-datetime-edit-text,
+    .filters-row input[type="date"].date-input[data-has-value="true"]::-webkit-datetime-edit-month-field,
+    .filters-row input[type="date"].date-input[data-has-value="true"]::-webkit-datetime-edit-day-field,
+    .filters-row input[type="date"].date-input[data-has-value="true"]::-webkit-datetime-edit-year-field {
+        color: #495057;
+    }
+
+    /* Mostrar placeholder personalizado cuando está vacío */
+    .date-placeholder {
+        position: absolute;
+        left: 0.85rem;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        color: #495057;
+        font-size: 0.95rem;
+        font-weight: 400;
+        display: none;
+    }
+
+    .filters-row .btn.filter-btn {
+        height: 46px;
+        padding-left: 2rem;
+        padding-right: 2rem;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .filters-row .btn-primary.filter-btn {
+        background: linear-gradient(135deg, #0d6efd 0%, #0b5dd6 100%);
+    }
+    
+    .filters-row .btn-primary.filter-btn:hover {
+        background: linear-gradient(135deg, #0b5dd6 0%, #0a51c4 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25);
+    }
+    
+    .filters-row .btn-outline-secondary.filter-btn {
+        background-color: white;
+        color: #6c757d;
+        border: 1px solid #dee2e6;
+    }
+    
+    .filters-row .btn-outline-secondary.filter-btn:hover {
+        background-color: #6c757d;
+        color: white;
+        border-color: #6c757d;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(108, 117, 125, 0.25);
+    }
+
+    /* Tooltips */
+    .tooltip {
+        --bs-tooltip-bg: #2f3e4c;
+        --bs-tooltip-color: white;
+    }
+
+    .tooltip .tooltip-inner {
+        border-radius: 6px;
+        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .action-buttons {
+            flex-wrap: wrap;
+        }
+
+        .btn-action {
+            width: 34px;
+            height: 34px;
+        }
+
+        .btn-action i {
+            font-size: 1rem;
+        }
+    }
+</style>
+
+<script>
+    // Helpers: dropdown personalizado simplificado
+    function setupCustomDropdown(wrapper){
+        const nativeSelect = wrapper.querySelector('.form-select');
+        const header = wrapper.querySelector('.custom-dropdown-header');
+        const dropdown = wrapper.querySelector('.custom-dropdown');
+        const menu = wrapper.querySelector('.custom-dropdown-menu');
+
+        if (!header || !dropdown || !menu || !nativeSelect) return;
+
+        const placeholderText = header.dataset.placeholder || nativeSelect.options[0]?.textContent || header.textContent;
+
+        // Inicializar el header con el texto de la opción seleccionada actualmente
+        const selectedOption = nativeSelect.options[nativeSelect.selectedIndex];
+        if (selectedOption && selectedOption.value !== '') {
+            header.textContent = selectedOption.textContent;
+        } else {
+            header.textContent = placeholderText;
+        }
+
+        // Abrir/cerrar
+        header.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropdown.classList.toggle('open');
+        };
+
+        // Selección
+        menu.querySelectorAll('.custom-option').forEach((option) => {
+            option.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const value = option.getAttribute('data-value') ?? '';
+                const text = option.textContent;
+                
+                // Establecer el valor en el select nativo y forzar índice
+                nativeSelect.value = value;
+                const matchingIndex = Array.from(nativeSelect.options).findIndex(opt => opt.value === value);
+                if (matchingIndex >= 0) {
+                    nativeSelect.selectedIndex = matchingIndex;
+                }
+                
+                // Actualizar el header mostrando el placeholder cuando toca "Todos"
+                header.textContent = value === '' ? placeholderText : text;
+                
+                // Cerrar el dropdown
+                dropdown.classList.remove('open');
+
+                // Notificar cambio para coherencia con otros selects
+                nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            };
+        });
+
+        // Cerrar al click fuera
+        document.addEventListener('click', (e) => {
+            if (!wrapper.contains(e.target)) {
+                dropdown.classList.remove('open');
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Inicializar tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+            new bootstrap.Tooltip(tooltipTriggerEl, {
+                delay: { show: 300, hide: 100 }
+            });
+        });
+
+        // Inicializar dropdowns personalizados de filtros
+        document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
+
+        // Manejar placeholder de inputs de fecha
+        document.querySelectorAll('.date-input').forEach(input => {
+            // Bloquear TODA escritura manual del teclado pero permitir el calendario
+            input.addEventListener('keydown', (e) => e.preventDefault());
+            input.addEventListener('keypress', (e) => e.preventDefault());
+            input.addEventListener('keyup', (e) => e.preventDefault());
+            input.addEventListener('paste', (e) => e.preventDefault());
+            input.addEventListener('cut', (e) => e.preventDefault());
+            input.addEventListener('drop', (e) => e.preventDefault());
+            
+            const wrapper = input.closest('.date-input-wrapper');
+            const placeholder = input.dataset.placeholder;
+            
+            if (wrapper && placeholder) {
+                // Crear elemento de placeholder
+                const placeholderEl = document.createElement('span');
+                placeholderEl.className = 'date-placeholder';
+                placeholderEl.textContent = placeholder;
+                wrapper.appendChild(placeholderEl);
+                
+                // Función para mostrar/ocultar placeholder
+                const updatePlaceholder = () => {
+                    if (input.value) {
+                        placeholderEl.style.display = 'none';
+                        input.setAttribute('data-has-value', 'true');
+                    } else {
+                        placeholderEl.style.display = 'block';
+                        input.removeAttribute('data-has-value');
+                    }
+                };
+                
+                // Inicializar
+                updatePlaceholder();
+                
+                // Escuchar cambios
+                input.addEventListener('change', updatePlaceholder);
+                input.addEventListener('input', updatePlaceholder);
+                
+                // Ocultar placeholder cuando se abre el calendario
+                input.addEventListener('focus', () => {
+                    placeholderEl.style.display = 'none';
+                });
+                
+                // Volver a mostrar si está vacío al cerrar
+                input.addEventListener('blur', updatePlaceholder);
+            }
+        });
+    });
+    
+    // Función para abrir el modal de eliminación
+    function openDeleteModal(especialidad, fechaInicio, fechaFin, deleteUrl) {
+        // Actualizar los datos en el modal
+        document.getElementById('deleteEspecialidad').textContent = especialidad;
+        document.getElementById('deletePeriodo').textContent = fechaInicio + ' al ' + fechaFin;
+        
+        // Actualizar la acción del formulario
+        const deleteForm = document.getElementById('deleteForm');
+        deleteForm.action = deleteUrl;
+        
+        // Mostrar el modal
+        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
+    }
+</script>
 {% endblock %}

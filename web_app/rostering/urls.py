@@ -81,7 +81,13 @@ urlpatterns = [
 
     # Reglas y Excepciones (Detalle - Hijos de Plantilla)
     path('config/plantillas/<int:plantilla_id>/regla/nueva/', views.ReglaCreateView.as_view(), name='regla_create'),
+    path('config/regla/<int:pk>/editar/', views.ReglaUpdateView.as_view(), name='regla_update'),
     path('config/regla/<int:pk>/eliminar/', views.ReglaDeleteView.as_view(), name='regla_delete'),
+    
+    # APIs AJAX para edición inline
+    path('api/plantillas/<int:plantilla_id>/regla/crear/', views.api_crear_regla, name='api_crear_regla'),
+    path('api/regla/<int:regla_id>/actualizar/', views.api_actualizar_regla, name='api_actualizar_regla'),
+    path('api/regla/<int:regla_id>/eliminar/', views.api_eliminar_regla, name='api_eliminar_regla'),
     
     path('config/plantillas/<int:plantilla_id>/excepcion/nueva/', views.ExcepcionCreateView.as_view(), name='excepcion_create'),
     path('config/excepcion/<int:pk>/eliminar/', views.ExcepcionDeleteView.as_view(), name='excepcion_delete'),
