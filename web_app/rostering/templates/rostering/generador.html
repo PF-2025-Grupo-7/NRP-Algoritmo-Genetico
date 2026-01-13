@@ -667,6 +667,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
+            // Validar rango de días (mínimo 7, máximo 31)
+            const fechaInicio = new Date($inicio.value);
+            const fechaFin = new Date($fin.value);
+            const diffTime = Math.abs(fechaFin - fechaInicio);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if(diffDays < 7){
+                showWarn('El período a planificar debe ser de al menos 7 días.');
+                return;
+            }
+            if(diffDays > 31){
+                showWarn('El período a planificar no puede superar los 31 días.');
+                return;
+            }
+
             if($panelEstado) $panelEstado.classList.remove('d-none');
             toggleLoading(true);
             setEstado('Iniciando','primary');
