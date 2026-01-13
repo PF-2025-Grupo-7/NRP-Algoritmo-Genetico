@@ -71,12 +71,6 @@ urlpatterns = [
     path('config/turnos/', views.ConfiguracionTurnosListView.as_view(), name='tipoturno_list'),
     path('config/turnos/<str:especialidad>/editar/', views.config_turnos_edit, name='tipoturno_edit'),
 
-    # Secuencias Prohibidas
-    path('config/secuencias/', views.SecuenciaProhibidaListView.as_view(), name='secuencia_list'),
-    path('config/secuencias/crear/', views.SecuenciaProhibidaCreateView.as_view(), name='secuencia_create'),
-    path('config/secuencias/<int:pk>/editar/', views.SecuenciaProhibidaUpdateView.as_view(), name='secuencia_update'),
-    path('config/secuencias/<int:pk>/eliminar/', views.SecuenciaProhibidaDeleteView.as_view(), name='secuencia_delete'),
-
     # Plantillas de Demanda (Maestro)
     path('config/plantillas/', views.PlantillaListView.as_view(), name='plantilla_list'),
     path('config/plantillas/crear/', views.PlantillaCreateView.as_view(), name='plantilla_create'),

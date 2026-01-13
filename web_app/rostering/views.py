@@ -380,11 +380,13 @@ class ConfiguracionTurnosListView(LoginRequiredMixin, ListView):
             })
         ctx['especialidades'] = lista
         return ctx
+    
 def config_turnos_edit(request, especialidad):
     """
-    Vista Lógica Principal (Refactorizada - Smart Update):
+    Vista Lógica Principal (Refactorizada - Smart Update + Auto Secuencias):
     1. Si cambia el Esquema (2x12 <-> 3x8) -> Opción Nuclear (Borra todo).
-    2. Si el Esquema se mantiene -> Actualiza los objetos existentes (Mantiene IDs).
+    2. Si el Esquema se mantiene -> Actualiza los objetos existentes.
+    3. AUTOMÁTICO: Regenera las secuencias prohibidas según la topología.
     """
     instance = ConfiguracionTurnos.objects.filter(especialidad=especialidad).first()
     esquema_anterior = instance.esquema if instance else None
@@ -407,9 +409,7 @@ def config_turnos_edit(request, especialidad):
                 config.nombres_turnos = nombres
                 config.save()
 
-                # --- LÓGICA SMART UPDATE ---
-                
-                # 1. Calculamos los horarios matemáticos (igual que antes)
+                # --- LÓGICA SMART UPDATE DE TURNOS ---
                 hora_base = config.hora_inicio_base
                 d = datetime(2000, 1, 1, hora_base.hour, hora_base.minute)
                 
@@ -427,59 +427,83 @@ def config_turnos_edit(request, especialidad):
                             'fin': (d + timedelta(hours=(i+1)*8)).time()
                         })
 
-                # 2. Decisión: ¿Actualizar o Reiniciar?
                 turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
-                
-                # Condición para UPDATE: El esquema es el mismo Y la cantidad de turnos en DB coincide
                 mismo_esquema = (esquema_anterior == config.esquema)
                 consistencia_db = (len(turnos_existentes) == len(nuevos_datos))
 
                 if mismo_esquema and consistencia_db:
                     print(f"🔄 SMART UPDATE: Actualizando turnos existentes para {especialidad} (IDs conservados)")
-                    
                     for idx, turno_obj in enumerate(turnos_existentes):
-                        datos = nuevos_datos[idx] # Mapeo posicional (1° turno -> 1° turno)
+                        datos = nuevos_datos[idx]
                         meta = nombres[datos['key']]
-                        
-                        # Actualizamos campos
                         turno_obj.nombre = meta['n']
                         turno_obj.abreviatura = meta['a']
                         turno_obj.es_nocturno = meta['noc']
                         turno_obj.hora_inicio = datos['inicio']
                         turno_obj.hora_fin = datos['fin']
                         turno_obj.save()
-                        
                 else:
                     print(f"☢️ NUCLEAR RESET: Esquema cambió o DB inconsistente. Regenerando para {especialidad}.")
-                    # Borrado físico (Cascada se lleva preferencias viejas)
                     TipoTurno.objects.filter(especialidad=especialidad).delete()
                     
-                    # Creación desde cero (SIN bulk_create para que calcule duración)
+                    # Creación con .save() individual para calcular duración
                     for datos in nuevos_datos:
                         meta = nombres[datos['key']]
                         t = TipoTurno(
-                            nombre=meta['n'], 
-                            abreviatura=meta['a'], 
-                            especialidad=especialidad,
-                            hora_inicio=datos['inicio'],
-                            hora_fin=datos['fin'],
-                            es_nocturno=meta['noc']
+                            nombre=meta['n'], abreviatura=meta['a'], especialidad=especialidad,
+                            hora_inicio=datos['inicio'], hora_fin=datos['fin'], es_nocturno=meta['noc']
                         )
-                        t.save() # <--- IMPORTANTE: Esto dispara el cálculo de duración en models.py
+                        t.save()
+
+                # --- LÓGICA AUTOMÁTICA DE SECUENCIAS PROHIBIDAS ---
+                # 1. Borrar reglas viejas para esta especialidad (limpieza total)
+                SecuenciaProhibida.objects.filter(especialidad=especialidad).delete()
+                
+                # 2. Obtener los turnos frescos y ordenados
+                turnos_ordenados = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
+                secuencias_nuevas = []
+
+                if len(turnos_ordenados) == 2: 
+                    # CASO A: ESQUEMA 2x12 (Día, Noche)
+                    # Regla: Prohibido Noche -> Día (T2 -> T1 del día siguiente)
+                    # Asumimos T1=Mañana/Día, T2=Noche (ordenados por hora)
+                    secuencias_nuevas.append(SecuenciaProhibida(
+                        especialidad=especialidad,
+                        turno_previo=turnos_ordenados[1], # 2do turno (Noche)
+                        turno_siguiente=turnos_ordenados[0] # 1er turno (Día)
+                    ))
+                
+                elif len(turnos_ordenados) == 3:
+                    # CASO B: ESQUEMA 3x8 (Mañana, Tarde, Noche)
+                    # T1=M, T2=T, T3=N
+                    
+                    # 1. Noche -> Mañana (Crítico)
+                    secuencias_nuevas.append(SecuenciaProhibida(
+                        especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[0]
+                    ))
+                    # 2. Noche -> Tarde (Descanso insuficiente)
+                    secuencias_nuevas.append(SecuenciaProhibida(
+                        especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[1]
+                    ))
+                    # 3. Tarde -> Mañana (Quick Return < 12hs)
+                    secuencias_nuevas.append(SecuenciaProhibida(
+                        especialidad=especialidad, turno_previo=turnos_ordenados[1], turno_siguiente=turnos_ordenados[0]
+                    ))
+
+                if secuencias_nuevas:
+                    SecuenciaProhibida.objects.bulk_create(secuencias_nuevas)
+                    print(f"🔒 Se generaron automáticamente {len(secuencias_nuevas)} reglas de descanso para {especialidad}")
 
             return redirect('tipoturno_list')
             
     else:
-        # (El bloque GET queda igual que antes)
+        # GET (Carga del formulario)
         initial_data = {}
         if instance and instance.nombres_turnos:
             nt = instance.nombres_turnos
-            if 't1' in nt: 
-                initial_data.update({'nombre_t1': nt['t1']['n'], 'abrev_t1': nt['t1']['a'], 'nocturno_t1': nt['t1'].get('noc', False)})
-            if 't2' in nt:
-                initial_data.update({'nombre_t2': nt['t2']['n'], 'abrev_t2': nt['t2']['a'], 'nocturno_t2': nt['t2'].get('noc', False)})
-            if 't3' in nt:
-                initial_data.update({'nombre_t3': nt['t3']['n'], 'abrev_t3': nt['t3']['a'], 'nocturno_t3': nt['t3'].get('noc', False)})
+            if 't1' in nt: initial_data.update({'nombre_t1': nt['t1']['n'], 'abrev_t1': nt['t1']['a'], 'nocturno_t1': nt['t1'].get('noc', False)})
+            if 't2' in nt: initial_data.update({'nombre_t2': nt['t2']['n'], 'abrev_t2': nt['t2']['a'], 'nocturno_t2': nt['t2'].get('noc', False)})
+            if 't3' in nt: initial_data.update({'nombre_t3': nt['t3']['n'], 'abrev_t3': nt['t3']['a'], 'nocturno_t3': nt['t3'].get('noc', False)})
         
         form = ConfiguracionTurnosForm(instance=instance, initial=initial_data)
 
@@ -487,7 +511,6 @@ def config_turnos_edit(request, especialidad):
         'form': form,
         'especialidad_label': dict(Empleado.TipoEspecialidad.choices).get(especialidad),
         'especialidad_code': especialidad,
-        # Pasamos el esquema actual al template para mejorar la UX del aviso
         'esquema_actual': esquema_anterior 
     }
     return render(request, 'rostering/config_turnos_form.html', context)
@@ -566,41 +589,6 @@ class PreferenciaDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'rostering/confirm_delete_generic.html'
     success_url = reverse_lazy('preferencia_list')
 
-# --- Secuencias Prohibidas ---
-class SecuenciaProhibidaListView(LoginRequiredMixin, ListView):
-    model = SecuenciaProhibida
-    template_name = 'rostering/secuenciaprohibida_list.html'
-    context_object_name = 'secuencias'
-    ordering = ['especialidad', 'turno_previo']
-
-    def get_queryset(self):
-        qs = super().get_queryset().select_related('turno_previo', 'turno_siguiente')
-        self.filterset = SecuenciaProhibidaFilter(self.request.GET, queryset=qs)
-        return self.filterset.qs
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx['filter_form'] = self.filterset.form
-        return ctx
-
-class SecuenciaProhibidaCreateView(LoginRequiredMixin, CreateView):
-    model = SecuenciaProhibida
-    form_class = SecuenciaProhibidaForm
-    template_name = 'rostering/secuenciaprohibida_form.html'
-    success_url = reverse_lazy('secuencia_list')
-    extra_context = {'titulo': 'Nueva Secuencia'}
-
-class SecuenciaProhibidaUpdateView(LoginRequiredMixin, UpdateView):
-    model = SecuenciaProhibida
-    form_class = SecuenciaProhibidaForm
-    template_name = 'rostering/secuenciaprohibida_form.html'
-    success_url = reverse_lazy('secuencia_list')
-    extra_context = {'titulo': 'Editar Regla'}
-
-class SecuenciaProhibidaDeleteView(LoginRequiredMixin, DeleteView):
-    model = SecuenciaProhibida
-    template_name = 'rostering/confirm_delete_generic.html'
-    success_url = reverse_lazy('secuencia_list')
 
 # --- Plantillas ---
 class PlantillaListView(LoginRequiredMixin, ListView):
