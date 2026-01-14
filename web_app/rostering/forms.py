@@ -147,7 +147,7 @@ class PlantillaDemandaUpdateForm(forms.ModelForm):
             self.fields['especialidad'].help_text = "La especialidad no se puede modificar una vez creada la plantilla."
 
 class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
-    # Creamos campos individuales para cada día de la semana
+    # Campos individuales para cada día
     dia_lunes = forms.BooleanField(required=False, label='Lunes')
     dia_martes = forms.BooleanField(required=False, label='Martes')
     dia_miercoles = forms.BooleanField(required=False, label='Miércoles')
@@ -168,56 +168,71 @@ class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
         plantilla_id = kwargs.pop('plantilla_id', None)
         super().__init__(*args, **kwargs)
         
+        self.plantilla_obj = None # Variable para guardar la instancia de la plantilla
+
         if plantilla_id:
             try:
-                plantilla = PlantillaDemanda.objects.get(id=plantilla_id)
-                self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=plantilla.especialidad)
+                self.plantilla_obj = PlantillaDemanda.objects.get(id=plantilla_id)
+                self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=self.plantilla_obj.especialidad)
             except PlantillaDemanda.DoesNotExist:
                 pass
         
         # Si estamos editando, marcar los días seleccionados
         if self.instance and self.instance.pk:
+            # Si estamos editando, la plantilla ya está en la instancia
+            if not self.plantilla_obj:
+                self.plantilla_obj = self.instance.plantilla
+
             dias_seleccionados = self.instance.dias or []
-            if 0 in dias_seleccionados:
-                self.fields['dia_lunes'].initial = True
-            if 1 in dias_seleccionados:
-                self.fields['dia_martes'].initial = True
-            if 2 in dias_seleccionados:
-                self.fields['dia_miercoles'].initial = True
-            if 3 in dias_seleccionados:
-                self.fields['dia_jueves'].initial = True
-            if 4 in dias_seleccionados:
-                self.fields['dia_viernes'].initial = True
-            if 5 in dias_seleccionados:
-                self.fields['dia_sabado'].initial = True
-            if 6 in dias_seleccionados:
-                self.fields['dia_domingo'].initial = True
+            if 0 in dias_seleccionados: self.fields['dia_lunes'].initial = True
+            if 1 in dias_seleccionados: self.fields['dia_martes'].initial = True
+            if 2 in dias_seleccionados: self.fields['dia_miercoles'].initial = True
+            if 3 in dias_seleccionados: self.fields['dia_jueves'].initial = True
+            if 4 in dias_seleccionados: self.fields['dia_viernes'].initial = True
+            if 5 in dias_seleccionados: self.fields['dia_sabado'].initial = True
+            if 6 in dias_seleccionados: self.fields['dia_domingo'].initial = True
     
     def clean(self):
         cleaned_data = super().clean()
         
-        # Construir la lista de días seleccionados
+        # 1. Construir la lista de días seleccionados (Lógica existente)
         dias_seleccionados = []
-        if cleaned_data.get('dia_lunes'):
-            dias_seleccionados.append(0)
-        if cleaned_data.get('dia_martes'):
-            dias_seleccionados.append(1)
-        if cleaned_data.get('dia_miercoles'):
-            dias_seleccionados.append(2)
-        if cleaned_data.get('dia_jueves'):
-            dias_seleccionados.append(3)
-        if cleaned_data.get('dia_viernes'):
-            dias_seleccionados.append(4)
-        if cleaned_data.get('dia_sabado'):
-            dias_seleccionados.append(5)
-        if cleaned_data.get('dia_domingo'):
-            dias_seleccionados.append(6)
+        if cleaned_data.get('dia_lunes'): dias_seleccionados.append(0)
+        if cleaned_data.get('dia_martes'): dias_seleccionados.append(1)
+        if cleaned_data.get('dia_miercoles'): dias_seleccionados.append(2)
+        if cleaned_data.get('dia_jueves'): dias_seleccionados.append(3)
+        if cleaned_data.get('dia_viernes'): dias_seleccionados.append(4)
+        if cleaned_data.get('dia_sabado'): dias_seleccionados.append(5)
+        if cleaned_data.get('dia_domingo'): dias_seleccionados.append(6)
         
-        # Validar que se haya seleccionado al menos un día
         if not dias_seleccionados:
             raise ValidationError("Debe seleccionar al menos un día de la semana.")
         
         cleaned_data['dias'] = dias_seleccionados
+
+        # 2. VALIDACIÓN DE LÍMITE DE REGLAS (Nueva Lógica)
+        # Solo validamos si estamos creando una nueva regla (no editando una existente)
+        if self.plantilla_obj and not self.instance.pk:
+            try:
+                config = ConfiguracionTurnos.objects.get(especialidad=self.plantilla_obj.especialidad)
+                
+                # Definir límites según esquema
+                limite = 14 # Default para 2x12
+                if config.esquema == '3x8': # ConfiguracionTurnos.TipoEsquema.TURNO_08_HS
+                    limite = 21
+                
+                # Contamos cuántas reglas ya tiene esta plantilla
+                cant_actual = self.plantilla_obj.reglas.count()
+                
+                if cant_actual >= limite:
+                    raise ValidationError(
+                        f"Límite alcanzado: El esquema de turnos '{config.get_esquema_display()}' "
+                        f"permite un máximo de {limite} reglas de demanda."
+                    )
+            except ConfiguracionTurnos.DoesNotExist:
+                # Si no hay configuración de turnos (raro), no aplicamos límite o usamos default
+                pass
+
         return cleaned_data
     
     def save(self, commit=True):
