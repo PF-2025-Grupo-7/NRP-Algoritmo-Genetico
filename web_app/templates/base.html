@@ -174,11 +174,15 @@
                                     <i class="bi bi-people"></i> Empleados
                                 </a>
                             </li>
+                            {# --- INICIO BLOQUEO VISUAL --- #}
+                            {% if user.is_superuser %}
                             <li>
                                 <a class="dropdown-item" href="{% url 'tipoturno_list' %}">
                                     <i class="bi bi-clock"></i> Tipos de Turno
                                 </a>
                             </li>
+                            {% endif %}
+                            {# --- FIN BLOQUEO VISUAL --- #}
                             <li>
                                 <a class="dropdown-item" href="{% url 'nodisponibilidad_list' %}">
                                     <i class="bi bi-calendar-x"></i> Ausencias

@@ -16,6 +16,8 @@ from django.views.generic import (
     ListView, CreateView, UpdateView, DeleteView, 
     DetailView, TemplateView, FormView
 )
+from django.contrib.auth.decorators import user_passes_test
+from django.core.exceptions import PermissionDenied
 
 # --- MODELOS ---
 from .models import (
@@ -47,7 +49,11 @@ from .services import (
     construir_matriz_cronograma   # <--- Nueva función de presentación
 )
 
-
+class SuperUserRequiredMixin(UserPassesTestMixin):
+    raise_exception = True  # <--- ESTA LÍNEA ES LA CLAVE MÁGICA
+    def test_func(self): 
+        return self.request.user.is_superuser
+    
 # ==============================================================================
 # VISTAS GENERALES Y DE GESTIÓN
 # ==============================================================================
@@ -322,7 +328,7 @@ class EmpleadoUpdateView(LoginRequiredMixin, UpdateView):
     success_url = reverse_lazy('empleado_list')
     extra_context = {'titulo': 'Editar Empleado'}
 
-class EmpleadoDeleteView(LoginRequiredMixin, DeleteView):
+class EmpleadoDeleteView(SuperUserRequiredMixin, DeleteView):
     model = Empleado
     template_name = 'rostering/empleado_confirm_delete.html'
     success_url = reverse_lazy('empleado_list')
@@ -345,10 +351,25 @@ class CronogramaListView(LoginRequiredMixin, ListView):
         ctx['filter_form'] = self.filterset.form
         return ctx
 
-class CronogramaDeleteView(LoginRequiredMixin, DeleteView):
+class CronogramaDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = Cronograma
     template_name = 'rostering/cronograma_confirm_delete.html'
     success_url = reverse_lazy('cronograma_list')
+
+    def test_func(self):
+        """
+        Regla de Seguridad:
+        1. Si es Superusuario -> Puede borrar cualquier cosa (Publicado o Borrador).
+        2. Si es Mortal -> Solo puede borrar si el estado es BORRADOR.
+        """
+        cronograma = self.get_object()
+        
+        # Si es Admin, pase libre
+        if self.request.user.is_superuser:
+            return True
+            
+        # Si no es Admin, solo pasa si es Borrador
+        return cronograma.estado == Cronograma.Estado.BORRADOR
 
 # En views.py
 
@@ -356,7 +377,7 @@ from datetime import datetime, timedelta
 from .models import ConfiguracionTurnos, TipoTurno
 from .forms import ConfiguracionTurnosForm
 
-class ConfiguracionTurnosListView(LoginRequiredMixin, ListView):
+class ConfiguracionTurnosListView(SuperUserRequiredMixin, ListView):
     """Muestra tarjetas por especialidad para entrar a configurar."""
     model = ConfiguracionTurnos
     template_name = 'rostering/config_turnos_list.html' # Nuevo template
@@ -376,7 +397,8 @@ class ConfiguracionTurnosListView(LoginRequiredMixin, ListView):
             })
         ctx['especialidades'] = lista
         return ctx
-    
+
+@login_required
 def config_turnos_edit(request, especialidad):
     """
     Vista Lógica Principal (Refactorizada - Smart Update + Auto Secuencias):
@@ -384,6 +406,10 @@ def config_turnos_edit(request, especialidad):
     2. Si el Esquema se mantiene -> Actualiza los objetos existentes.
     3. AUTOMÁTICO: Regenera las secuencias prohibidas según la topología.
     """
+    # --- NUEVO BLOQUEO MANUAL ---
+    if not request.user.is_superuser:
+        raise PermissionDenied("Solo los administradores pueden modificar la estructura de turnos.")
+    # ----------------------------
     instance = ConfiguracionTurnos.objects.filter(especialidad=especialidad).first()
     esquema_anterior = instance.esquema if instance else None
     
@@ -768,8 +794,7 @@ class ExcepcionDeleteView(LoginRequiredMixin, DeleteView):
         return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.plantilla.id})
 
 # --- Configuración ---
-class SuperUserRequiredMixin(UserPassesTestMixin):
-    def test_func(self): return self.request.user.is_superuser
+
 
 def get_config_activa():
     config, _ = ConfiguracionAlgoritmo.objects.get_or_create(activa=True)

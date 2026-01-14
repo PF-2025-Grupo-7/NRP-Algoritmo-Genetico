@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}Acceso Denegado{% endblock %}
+
+{% block content %}
+<div class="container d-flex flex-column justify-content-center align-items-center" style="min-height: 60vh;">
+    <div class="text-center">
+        <h1 class="display-1 fw-bold text-danger">403</h1>
+        <h2 class="mb-4">Acceso Restringido</h2>
+        
+        <div class="alert alert-warning border-0 shadow-sm d-inline-block p-4 mb-4">
+            <i class="bi bi-shield-lock-fill fs-1 d-block mb-3 text-warning"></i>
+            <p class="mb-0 fs-5">
+                No tienes permisos suficientes para realizar esta acción <br>
+                o ver esta página.
+            </p>
+            {% if exception %}
+                <p class="mt-2 small text-muted fst-italic">Detalle: {{ exception }}</p>
+            {% endif %}
+        </div>
+
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+            <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg px-4 gap-3">
+                <i class="bi bi-speedometer2"></i> Volver al Dashboard
+            </a>
+            <a href="javascript:history.back()" class="btn btn-outline-secondary btn-lg px-4">
+                <i class="bi bi-arrow-left"></i> Volver Atrás
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
