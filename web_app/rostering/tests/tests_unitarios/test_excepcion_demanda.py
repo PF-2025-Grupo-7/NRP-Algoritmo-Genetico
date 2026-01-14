@@ -105,3 +105,81 @@ class TestExcepcionDemanda(TestCase):
     def test_cuando_cantidad_junior_es_negativa_deberia_fallar(self):
         with self.assertRaises(ValidationError):
             self.crear_excepcion_demanda(cantidad_junior=-1)
+
+    def test_cuando_se_edita_excepcion_demanda_con_datos_validos_deberia_actualizarse(self):
+        excepcion = self.crear_excepcion_demanda()
+
+        nueva_fecha = date(2025, 1, 1)
+        nuevo_motivo = "Año Nuevo"
+
+        excepcion.plantilla = self.plantilla
+        excepcion.fecha = nueva_fecha
+        excepcion.turno = self.turno
+        excepcion.cantidad_senior = 3
+        excepcion.cantidad_junior = 5
+        excepcion.motivo = nuevo_motivo
+
+        excepcion.full_clean()
+        excepcion.save()
+
+        excepcion_actualizada = ExcepcionDemanda.objects.get(pk=excepcion.pk)
+        self.assertEqual(self.plantilla, excepcion_actualizada.plantilla)
+        self.assertEqual(nueva_fecha, excepcion_actualizada.fecha)
+        self.assertEqual(self.turno, excepcion_actualizada.turno)
+        self.assertEqual(3, excepcion_actualizada.cantidad_senior)
+        self.assertEqual(5, excepcion_actualizada.cantidad_junior)
+        self.assertEqual(nuevo_motivo, excepcion_actualizada.motivo)
+
+    def test_cuando_se_edita_cantidad_senior_a_valor_negativo_deberia_fallar(self):
+        excepcion = self.crear_excepcion_demanda()
+
+        excepcion.cantidad_senior = -1
+
+        with self.assertRaises(ValidationError):
+            excepcion.full_clean()
+
+    def test_cuando_se_edita_cantidad_junior_a_valor_negativo_deberia_fallar(self):
+        excepcion = self.crear_excepcion_demanda()
+
+        excepcion.cantidad_junior = -1
+
+        with self.assertRaises(ValidationError):
+            excepcion.full_clean()
+
+    def test_cuando_se_edita_turno_con_especialidad_distinta_a_plantilla_deberia_fallar(self):
+        excepcion = self.crear_excepcion_demanda()
+
+        turno_enfermero = TipoTurno.objects.create(
+            nombre="Noche Enfermería",
+            abreviatura="NE",
+            especialidad=Empleado.TipoEspecialidad.ENFERMERO,
+            hora_inicio=time(20, 0),
+            hora_fin=time(8, 0)
+        )
+
+        excepcion.turno = turno_enfermero
+
+        with self.assertRaises(ValidationError):
+            excepcion.full_clean()
+
+    def test_cuando_se_edita_plantilla_fecha_y_turno_a_duplicados_deberia_fallar(self):
+        self.crear_excepcion_demanda()
+
+        excepcion = self.crear_excepcion_demanda(fecha=date(2025, 12, 31))
+
+        excepcion.fecha = self.fecha
+        excepcion.turno = self.turno
+        excepcion.plantilla = self.plantilla
+
+        with self.assertRaises(ValidationError):
+            excepcion.full_clean()
+
+    def test_cuando_se_edita_motivo_a_vacio_deberia_de_actualizarse(self):
+        excepcion = self.crear_excepcion_demanda(motivo="Feriado Especial")
+
+        excepcion.motivo = ""
+        excepcion.full_clean()
+        excepcion.save()
+
+        excepcion_actualizada = ExcepcionDemanda.objects.get(pk=excepcion.pk)
+        self.assertEqual("", excepcion_actualizada.motivo)

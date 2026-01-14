@@ -545,6 +545,26 @@ class Asignacion(models.Model):
     fecha = models.DateField()
     tipo_turno = models.ForeignKey(TipoTurno, on_delete=models.CASCADE)
 
+    def clean(self):
+        super().clean()
+
+        especialidades = []
+
+        if self.cronograma_id:
+            especialidades.append(self.cronograma.especialidad)
+
+        if self.empleado_id:
+            especialidades.append(self.empleado.especialidad)
+
+        if self.tipo_turno_id:
+            especialidades.append(self.tipo_turno.especialidad)
+
+        if len(set(especialidades)) > 1:
+            raise ValidationError(
+                "La asignación debe pertenecer a una única especialidad consistente "
+                "(cronograma, empleado y tipo de turno)."
+            )
+
     class Meta:
         verbose_name_plural = "Asignaciones (Resultado)"
         unique_together = ('cronograma', 'empleado', 'fecha') 

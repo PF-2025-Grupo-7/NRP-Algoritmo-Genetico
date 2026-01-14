@@ -46,6 +46,7 @@ from .services import (
     iniciar_proceso_optimizacion, # <--- Nueva función orquestadora
     consultar_resultado_ag, 
     guardar_solucion_db,
+    invocar_api_planificacion,
     construir_matriz_cronograma   # <--- Nueva función de presentación
 )
 
