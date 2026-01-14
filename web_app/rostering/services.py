@@ -311,7 +311,15 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         plantilla = PlantillaDemanda.objects.get(pk=plantilla_id)
     else:
         plantilla = PlantillaDemanda.objects.filter(especialidad=especialidad).first()
-        if not plantilla: raise ValueError(f"No hay plantilla para {especialidad}")
+        if not plantilla:
+            raise ValueError(f"No hay plantilla de demanda creada para {especialidad}")
+        
+    empleados_qs = Empleado.objects.filter(especialidad=especialidad, activo=True)
+
+    if not empleados_qs.exists():
+        raise ValueError(
+            f"No hay empleados activos para la especialidad {especialidad}."
+        )
 
     # 2. Configuración Básica
     payload_config = {

@@ -1,7 +1,7 @@
 from django.test import TestCase # type: ignore
 from django.core.exceptions import ValidationError # type: ignore
 from rostering.models import Empleado
-
+ 
 class TestEmpleado(TestCase):
 
     def setUp(self):
@@ -72,3 +72,68 @@ class TestEmpleado(TestCase):
 
         empleado = Empleado.objects.get(legajo=self.legajo)
         self.assertFalse(empleado.activo)
+
+    def test_cuando_se_edita_empleado_con_datos_validos_deberia_actualizarse(self):
+        empleado = self.crear_empleado()
+
+        nuevo_legajo = "EMP002"
+        nuevo_nombre = "Ana Gómez"
+
+        empleado.legajo = nuevo_legajo
+        empleado.nombre_completo = nuevo_nombre
+        empleado.especialidad = Empleado.TipoEspecialidad.UCI
+        empleado.experiencia = Empleado.TipoExperiencia.JUNIOR
+        empleado.min_turnos_mensuales = 5
+        empleado.max_turnos_mensuales = 15
+        empleado.activo = False
+
+        empleado.full_clean()
+        empleado.save()
+
+        empleado_actualizado = Empleado.objects.get(pk=empleado.pk)
+
+        self.assertEqual(nuevo_legajo, empleado_actualizado.legajo)
+        self.assertEqual(nuevo_nombre, empleado_actualizado.nombre_completo)
+        self.assertEqual(Empleado.TipoEspecialidad.UCI, empleado_actualizado.especialidad)
+        self.assertEqual(Empleado.TipoExperiencia.JUNIOR, empleado_actualizado.experiencia)
+        self.assertEqual(5, empleado_actualizado.min_turnos_mensuales)
+        self.assertEqual(15, empleado_actualizado.max_turnos_mensuales)
+        self.assertFalse(empleado_actualizado.activo)
+
+    def test_cuando_se_edita_min_turnos_a_valor_negativo_deberia_fallar(self):
+        empleado = self.crear_empleado()
+
+        empleado.min_turnos_mensuales = -5
+
+        with self.assertRaises(ValidationError):
+            empleado.full_clean()
+
+    def test_cuando_se_edita_max_turnos_a_valor_negativo_deberia_fallar(self):
+        empleado = self.crear_empleado()
+
+        empleado.max_turnos_mensuales = -1
+
+        with self.assertRaises(ValidationError):
+            empleado.full_clean()
+
+    def test_cuando_se_edita_legajo_a_uno_existente_deberia_fallar(self):
+        self.crear_empleado(legajo="EMP001")
+        empleado_2 = self.crear_empleado(
+            legajo="EMP002",
+            nombre_completo="Otro Empleado"
+        )
+
+        empleado_2.legajo = "EMP001"
+
+        with self.assertRaises(ValidationError):
+            empleado_2.full_clean()
+
+    def test_cuando_se_edita_estado_activo_deberia_actualizarse(self):
+        empleado = self.crear_empleado(activo=True)
+
+        empleado.activo = False
+        empleado.full_clean()
+        empleado.save()
+
+        empleado_actualizado = Empleado.objects.get(pk=empleado.pk)
+        self.assertFalse(empleado_actualizado.activo)

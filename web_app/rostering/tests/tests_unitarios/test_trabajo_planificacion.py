@@ -63,3 +63,31 @@ class TestTrabajoPlanificacion(TestCase):
 
         trabajo = TrabajoPlanificacion.objects.get(especialidad=self.especialidad)
         self.assertIsNotNone(trabajo.fecha_creacion)
+
+    def test_cuando_se_edita_trabajo_planificacion_con_datos_validos_deberia_actualizarse(self):
+        trabajo = self.crear_trabajo()
+
+        nueva_fecha_inicio = date(2025, 2, 1)
+        nueva_fecha_fin = date(2025, 2, 28)
+        nueva_especialidad = Empleado.TipoEspecialidad.ENFERMERO
+
+        trabajo.fecha_inicio = nueva_fecha_inicio
+        trabajo.fecha_fin = nueva_fecha_fin
+        trabajo.especialidad = nueva_especialidad
+
+        trabajo.full_clean()
+        trabajo.save()
+
+        trabajo_actualizado = TrabajoPlanificacion.objects.get(job_id=trabajo.job_id)
+
+        self.assertEqual(nueva_fecha_inicio, trabajo_actualizado.fecha_inicio)
+        self.assertEqual(nueva_fecha_fin, trabajo_actualizado.fecha_fin)
+        self.assertEqual(nueva_especialidad, trabajo_actualizado.especialidad)
+
+    def test_cuando_se_settea_plantilla_demanda_como_null_deberia_de_actualizarse(self):
+        trabajo = self.crear_trabajo()
+
+        self.plantilla_demanda.delete()
+
+        trabajo_actualizado = TrabajoPlanificacion.objects.get(job_id=trabajo.job_id)
+        self.assertIsNone(trabajo_actualizado.plantilla_demanda)
