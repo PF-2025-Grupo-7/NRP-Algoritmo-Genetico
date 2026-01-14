@@ -17,6 +17,7 @@ from django.views.generic import (
     DetailView, TemplateView, FormView
 )
 from django.contrib.auth.decorators import user_passes_test
+from django.core.exceptions import PermissionDenied
 
 # --- MODELOS ---
 from .models import (
@@ -49,8 +50,10 @@ from .services import (
 )
 
 class SuperUserRequiredMixin(UserPassesTestMixin):
-    def test_func(self): return self.request.user.is_superuser
-
+    raise_exception = True  # <--- ESTA LÍNEA ES LA CLAVE MÁGICA
+    def test_func(self): 
+        return self.request.user.is_superuser
+    
 # ==============================================================================
 # VISTAS GENERALES Y DE GESTIÓN
 # ==============================================================================
@@ -396,7 +399,6 @@ class ConfiguracionTurnosListView(SuperUserRequiredMixin, ListView):
         return ctx
 
 @login_required
-@user_passes_test(lambda u: u.is_superuser)    
 def config_turnos_edit(request, especialidad):
     """
     Vista Lógica Principal (Refactorizada - Smart Update + Auto Secuencias):
@@ -404,6 +406,10 @@ def config_turnos_edit(request, especialidad):
     2. Si el Esquema se mantiene -> Actualiza los objetos existentes.
     3. AUTOMÁTICO: Regenera las secuencias prohibidas según la topología.
     """
+    # --- NUEVO BLOQUEO MANUAL ---
+    if not request.user.is_superuser:
+        raise PermissionDenied("Solo los administradores pueden modificar la estructura de turnos.")
+    # ----------------------------
     instance = ConfiguracionTurnos.objects.filter(especialidad=especialidad).first()
     esquema_anterior = instance.esquema if instance else None
     
