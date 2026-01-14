@@ -347,45 +347,52 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
     duracion_turnos = {str(t.id): float(t.duracion_horas) for t in turnos_qs}
     max_turno_val = max(turnos_a_cubrir) if turnos_a_cubrir else 0
 
-    # Reglas de Cobertura
-    def extraer_demanda_por_dia(dia_semana):
-        """Extrae la demanda para un día específico de la semana (0=Lunes, 6=Domingo)."""
-        resultado = {}
-        reglas_del_dia = ReglaDemandaSemanal.objects.filter(plantilla=plantilla)
-        for r in reglas_del_dia:
-            if dia_semana in r.dias:
-                resultado[str(r.turno.id)] = {"junior": r.cantidad_junior, "senior": r.cantidad_senior}
-        return resultado
-
-    # Extraemos demanda para día normal (Lunes como referencia) y fin de semana (Sábado)
-    dict_demanda_normal = extraer_demanda_por_dia(0)  # Lunes
-    dict_demanda_finde = extraer_demanda_por_dia(5)  # Sábado
+    # =========================================================================
+    # 5. GENERACIÓN DE DEMANDA EXPLÍCITA (LISTA PLANA DÍA A DÍA)
+    # =========================================================================
     
-    dias_pico_indices = []
-    dict_demanda_pico = {}
+    # A. Cargar reglas base en un diccionario temporal (0=Lunes ... 6=Domingo)
+    plantilla_semanal = {d: {} for d in range(7)}
     
-    def extraer_demanda_excepciones(excepcion_qs):
-        """Extrae la demanda de un queryset de excepciones."""
-        resultado = {}
-        for exc in excepcion_qs:
-            resultado[str(exc.turno.id)] = {"junior": exc.cantidad_junior, "senior": exc.cantidad_senior}
-        return resultado
-    
-    fecha_iter = fecha_inicio
-    for i in range(num_dias):
-        excepcion = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter)
-        if excepcion.exists():
-            dias_pico_indices.append(i)
-            if not dict_demanda_pico: 
-                dict_demanda_pico = extraer_demanda_excepciones(excepcion)
-        fecha_iter += timedelta(days=1)
-
-    reglas_cobertura = {
-        "dias_pico": dias_pico_indices,
-        "demanda_pico": dict_demanda_pico if dict_demanda_pico else dict_demanda_normal,
-        "demanda_finde": dict_demanda_finde,
-        "demanda_normal": dict_demanda_normal
+    reglas_db = ReglaDemandaSemanal.objects.filter(plantilla=plantilla).select_related('turno')
+    mapa_dias_db = {
+        DiaSemana.LUNES: 0, DiaSemana.MARTES: 1, DiaSemana.MIERCOLES: 2,
+        DiaSemana.JUEVES: 3, DiaSemana.VIERNES: 4, DiaSemana.SABADO: 5, DiaSemana.DOMINGO: 6
     }
+
+    for regla in reglas_db:
+        # AQUÍ ES DONDE ANTES HUBO PROBLEMAS CON 'dia' vs 'dias'
+        # Asumimos que el modelo ya se arregló o usás la versión correcta.
+        # Si tu modelo actual usa 'dias' (lista), hay que iterar. 
+        # Si usa 'dia' (entero), es directo.
+        # Basado en tu último código de models.py, 'dias' es un JSONField (lista de enteros).
+        
+        lista_dias = regla.dias if isinstance(regla.dias, list) else []
+        
+        for d_int in lista_dias:
+            # IMPORTANTE: Usamos str(ID) para compatibilidad JSON
+            turno_str = str(regla.turno.id)
+            if d_int not in plantilla_semanal: plantilla_semanal[d_int] = {}
+            
+            plantilla_semanal[d_int][turno_str] = {
+                "junior": regla.cantidad_junior,
+                "senior": regla.cantidad_senior
+            }
+
+    # B. Aplicar lógica de replicación (Si no hay datos explícitos)
+    # NOTA: Al pasar a Reglas con lista de días explícita, la replicación automática
+    # Lunes->Viernes pierde un poco de sentido si el usuario ya eligió los días,
+    # pero la dejamos por seguridad si la lista viene vacía en días clave.
+    demanda_lunes = plantilla_semanal.get(0)
+    if demanda_lunes: 
+        for d in range(1, 5): # 1, 2, 3, 4
+            if not plantilla_semanal[d]:
+                plantilla_semanal[d] = copy.deepcopy(demanda_lunes)
+    
+    demanda_sabado = plantilla_semanal.get(5)
+    if demanda_sabado: 
+        if not plantilla_semanal[6]: 
+            plantilla_semanal[6] = copy.deepcopy(demanda_sabado)
 
     # C. Construir la LISTA MAESTRA día por día
     requerimientos_cobertura_explicita = []
@@ -396,15 +403,13 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         dia_semana = fecha_iter.weekday() # 0=Lunes
         
         # 1. Obtener base del día de la semana
-        # Para días de semana (Lunes-Viernes): usar demanda_normal
-        # Para fin de semana (Sábado-Domingo): usar demanda_finde
-        if dia_semana >= 5:
-            demanda_dia = copy.deepcopy(dict_demanda_finde)
-            dias_no_habiles_indices.append(i)
-        else:
-            demanda_dia = copy.deepcopy(dict_demanda_normal)
+        demanda_dia = copy.deepcopy(plantilla_semanal.get(dia_semana, {}))
         
-        # 2. Aplicar Excepciones (Feriados, Picos)
+        # 2. Detectar Finde (Sábado y Domingo)
+        if dia_semana >= 5: 
+            dias_no_habiles_indices.append(i)
+        
+        # 3. Aplicar Excepciones (Feriados, Picos)
         excepciones_db = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha=fecha_iter).select_related('turno')
         
         if excepciones_db.exists():
@@ -427,7 +432,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
 
     # =========================================================================
 
-    # 6. Excepciones Disponibilidad y Preferencias
+    # 6. Excepciones Disponibilidad
     excepciones_disponibilidad = []
     for nd in NoDisponibilidad.objects.filter(empleado__in=empleados_qs, fecha_inicio__lte=fecha_fin, fecha_fin__gte=fecha_inicio):
         start = max(0, (nd.fecha_inicio - fecha_inicio).days)
@@ -436,14 +441,56 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         if start < end and prof_idx is not None:
             excepciones_disponibilidad.append({"prof_index": prof_idx, "dias_range": [start, end], "disponible": False})
 
+    # =========================================================================
+    # 7. PROCESAMIENTO DE PREFERENCIAS (Con Límite MVP #34)
+    # =========================================================================
+    MAX_PREFERENCIAS_MVP = 3  # Límite hardcodeado para equidad
+    
+    # 1. Recuperamos TODAS las preferencias del periodo ordenadas por carga
+    todas_prefs = Preferencia.objects.filter(
+        empleado__in=empleados_qs, 
+        fecha__range=[fecha_inicio, fecha_fin]
+    ).order_by('id') # ID ascendente = orden cronológico de carga
+
+    # 2. Agrupamos por empleado
+    prefs_por_empleado = {}
+    for p in todas_prefs:
+        if p.empleado_id not in prefs_por_empleado:
+            prefs_por_empleado[p.empleado_id] = []
+        prefs_por_empleado[p.empleado_id].append(p)
+
     excepciones_preferencias = []
-    for pref in Preferencia.objects.filter(empleado__in=empleados_qs, fecha__range=[fecha_inicio, fecha_fin]):
-        dia_idx = (pref.fecha - fecha_inicio).days
-        peso = config.peso_preferencia_turno if pref.tipo_turno else config.peso_preferencia_dias_libres
-        valor = peso if pref.deseo == 'TRABAJAR' else -peso
-        prof_idx = mapa_id_a_indice.get(pref.empleado.id)
-        if prof_idx is not None:
-            excepciones_preferencias.append({"prof_indices": [prof_idx], "dia": dia_idx, "valor": valor})
+    
+    for emp_id, lista_prefs in prefs_por_empleado.items():
+        # A. Aplicamos el recorte: Nos quedamos con las ÚLTIMAS (más recientes)
+        if len(lista_prefs) > MAX_PREFERENCIAS_MVP:
+            seleccionadas = lista_prefs[-MAX_PREFERENCIAS_MVP:]
+            print(f"⚖️ EQUIDAD: Empleado {emp_id} tenía {len(lista_prefs)} prefs. Se recortaron a las últimas {MAX_PREFERENCIAS_MVP}.")
+        else:
+            seleccionadas = lista_prefs
+
+        # B. Generamos el payload solo con las aprobadas
+        for pref in seleccionadas:
+            dia_idx = (pref.fecha - fecha_inicio).days
+            
+            # Peso según tipo
+            if pref.tipo_turno:
+                peso = config.peso_preferencia_turno
+            else:
+                peso = config.peso_preferencia_dias_libres
+            
+            # Signo según deseo
+            valor = peso if pref.deseo == 'TRABAJAR' else -peso
+            
+            prof_idx = mapa_id_a_indice.get(pref.empleado.id)
+            if prof_idx is not None:
+                excepciones_preferencias.append({
+                    "prof_indices": [prof_idx], 
+                    "dia": dia_idx, 
+                    "valor": valor
+                })
+
+    # =========================================================================
 
     secuencias = []
     for s in SecuenciaProhibida.objects.filter(especialidad=especialidad):
@@ -456,9 +503,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
             "requerimientos_cobertura_explicita": requerimientos_cobertura_explicita, 
             
             "dias_no_habiles": dias_no_habiles_indices,
-            # --- CORRECCIÓN AQUÍ: Diccionario {} en lugar de Lista [] ---
-            "reglas_cobertura": {}, 
-            # -----------------------------------------------------------
+            "reglas_cobertura": {}, # Se usa explicita ahora
             
             "max_turno_val": max_turno_val,
             "turnos_a_cubrir": turnos_a_cubrir,
