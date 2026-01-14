@@ -21,7 +21,8 @@
                             {% endif %}
                         </div>
 
-                        <!-- Días de la semana con checkboxes estilo "puntitos" -->
+                        {% if form.dia_lunes %}
+                        <!-- Regla semanal: selección de días -->
                         <div class="mb-4">
                             <label class="form-label fw-bold">Días de aplicación</label>
                             <div class="alert alert-light border">
@@ -60,6 +61,17 @@
                                 <div class="text-danger small mt-1">{{ form.non_field_errors.0 }}</div>
                             {% endif %}
                         </div>
+                        {% elif form.fecha %}
+                        <!-- Excepción puntual: fecha específica -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Fecha de excepción</label>
+                            {{ form.fecha }}
+                            <div class="form-text mt-1">Esta demanda reemplaza la regla semanal solo en esa fecha.</div>
+                            {% if form.fecha.errors %}
+                                <div class="text-danger small mt-1">{{ form.fecha.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
 
                         <!-- Cantidad Senior -->
                         <div class="mb-3">
@@ -79,9 +91,15 @@
                             {% endif %}
                         </div>
                         
+                        {% if form.dia_lunes %}
                         <div class="alert alert-info small mt-4">
                             <i class="bi bi-info-circle-fill"></i> <strong>Nota:</strong> Si seleccionas un día que ya está asignado en otra regla con el mismo turno, automáticamente se quitará de la regla anterior.
                         </div>
+                        {% else %}
+                        <div class="alert alert-info small mt-4">
+                            <i class="bi bi-info-circle-fill"></i> <strong>Nota:</strong> Esta excepción pisa la demanda de la regla semanal solo en la fecha elegida.
+                        </div>
+                        {% endif %}
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                             <a href="#" onclick="window.history.back()" class="btn btn-secondary me-md-2">Cancelar</a>
