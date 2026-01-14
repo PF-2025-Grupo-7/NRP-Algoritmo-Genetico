@@ -100,6 +100,8 @@ class PreferenciaForm(BootstrapFormMixin, forms.ModelForm):
             'deseo': SELECT_WIDGET,
             'comentario': TEXTAREA_WIDGET
         }
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 class SecuenciaProhibidaForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
