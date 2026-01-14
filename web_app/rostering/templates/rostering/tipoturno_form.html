@@ -3,42 +3,144 @@
 {% block content %}
 <div class="container mt-5">
     <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card shadow border-0">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">
-                        {% if object %}Editar Turno{% else %}Nuevo Tipo de Turno{% endif %}
-                    </h4>
+        <div class="col-md-8 col-lg-7"> <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-2 px-4">
+                    <div class="d-flex align-items-center text-primary">
+                        <div class="bg-primary bg-opacity-10 p-2 rounded-3 me-3">
+                            <i class="bi bi-clock-history fs-4"></i>
+                        </div>
+                        <h4 class="mb-0 fw-bold">
+                            {% if object %}Editar Tipo de Turno{% else %}Nuevo Tipo de Turno{% endif %}
+                        </h4>
+                    </div>
                 </div>
+
                 <div class="card-body p-4">
                     <form method="post">
                         {% csrf_token %}
                         
                         {% if form.non_field_errors %}
-                            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                            <div class="alert alert-danger mb-4">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                {{ form.non_field_errors }}
+                            </div>
                         {% endif %}
 
-                        {% for field in form %}
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">{{ field.label }}</label>
-                            {{ field }}
-                            {% if field.help_text %}
-                                <div class="form-text small">{{ field.help_text }}</div>
-                            {% endif %}
-                            {% for error in field.errors %}
-                                <div class="text-danger small">{{ error }}</div>
-                            {% endfor %}
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold text-dark mb-1">Nombre <span class="text-danger">*</span></label>
+                                {{ form.nombre }}
+                                {% for error in form.nombre.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold text-dark mb-1">Abreviatura <span class="text-danger">*</span></label>
+                                {{ form.abreviatura }}
+                                {% for error in form.abreviatura.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                {% endfor %}
+                            </div>
                         </div>
-                        {% endfor %}
 
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                            <a href="{% url 'tipoturno_list' %}" class="btn btn-secondary me-md-2">Cancelar</a>
-                            <button type="submit" class="btn btn-success px-4">Guardar Turno</button>
+                        <div class="mb-3">
+                            {% if form.especialidad.field.disabled %}
+                                <label class="form-label fw-bold text-muted small text-uppercase mb-1">Especialidad Asociada</label>
+                                <div class="d-flex align-items-center bg-light border border-secondary border-opacity-25 rounded-3 px-3 py-2">
+                                    <div class="me-3 text-secondary">
+                                        <i class="bi bi-lock-fill fs-5"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-bold text-dark">
+                                            {{ form.instance.get_especialidad_display|default:form.especialidad.value }}
+                                        </div>
+                                        <small class="text-muted d-block lh-1" style="font-size: 0.75rem;">
+                                            {{ form.especialidad.help_text }}
+                                        </small>
+                                    </div>
+                                    <div class="d-none">{{ form.especialidad }}</div>
+                                </div>
+                            {% else %}
+                                <label class="form-label fw-bold text-dark mb-1">Especialidad <span class="text-danger">*</span></label>
+                                {{ form.especialidad }}
+                            {% endif %}
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <label class="form-label fw-bold text-dark mb-1">Hora Inicio <span class="text-danger">*</span></label>
+                                {{ form.hora_inicio }}
+                                {% for error in form.hora_inicio.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold text-dark mb-1">Hora Fin <span class="text-danger">*</span></label>
+                                {{ form.hora_fin }}
+                                {% for error in form.hora_fin.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="form-check form-switch bg-light rounded-3 border px-3 py-2 d-flex align-items-center">
+                                {{ form.es_nocturno }}
+                                <div class="ms-2">
+                                    <label class="form-check-label fw-bold" for="{{ form.es_nocturno.id_for_label }}">
+                                        Es turno nocturno
+                                    </label>
+                                    <div class="text-muted lh-1" style="font-size: 0.75rem;">
+                                        Marca si cruza la medianoche (ej: 22 a 06) o implica plus.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-info border-0 bg-info bg-opacity-10 small py-2 d-flex align-items-center">
+                            <i class="bi bi-calculator me-2 fs-5"></i> 
+                            <div>
+                                La <strong>duración</strong> se calcula automáticamente al guardar.
+                            </div>
+                        </div>
+
+                        <hr class="my-4 opacity-10">
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{% url 'tipoturno_list' %}" class="btn btn-light border text-muted px-4 fw-bold">
+                                Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-success px-4 fw-bold shadow-sm">
+                                <i class="bi bi-check-lg me-2"></i> Guardar
+                            </button>
                         </div>
                     </form>
                 </div>
             </div>
+
         </div>
     </div>
 </div>
+
+<style>
+    /* Ajustes compactos para inputs */
+    input[type="text"], input[type="time"], select {
+        width: 100%;
+        padding: 0.5rem 0.75rem; /* Menos padding vertical */
+        border-radius: 0.5rem;
+        border: 1px solid #ced4da;
+    }
+    /* El switch un poco más grande para ser clicable */
+    .form-switch .form-check-input {
+        width: 2.5em; 
+        height: 1.25em;
+        cursor: pointer;
+        margin-left: -2em; /* Fix visual de bootstrap en container custom */
+        margin-right: 0.5em;
+    }
+    /* Corrección de margen del switch dentro del contenedor flex */
+    .form-switch {
+        padding-left: 2.5em; 
+    }
+</style>
 {% endblock %}

@@ -1,82 +1,892 @@
 {% extends 'base.html' %}
-{% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2><i class="bi bi-heart"></i> Preferencias de Empleados</h2>
-        <a href="{% url 'preferencia_create' %}" class="btn btn-success">
-            <i class="bi bi-plus-circle"></i> Nueva Preferencia
-        </a>
-    </div>
 
-    <div class="card mb-3 bg-light border-0">
-        <div class="card-body py-2">
-            <form method="get" class="row g-2 align-items-center">
-                <div class="col-auto fw-bold">Especialidad:</div>
-                <div class="col-auto">
-                    {{ filter_form.especialidad }}
-                </div>  
-                <div class="col-auto fw-bold">Nombre:</div>
-                <div class="col-auto">{{ filter_form.empleado }}</div>
-                <div class="col-auto">{{ filter_form.fecha }}</div>
-                <div class="col-auto">{{ filter_form.deseo }}</div>
-                <div class="col-auto"><button class="btn btn-secondary btn-sm">Buscar</button></div>
-            </form>
+{% block title %}Preferencias - Hospital Planner{% endblock %}
+
+{% block content %}
+<div class="container py-2" style="max-width: 1400px;">
+    
+    <!-- Header al estilo Panel de Control -->
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Preferencias</h1>
+            <p class="text-muted fs-5 mb-0">Gestión de preferencias de turnos del personal</p>
+        </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <a href="{% url 'preferencia_create' %}" class="btn btn-primary px-4 shadow-sm fw-bold">
+                <i class="bi bi-plus-lg me-2"></i>Nueva Preferencia
+            </a>
         </div>
     </div>
 
-    <div class="table-responsive card shadow-sm">
-        <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>Empleado</th>
-                    <th>Especialidad</th> <th>Fecha</th>
-                    <th>Deseo</th>
-                    <th>Turno Específico</th>
-                    <th>Comentario</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for p in preferencias %}
-                <tr>
-                    <td class="fw-bold">{{ p.empleado.nombre_completo }}</td>
-                    
-                    <td>
-                        {% if p.empleado.especialidad == 'MEDICO' %}
-                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary">Médico</span>
-                        {% elif p.empleado.especialidad == 'ENFERMERO' %}
-                            <span class="badge bg-success bg-opacity-10 text-success border border-success">Enfermero</span>
-                        {% else %}
-                            <span class="badge bg-secondary">{{ p.empleado.get_especialidad_display }}</span>
-                        {% endif %}
-                    </td>
+    {# --- INICIO AVISO EN LISTA (VERSIÓN SIMPLE) --- #}
+    <div class="alert alert-light border shadow-sm d-flex align-items-center mb-4" role="alert" style="border-left: 4px solid #0dcaf0 !important;">
+        <i class="bi bi-info-circle text-info fs-4 me-3"></i>
+        <div>
+            <span class="fw-bold text-dark">Límite:</span>
+            <span class="text-muted ms-1">
+                Para que el reparto sea justo para todos, el sistema solo tendrá en cuenta los 
+                <strong>3 pedidos más recientes</strong> por empleado al momento de planificar.
+            </span>
+        </div>
+    </div>
+    {# --- FIN AVISO EN LISTA --- #}
 
-                    <td>{{ p.fecha|date:"D d/m/Y" }}</td>
-                    <td>
-                        {% if p.deseo == 'TRABAJAR' %}
-                            <span class="badge bg-success">Quiere Trabajar</span>
-                        {% else %}
-                            <span class="badge bg-secondary">Quiere Descansar</span>
+    <!-- Card principal con filtros y tabla -->
+    <div class="card shadow-sm border-0 bg-white">
+        <!-- Filtros en el header (custom selects estilo generador) -->
+        <div class="card-header bg-white border-bottom py-3">
+            <form method="get" class="filters-row">
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <div class="search-input-wrapper">
+                        <input type="text" name="search" value="{{ filter_form.data.search }}" class="form-control form-control-sm search-input" placeholder="Buscar por nombre o legajo..." aria-label="Buscar empleado">
+                    </div>
+
+                    <div class="custom-select-wrapper">
+                        <select class="form-select d-none" id="f_especialidad" name="especialidad">
+                            <option value="">Todas las Especialidades</option>
+                            {% for value,label in filter_form.especialidad.field.choices %}
+                            {% if value != '' %}
+                            <option value="{{ value }}" {% if filter_form.data.especialidad == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                        <div class="custom-dropdown">
+                            <div class="custom-dropdown-header" tabindex="0" id="f_especialidad_header" data-placeholder="Todas las Especialidades">Todas las Especialidades</div>
+                            <div class="custom-dropdown-menu" id="f_especialidad_menu">
+                                <div class="custom-option" data-value="">Todas las Especialidades</div>
+                                {% for value,label in filter_form.especialidad.field.choices %}
+                                {% if value != '' %}
+                                <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="date-input-wrapper">
+                        <input type="date" name="fecha" value="{{ filter_form.data.fecha }}" class="form-control form-control-sm date-input" aria-label="Fecha" data-placeholder="Fecha">
+                    </div>
+
+                    <div class="filter-buttons-wrapper">
+                        {% if filter_form.data.search or filter_form.data.especialidad or filter_form.data.fecha %}
+                            <a href="{% url 'preferencia_list' %}" class="btn btn-outline-secondary btn-sm fw-semibold filter-btn">
+                                Limpiar
+                            </a>
                         {% endif %}
-                    </td>
-                    <td>
-                        {% if p.tipo_turno %}
-                            {{ p.tipo_turno }}
-                        {% else %}
-                            <span class="text-muted small">Cualquiera / Todo el día</span>
-                        {% endif %}
-                    </td>
-                    <td class="small text-muted">{{ p.comentario|default:"-"|truncatechars:30 }}</td>
-                    <td>
-                        <a href="{% url 'preferencia_update' p.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                        <a href="{% url 'preferencia_delete' p.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="7" class="text-center py-4">No hay preferencias registradas.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        <button type="submit" class="btn btn-primary btn-sm fw-semibold filter-btn">
+                            Buscar
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tabla de preferencias -->
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-muted">
+                        <tr>
+                            <th class="text-center">Legajo</th>
+                            <th class="text-center">Empleado</th>
+                            <th class="text-center">Especialidad</th>
+                            <th class="text-center">Fecha</th>
+                            <th class="text-center">Deseo</th>
+                            <th class="text-center">Turno</th>
+                            <th class="text-center">Comentario</th>
+                            <th class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="small">
+                        {% for p in preferencias %}
+                        <tr class="preferencia-row">
+                            <td class="text-center text-muted">
+                                #{{ p.empleado.legajo }}
+                            </td>
+
+                            <td class="text-center fw-semibold">
+                                {{ p.empleado.nombre_completo }}
+                            </td>
+                            
+                            <td class="text-center">
+                                {{ p.empleado.get_especialidad_display }}
+                            </td>
+
+                            <td class="text-center">
+                                {{ p.fecha|date:"d/m/Y" }}
+                            </td>
+
+                            <td class="text-center">
+                                {% if p.deseo == 'TRABAJAR' %}
+                                    <span class="badge badge-status bg-success-subtle-custom">Trabajar</span>
+                                {% else %}
+                                    <span class="badge badge-status bg-danger-subtle-custom">Descansar</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="text-center">
+                                {% if p.tipo_turno %}
+                                    <span class="text-muted">{{ p.tipo_turno }}</span>
+                                {% else %}
+                                    <span class="text-muted">Cualquiera</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="text-center">
+                                <span class="text-muted">{{ p.comentario|default:"-"|truncatechars:30 }}</span>
+                            </td>
+
+                            <td class="text-center">
+                                <div class="action-buttons">
+                                    <a href="{% url 'preferencia_update' p.pk %}" 
+                                       class="btn btn-sm btn-action btn-action-edit" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-title="Editar">
+                                        <i class="bi bi-pencil-fill"></i>
+                                    </a>
+                                    <button type="button"
+                                       class="btn btn-sm btn-action btn-action-delete" 
+                                       data-bs-toggle="tooltip" 
+                                       data-bs-title="Eliminar"
+                                       onclick="openDeleteModal('{{ p.empleado.nombre_completo }}', '{{ p.fecha|date:"d/m/Y" }}', '{{ p.get_deseo_display }}', '{% url 'preferencia_delete' p.pk %}')">
+                                        <i class="bi bi-trash-fill"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center py-5">
+                                <div class="empty-state">
+                                    <div class="empty-state-icon">
+                                        <i class="bi bi-inbox"></i>
+                                    </div>
+                                    <h5 class="fw-bold mb-2" style="color: #5a5c69;">No se encontraron preferencias</h5>
+                                    <p class="text-muted mb-3">No hay registros que coincidan con los filtros aplicados.</p>
+                                    {% if request.GET %}
+                                        <a href="{% url 'preferencia_list' %}" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-arrow-counterclockwise me-1"></i>Limpiar filtros
+                                        </a>
+                                    {% else %}
+                                        <a href="{% url 'preferencia_create' %}" class="btn btn-primary btn-sm">
+                                            <i class="bi bi-plus-lg me-1"></i>Registrar primera preferencia
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Paginación -->
+    {% if is_paginated %}
+    <nav aria-label="Navegación de páginas" class="mt-4">
+        <ul class="pagination justify-content-center pagination-custom">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode|cut:'page=' }}">
+                        <i class="bi bi-chevron-left"></i> Anterior
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link"><i class="bi bi-chevron-left"></i> Anterior</span>
+                </li>
+            {% endif %}
+
+            <li class="page-item active">
+                <span class="page-link fw-semibold">
+                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                </span>
+            </li>
+
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode|cut:'page=' }}">
+                        Siguiente <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Siguiente <i class="bi bi-chevron-right"></i></span>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+<!-- Modal de confirmación de eliminación -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4" style="background: white;">
+                <button type="button" class="btn-close position-absolute" style="top: 16px; right: 16px; opacity: 0.5;" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center px-5 pb-4 pt-2">
+                <!-- Icono de alerta -->
+                <div class="mb-4">
+                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #dc3545;">
+                        <i class="bi bi-x-lg" style="font-size: 2.5rem; color: #dc3545; font-weight: bold;"></i>
+                    </div>
+                </div>
+                
+                <!-- Título -->
+                <h4 class="fw-bold mb-3" style="color: #2f3e4c;">¿Estás seguro?</h4>
+                
+                <!-- Información de la preferencia -->
+                <div class="mb-3 p-4" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+                    <p class="mb-2 small text-muted">Estás a punto de eliminar la preferencia de:</p>
+                    <p class="mb-1 fw-bold" style="color: #2f3e4c; font-size: 1.1rem;"><span id="deleteEmpleado"></span></p>
+                    <p class="mb-0 fw-bold" style="color: #2f3e4c;"><span id="deleteFecha"></span> - <span id="deleteDeseo"></span></p>
+                </div>
+                
+                <!-- Mensaje de advertencia -->
+                <p class="text-muted small mb-0" style="line-height: 1.6;">
+                    <i class="bi bi-info-circle me-1"></i>Esta acción es irreversible. Se eliminará el registro de esta preferencia.
+                </p>
+            </div>
+            <div class="modal-footer border-0 bg-white justify-content-center gap-2 pb-4">
+                <button type="button" class="btn btn-light px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 600; border: 1px solid #dee2e6; min-width: 120px;">
+                    Cancelar
+                </button>
+                <form id="deleteForm" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger px-4 py-2" style="border-radius: 10px; font-weight: 600; min-width: 120px;">
+                        Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
+
+<style>
+    body { 
+        font-size: 1rem; 
+        background-color: #edf1f7e2; 
+    }
+
+    /* Cards generales */
+    .card { 
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important; 
+        border-radius: 12px;
+    }
+
+    /* Tabla */
+    .table thead th { 
+        padding: 1rem 0.75rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .table tbody td {
+        color: #6c757d;
+        padding: 1rem 0.75rem;
+        vertical-align: middle;
+    }
+
+    .preferencia-row {
+        transition: all 0.2s ease;
+    }
+
+    .preferencia-row:hover {
+        background-color: rgba(13, 110, 253, 0.02);
+    }
+
+    /* Badges de estado */
+    .badge-status {
+        display: inline-block;
+        min-width: 100px;
+        padding: 0.5em 0.75em;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-radius: 6px;
+    }
+
+    .bg-success-subtle-custom { 
+        background-color: #d1e7dd !important; 
+        color: #678d7b !important; 
+    }
+    
+    .bg-warning-subtle-custom { 
+        background-color: #fff3cd !important; 
+        color: #928560 !important; 
+    }
+
+    .bg-danger-subtle-custom { 
+        background-color: #f8d7da !important; 
+        color: #915c61 !important; 
+    }
+
+    .bg-info-subtle-custom { 
+        background-color: #cff4fc !important; 
+        color: #6c9aa5 !important; 
+    }
+
+    .bg-primary-subtle-custom { 
+        background-color: #cfe2ff !important; 
+        color: #6c8eb8 !important; 
+    }
+
+    .bg-secondary-subtle-custom { 
+        background-color: #e2e3e5 !important; 
+        color: #7a7c80 !important; 
+    }
+
+    /* Botones de acción */
+    .action-buttons {
+        display: inline-flex;
+        gap: 0.5rem;
+    }
+
+    .btn-action {
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        border: 1px solid #dee2e6;
+        background-color: white;
+    }
+
+    .btn-action i {
+        font-size: 1.1rem;
+    }
+
+    .btn-action-edit {
+        color: #6c757d;
+        border-color: rgba(108, 117, 125, 0.2);
+    }
+
+    .btn-action-edit:hover {
+        background-color: rgba(108, 117, 125, 0.1);
+        border-color: #6c757d;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(108, 117, 125, 0.2);
+    }
+
+    .btn-action-delete {
+        color: #dc3545;
+        border-color: rgba(220, 53, 69, 0.2);
+    }
+
+    .btn-action-delete:hover {
+        background-color: rgba(220, 53, 69, 0.1);
+        border-color: #dc3545;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
+    }
+
+    /* Estado vacío */
+    .empty-state {
+        padding: 2rem;
+    }
+
+    .empty-state-icon {
+        font-size: 4rem;
+        color: #dee2e6;
+        margin-bottom: 1rem;
+    }
+
+    /* Paginación */
+    .pagination-custom .page-link {
+        color: #495057;
+        border: 1px solid #dee2e6;
+        padding: 0.5rem 1rem;
+        margin: 0 0.25rem;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .pagination-custom .page-link:hover {
+        background-color: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+        transform: translateY(-2px);
+    }
+
+    .pagination-custom .page-item.active .page-link {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: white;
+    }
+
+    .pagination-custom .page-item.disabled .page-link {
+        background-color: #f8f9fa;
+        color: #adb5bd;
+        border-color: #dee2e6;
+    }
+
+    /* Buscador */
+    .search-input-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .filters-row .search-input {
+        font-size: 0.95rem;
+        padding: 0.55rem 0.85rem;
+        border-radius: 10px;
+        height: 46px;
+        border: 1px solid #e0e5ec;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+        min-width: 250px;
+        color: #495057;
+        font-weight: 400;
+    }
+
+    .filters-row .search-input:hover {
+        background-color: #f5f7fb;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .filters-row .search-input:focus {
+        outline: none;
+        border-color: #0d6efd;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+    }
+
+    /* Flexbox responsive para los filtros */
+    .filters-row {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .filters-row > div {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        width: 100%;
+    }
+
+    .filter-buttons-wrapper {
+        display: flex;
+        gap: 0.5rem;
+        margin-left: auto;
+    }
+
+    @media (max-width: 768px) {
+        .filters-row > div {
+            justify-content: space-between;
+        }
+        
+        .filter-buttons-wrapper {
+            margin-left: 0;
+            width: 100%;
+            order: 5;
+            gap: 0.5rem;
+        }
+
+        .search-input-wrapper,
+        .custom-select-wrapper {
+            flex: 1 1 calc(50% - 0.375rem);
+            min-width: 180px;
+        }
+    }
+
+    /* Custom Select Styles (replica generador) */
+    .custom-select-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .form-select.d-none {
+        display: none !important;
+    }
+
+    .custom-dropdown {
+        position: relative;
+        pointer-events: auto;
+    }
+
+    .custom-dropdown-header {
+        height: 46px;
+        border-radius: 10px;
+        border: 1px solid #e0e5ec;
+        background-color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 16px;
+        padding-right: 40px;
+        pointer-events: auto;
+        min-width: 260px;
+    }
+
+    .custom-select-wrapper.select-wide .custom-dropdown-header {
+        min-width: 260px;
+    }
+
+    .custom-dropdown-header:hover {
+        background-color: #f5f7fb;
+    }
+
+    .custom-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: #ffffff;
+        border: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        pointer-events: none;
+        z-index: 100;
+        margin-top: 0;
+        padding: 0;
+        animation: fadeInDown 0.3s ease;
+    }
+
+    .custom-dropdown.open .custom-dropdown-menu {
+        max-height: 300px;
+        pointer-events: auto;
+        opacity: 1;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0;
+    }
+
+    .custom-option {
+        padding: 0.5rem 1.2rem;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.95rem;
+        border-bottom: none;
+        font-weight: 500;
+    }
+
+    .custom-option:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.4rem;
+    }
+
+    .custom-option:first-child {
+        background-color: transparent;
+        color: #495057;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .custom-option:first-child:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.4rem;
+    }
+
+    .form-select:disabled ~ .custom-dropdown .custom-dropdown-header {
+        background-color: #f5f5f5;
+        border-color: #e0e5ec;
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* Inputs de fecha */
+    .date-input-wrapper {
+        position: relative;
+        display: inline-block;
+    }
+
+    .filters-row input[type="date"].date-input {
+        font-size: 0.95rem;
+        padding: 0.55rem 0.85rem;
+        border-radius: 10px;
+        height: 46px;
+        border: 1px solid #e0e5ec;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+        min-width: 165px;
+        color: #495057;
+        font-weight: 400;
+    }
+
+    .filters-row input[type="date"].date-input:hover {
+        background-color: #f5f7fb;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .filters-row input[type="date"].date-input:focus {
+        outline: none;
+        border-color: #0d6efd;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+    }
+
+    /* Ocultar el placeholder nativo dd/mm/aaaa */
+    .filters-row input[type="date"].date-input::-webkit-datetime-edit-text,
+    .filters-row input[type="date"].date-input::-webkit-datetime-edit-month-field,
+    .filters-row input[type="date"].date-input::-webkit-datetime-edit-day-field,
+    .filters-row input[type="date"].date-input::-webkit-datetime-edit-year-field {
+        color: transparent;
+    }
+
+    /* Mostrar los valores cuando el input tiene valor o está en focus */
+    .filters-row input[type="date"].date-input:focus::-webkit-datetime-edit-text,
+    .filters-row input[type="date"].date-input:focus::-webkit-datetime-edit-month-field,
+    .filters-row input[type="date"].date-input:focus::-webkit-datetime-edit-day-field,
+    .filters-row input[type="date"].date-input:focus::-webkit-datetime-edit-year-field,
+    .filters-row input[type="date"].date-input[data-has-value="true"]::-webkit-datetime-edit-text,
+    .filters-row input[type="date"].date-input[data-has-value="true"]::-webkit-datetime-edit-month-field,
+    .filters-row input[type="date"].date-input[data-has-value="true"]::-webkit-datetime-edit-day-field,
+    .filters-row input[type="date"].date-input[data-has-value="true"]::-webkit-datetime-edit-year-field {
+        color: #495057;
+    }
+
+    /* Mostrar placeholder personalizado cuando está vacío */
+    .date-placeholder {
+        position: absolute;
+        left: 0.85rem;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+        color: #495057;
+        font-size: 0.95rem;
+        font-weight: 400;
+        display: none;
+    }
+
+    .filters-row .btn.filter-btn {
+        height: 46px;
+        padding-left: 2rem;
+        padding-right: 2rem;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .filters-row .btn-primary.filter-btn {
+        background: linear-gradient(135deg, #0d6efd 0%, #0b5dd6 100%);
+    }
+    
+    .filters-row .btn-primary.filter-btn:hover {
+        background: linear-gradient(135deg, #0b5dd6 0%, #0a51c4 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25);
+    }
+    
+    .filters-row .btn-outline-secondary.filter-btn {
+        background-color: white;
+        color: #6c757d;
+        border: 1px solid #dee2e6;
+    }
+    
+    .filters-row .btn-outline-secondary.filter-btn:hover {
+        background-color: #6c757d;
+        color: white;
+        border-color: #6c757d;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(108, 117, 125, 0.25);
+    }
+
+    /* Tooltips */
+    .tooltip {
+        --bs-tooltip-bg: #2f3e4c;
+        --bs-tooltip-color: white;
+    }
+
+    .tooltip .tooltip-inner {
+        border-radius: 6px;
+        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .action-buttons {
+            flex-wrap: wrap;
+        }
+
+        .btn-action {
+            width: 34px;
+            height: 34px;
+        }
+
+        .btn-action i {
+            font-size: 1rem;
+        }
+    }
+</style>
+
+<script>
+    // Helpers: dropdown personalizado simplificado
+    function setupCustomDropdown(wrapper){
+        const nativeSelect = wrapper.querySelector('.form-select');
+        const header = wrapper.querySelector('.custom-dropdown-header');
+        const dropdown = wrapper.querySelector('.custom-dropdown');
+        const menu = wrapper.querySelector('.custom-dropdown-menu');
+
+        if (!header || !dropdown || !menu || !nativeSelect) return;
+
+        // Inicializar el header con el texto de la opción seleccionada actualmente
+        const selectedOption = nativeSelect.options[nativeSelect.selectedIndex];
+        if (selectedOption) {
+            header.textContent = selectedOption.textContent;
+        }
+
+        // Abrir/cerrar
+        header.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropdown.classList.toggle('open');
+        };
+
+        // Selección
+        menu.querySelectorAll('.custom-option').forEach((option) => {
+            option.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const value = option.getAttribute('data-value');
+                const text = option.textContent;
+                
+                // Establecer el valor en el select nativo
+                nativeSelect.value = value;
+                
+                // Actualizar el header
+                header.textContent = text;
+                
+                // Cerrar el dropdown
+                dropdown.classList.remove('open');
+
+                // Notificar cambio para coherencia con otros selects
+                nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            };
+        });
+
+        // Cerrar al click fuera
+        document.addEventListener('click', (e) => {
+            if (!wrapper.contains(e.target)) {
+                dropdown.classList.remove('open');
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Inicializar tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+            new bootstrap.Tooltip(tooltipTriggerEl, {
+                delay: { show: 300, hide: 100 }
+            });
+        });
+
+        // Inicializar dropdowns personalizados de filtros
+        document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
+
+        // Limpiar texto del turno (extraer solo Mañana, Tarde, Noche, etc.)
+        document.querySelectorAll('tbody tr').forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 5) {
+                const turnoCell = cells[5]; // Columna de Turno
+                const turnoSpan = turnoCell.querySelector('.text-muted');
+                if (turnoSpan && turnoSpan.textContent.trim() !== 'Cualquiera' && turnoSpan.textContent.trim() !== '-') {
+                    let text = turnoSpan.textContent.trim();
+                    // Primero remover contenido entre paréntesis
+                    text = text.replace(/\s*\([^)]*\)\s*/g, '').trim();
+                    // Luego extraer solo la última palabra (Mañana, Tarde, Noche, Día)
+                    const words = text.split(/[\s_]+/);
+                    if (words.length > 0) {
+                        const lastWord = words[words.length - 1];
+                        // Capitalizar primera letra
+                        turnoSpan.textContent = lastWord.charAt(0).toUpperCase() + lastWord.slice(1).toLowerCase();
+                    }
+                }
+            }
+        });
+
+        // Manejar placeholder de inputs de fecha
+        document.querySelectorAll('.date-input').forEach(input => {
+            // Bloquear TODA escritura manual del teclado pero permitir el calendario
+            input.addEventListener('keydown', (e) => e.preventDefault());
+            input.addEventListener('keypress', (e) => e.preventDefault());
+            input.addEventListener('keyup', (e) => e.preventDefault());
+            input.addEventListener('paste', (e) => e.preventDefault());
+            input.addEventListener('cut', (e) => e.preventDefault());
+            input.addEventListener('drop', (e) => e.preventDefault());
+            
+            const wrapper = input.closest('.date-input-wrapper');
+            const placeholder = input.dataset.placeholder;
+            
+            if (wrapper && placeholder) {
+                // Crear elemento de placeholder
+                const placeholderEl = document.createElement('span');
+                placeholderEl.className = 'date-placeholder';
+                placeholderEl.textContent = placeholder;
+                wrapper.appendChild(placeholderEl);
+                
+                // Función para mostrar/ocultar placeholder
+                const updatePlaceholder = () => {
+                    if (input.value) {
+                        placeholderEl.style.display = 'none';
+                        input.setAttribute('data-has-value', 'true');
+                    } else {
+                        placeholderEl.style.display = 'block';
+                        input.removeAttribute('data-has-value');
+                    }
+                };
+                
+                // Inicializar
+                updatePlaceholder();
+                
+                // Escuchar cambios
+                input.addEventListener('change', updatePlaceholder);
+                input.addEventListener('input', updatePlaceholder);
+                
+                // Ocultar placeholder cuando se abre el calendario
+                input.addEventListener('focus', () => {
+                    placeholderEl.style.display = 'none';
+                });
+                
+                // Volver a mostrar si está vacío al cerrar
+                input.addEventListener('blur', updatePlaceholder);
+            }
+        });
+    });
+    
+    // Función para abrir el modal de eliminación
+    function openDeleteModal(empleado, fecha, deseo, deleteUrl) {
+        // Actualizar los datos en el modal
+        document.getElementById('deleteEmpleado').textContent = empleado;
+        document.getElementById('deleteFecha').textContent = fecha;
+        document.getElementById('deleteDeseo').textContent = deseo;
+        
+        // Actualizar la acción del formulario
+        const deleteForm = document.getElementById('deleteForm');
+        deleteForm.action = deleteUrl;
+        
+        // Mostrar el modal
+        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
+    }
+</script>
 {% endblock %}

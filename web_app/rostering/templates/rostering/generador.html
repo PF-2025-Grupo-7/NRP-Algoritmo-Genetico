@@ -1,240 +1,784 @@
 {% extends "base.html" %}
 
-{% block title %}Generador de Turnos{% endblock %}
+{% block title %}Generar Planificación · Hospital Planner{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center mt-4">
-    <div class="col-md-8 text-center">
-        <h2 class="mb-4">⚡ Generador de Planificación</h2>
-        
-        <div class="card shadow-sm mb-4 border-0">
-            <div class="card-header bg-light text-start">
-                <h5 class="mb-0 text-muted"><i class="bi bi-sliders"></i> Configuración del Escenario</h5>
-            </div>
-            <div class="card-body text-start p-4">
-                <form id="form-generador">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Fecha Inicio</label>
-                            <input type="date" id="fecha_inicio" class="form-control" value="2025-11-01">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Fecha Fin</label>
-                            <input type="date" id="fecha_fin" class="form-control" value="2025-11-30">
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Especialidad</label>
-                            <select id="especialidad" class="form-select" onchange="cargarPlantillas()">
-                                <option value="MEDICO">Médicos (Turnos 12hs)</option>
-                                <option value="ENFERMERO">Enfermeros (Turnos 8hs)</option>
-                            </select>
-                        </div>
+<div class="container py-3" style="max-width: 1100px;">
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Generar Planificación</h1>
+            <p class="text-muted fs-5 mb-0">Optimización de cronogramas de guardias</p>
+        </div>
+    </div>
 
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold">Plantilla de Demanda</label>
-                            <select id="plantilla" class="form-select" required>
-                                <option value="" disabled selected>-- Cargando... --</option>
-                            </select>
-                            <div class="form-text text-muted small">Define cuánta gente se necesita por turno.</div>
+    <div class="card shadow-sm border-0 generator-card">
+        <div class="card-body p-4 p-lg-5 pb-4">
+            <form id="form-generador" class="row g-3" novalidate>
+                <div class="col-12">
+                    <div id="form-warning" class="field-error d-none">
+                        <i class="bi bi-exclamation-circle"></i>
+                        <span id="form-warning-text"></span>
+                    </div>
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label fw-semibold">Fecha inicio</label>
+                    <input type="date" class="form-control" id="fecha_inicio" required>
+                    <div class="invalid-feedback">Ingresá una fecha válida.</div>
+                </div>
+                <div class="col-sm-6">
+                    <label class="form-label fw-semibold">Fecha fin</label>
+                    <input type="date" class="form-control" id="fecha_fin" required>
+                    <div class="invalid-feedback">La fecha fin debe ser posterior al inicio.</div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Especialidad</label>
+                    <div class="custom-select-wrapper">
+                        <select class="form-select d-none" id="especialidad" required>
+                            <option value="" selected disabled>Seleccioná una especialidad</option>
+                            <option value="MEDICO">Médico</option>
+                            <option value="ENFERMERO">Enfermero</option>
+                            <option value="ER">Experto en Emergencias</option>
+                            <option value="UCI">Unidad de Cuidados Intensivos</option>
+                        </select>
+                        <div class="custom-dropdown">
+                            <div class="custom-dropdown-header" tabindex="0">Seleccioná una especialidad</div>
+                            <div class="custom-dropdown-menu">
+                                <div class="custom-option" data-value="">Seleccioná una especialidad</div>
+                                <div class="custom-option" data-value="MEDICO">Médico</div>
+                                <div class="custom-option" data-value="ENFERMERO">Enfermero</div>
+                                <div class="custom-option" data-value="ER">Experto en Emergencias</div>
+                                <div class="custom-option" data-value="UCI">Unidad de Cuidados Intensivos</div>
+                            </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="d-grid gap-2 mt-4">
-                        <button type="button" id="btn-accion" class="btn btn-primary btn-lg" onclick="iniciarGeneracion()">
-                            🚀 Ejecutar Algoritmo Genético
-                        </button>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Plantilla de demanda</label>
+                    <div class="custom-select-wrapper">
+                        <select class="form-select d-none" id="plantilla_id" required disabled>
+                            <option value="" selected>Seleccioná una especialidad primero</option>
+                        </select>
+                        <div class="custom-dropdown">
+                            <div class="custom-dropdown-header" tabindex="0">Seleccioná una especialidad primero</div>
+                            <div class="custom-dropdown-menu">
+                                <div class="custom-option" data-value="">Seleccioná una especialidad primero</div>
+                            </div>
+                        </div>
                     </div>
-                </form>
-            </div>
-        </div>
+                    <div class="form-text">Definiciones de cobertura por día y turno.</div>
+                </div>
 
-        <div id="resultado-container" class="alert alert-secondary d-none text-center shadow-sm">
-            <h4 class="mt-2">Estado: <span id="estado-badge" class="badge bg-secondary">Iniciando...</span></h4>
-            <div id="loading-spinner" class="my-3 d-none">
-                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
-            </div>
-            <p id="mensaje-estado" class="fs-5 text-muted">Preparando motor de optimización...</p>
-        </div>
+                <div class="col-12 d-flex flex-column align-items-center gap-3 mt-5 mb-0">
+                    <button type="submit" id="btn-iniciar" class="btn btn-primary fw-semibold px-4" style="min-width: 220px;">
+                        <i class="bi bi-play-fill me-1"></i> Iniciar optimización
+                    </button>
+                    <button type="button" id="btn-reset" class="btn btn-outline-secondary fw-semibold px-4 d-none" style="min-width: 220px;">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Reiniciar
+                    </button>
+                </div>
 
-        <hr class="my-5">
-        <div class="d-flex justify-content-center">
-            <a href="{% url 'cronograma_list' %}" class="btn btn-link text-muted text-decoration-none">
-                <i class="bi bi-arrow-left"></i> Ir al listado de planificaciones
-            </a>
+                <div id="panel-estado" class="col-12 mt-3 d-none">
+                    <div class="rounded-3 p-4 status-panel">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h5 class="fw-bold mb-0" style="color: #2f3e4c; letter-spacing: 0.3px;">Estado de la ejecución</h5>
+                            <span class="badge" id="estado-badge" style="background-color: #6c757d; font-weight: 600; font-size: 0.75rem; padding: 0.4rem 0.6rem;">Listo</span>
+                        </div>
+
+                        <div class="progress mb-3" style="height: 8px; background-color: #e9ecef; border-radius: 8px; overflow: hidden;">
+                            <div id="barra-progreso" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%; background-color: #0d6efd;"></div>
+                        </div>
+
+                        <div id="estado-mensajes" class="small text-muted mt-2">
+                            Completa el formulario y presioná "Iniciar optimización".
+                        </div>
+
+                        <div id="resultado-ok" class="mt-3 d-none">
+                            <div class="alert alert-success d-flex align-items-center mb-3" role="alert">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                <div>Planificación generada y guardada con éxito.</div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a id="link-ver" href="#" class="btn btn-success">
+                                    <i class="bi bi-table me-1"></i> Ver cronograma
+                                </a>
+                                <a id="link-analisis" href="#" class="btn btn-outline-success">
+                                    <i class="bi bi-bar-chart-line me-1"></i> Ver análisis
+                                </a>
+                            </div>
+                        </div>
+
+                        <div id="resultado-error" class="mt-3 d-none">
+                            <div class="alert alert-danger d-flex align-items-center mb-0" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <div id="error-text">Ocurrió un error durante la ejecución.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="mt-3 small text-muted">
+        Consejo: Antes de ejecutar, revisá que existan tipos de turno, personal activo y una plantilla de demanda para la especialidad seleccionada.
+    </div>
+</div>
+
+<div class="modal fade" id="modalErrorDotacion" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            
+            <div class="modal-header bg-white border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold text-danger">
+                    <i class="bi bi-x-circle-fill me-2"></i>Dotación Insuficiente
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body pt-2">
+                <p class="text-muted small mb-4">
+                    La planificación no puede iniciarse. La capacidad operativa actual (descontando ausencias) 
+                    no cubre la demanda requerida más el margen de seguridad.
+                </p>
+
+                <div class="card mb-3 border-0 bg-light" id="card-senior">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold text-uppercase small text-muted">Seniors</span>
+                            <span class="badge" id="badge-senior">OK</span>
+                        </div>
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span>Oferta: <strong id="val-oferta-senior">0</strong>h</span>
+                            <span>Demanda: <strong id="val-demanda-senior">0</strong>h</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div id="bar-senior" class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div id="msg-senior" class="text-end text-danger small fw-bold mt-1" style="font-size: 0.75rem;"></div>
+                    </div>
+                </div>
+
+                <div class="card mb-3 border-0 bg-light" id="card-junior">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold text-uppercase small text-muted">Juniors</span>
+                            <span class="badge" id="badge-junior">OK</span>
+                        </div>
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span>Oferta: <strong id="val-oferta-junior">0</strong>h</span>
+                            <span>Demanda: <strong id="val-demanda-junior">0</strong>h</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div id="bar-junior" class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div id="msg-junior" class="text-end text-danger small fw-bold mt-1" style="font-size: 0.75rem;"></div>
+                    </div>
+                </div>
+
+                <div id="alerta-ausencias" class="alert alert-warning d-flex align-items-center py-2 px-3 d-none">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <div class="small lh-sm">
+                        <strong>Impacto de Ausencias:</strong> Se descontaron <span id="val-ausencias">0</span> horas 
+                        por licencias o bloqueos en este período.
+                    </div>
+                </div>
+
+                <div class="text-center mt-3">
+                    <small class="text-muted fst-italic" style="font-size: 0.7rem;">
+                        * El cálculo incluye un margen de seguridad del <span id="val-margen">10</span>% para descansos.
+                    </small>
+                </div>
+            </div>
+
+            <div class="modal-footer border-top-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">Entendido, revisaré la dotación</button>
+            </div>
         </div>
     </div>
 </div>
+
+<style>
+    body { background-color: #EFF3F8 !important; }
+    footer { background-color: #EFF3F8 !important; border-top-color: #e0e5ec !important; }
+    .generator-card { border-radius: 14px; }
+    .icon-circle { width: 64px; height: 64px; background: rgba(13,110,253,.10); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+    .page-title { color: #2f3e4c; letter-spacing: .2px; }
+
+    .status-panel { background: #fff; border: 1px solid #eef0f3; }
+
+    .form-label { color: #2f3e4c; }
+    
+    /* Custom Select Styles */
+    .custom-select-wrapper {
+        position: relative;
+        display: block;
+    }
+    
+    .form-select {
+        height: 48px;
+        border-radius: 10px;
+        border: 1px solid #e0e5ec;
+        background-color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+        font-size: 0.95rem;
+        color: #2f3e4c;
+        padding: 12px 16px;
+    }
+    
+    .custom-dropdown {
+        position: relative;
+        /* Permitir interacción en todo el dropdown */
+        pointer-events: auto;
+    }
+    
+    .custom-dropdown-header {
+        height: 48px;
+        border-radius: 10px;
+        border: 1px solid #0d6efd;
+        background-color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 16px;
+        padding-right: 40px;
+        pointer-events: auto;
+    }
+    
+    .custom-dropdown-header:hover {
+        background-color: #EFF3F8;
+    }
+    
+    .custom-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: #ffffff;
+        border: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        pointer-events: none;
+        z-index: 100;
+        /* Sin margen ni padding cuando está cerrado para evitar caja angosta */
+        margin-top: 0;
+        padding: 0;
+        animation: fadeInDown 0.3s ease;
+    }
+    
+    @keyframes fadeInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Abrir menú cuando el wrapper tiene la clase 'open' */
+    .custom-dropdown.open .custom-dropdown-menu {
+        max-height: 300px;
+        pointer-events: auto;
+        opacity: 1;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0;
+    }
+    
+    .custom-option {
+        padding: 0.5rem 1.2rem;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.95rem;
+        border-bottom: none;
+        font-weight: 500;
+    }
+    
+    .custom-option:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.4rem;
+    }
+    
+    .custom-option:first-child {
+        background-color: transparent;
+        color: #495057;
+        font-weight: 500;
+        cursor: default;
+    }
+    
+    .custom-option:first-child:hover {
+        background-color: transparent;
+        color: #495057;
+        padding-left: 1.2rem;
+    }
+    
+    .form-select:disabled ~ .custom-dropdown .custom-dropdown-header {
+        background-color: #f5f5f5;
+        border-color: #e0e5ec;
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .form-control {
+        height: 48px;
+        border-radius: 10px;
+        border: 1px solid #e0e5ec;
+        background-color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+        font-size: 0.95rem;
+        color: #2f3e4c;
+        padding: 12px 16px;
+    }
+    
+    .form-control:hover {
+        background-color: #EFF3F8;
+        border-color: #0d6efd;
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+    }
+    
+    .form-control:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+        background-color: #ffffff;
+    }
+
+    /* Warning estilo login */
+    .field-error {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-bottom: 0.35rem;
+        color: #c41c3b;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    .field-error i { font-size: 0.9rem; }
+    
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: hue-rotate(190deg) saturate(1.2); opacity: 0.8; cursor: pointer; }
+    input[type="date"] { padding-right: 1rem; }
+
+    #estado-badge { font-weight: 600; }
+    #barra-progreso { transition: width .4s ease; }
+
+    @media (max-width: 575px){
+        .icon-circle{ width: 56px; height: 56px; }
+    }
+</style>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // Variables globales
-    const selectEspecialidad = document.getElementById('especialidad');
-    const selectPlantilla = document.getElementById('plantilla');
+document.addEventListener('DOMContentLoaded', function() {
 
-    // 3. FUNCIÓN PARA CARGAR PLANTILLAS DESDE LA API
-    async function cargarPlantillas() {
-        const especialidad = selectEspecialidad.value;
-        selectPlantilla.innerHTML = '<option value="" disabled selected>Cargando...</option>';
-        selectPlantilla.disabled = true;
-
-        try {
-            const res = await fetch(`/api/plantillas/?especialidad=${especialidad}`);
-            const data = await res.json();
-
-            selectPlantilla.innerHTML = ''; // Limpiar
-            
-            if (data.plantillas.length === 0) {
-                const opt = document.createElement('option');
-                opt.text = "⚠️ No hay plantillas creadas para esta especialidad";
-                selectPlantilla.add(opt);
-            } else {
-                data.plantillas.forEach(p => {
-                    const opt = document.createElement('option');
-                    opt.value = p.id;
-                    opt.text = p.nombre;
-                    selectPlantilla.add(opt);
-                });
-                selectPlantilla.disabled = false;
-            }
-        } catch (error) {
-            console.error("Error cargando plantillas:", error);
-            selectPlantilla.innerHTML = '<option>Error al cargar</option>';
+    // --- FUNCIÓN PARA MOSTRAR EL NUEVO MODAL ---
+    function mostrarErrorDotacion(detalles) {
+        // Referencias
+        const modalEl = document.getElementById('modalErrorDotacion');
+        const modal = new bootstrap.Modal(modalEl);
+        
+        // --- SENIORS ---
+        const s = detalles.senior;
+        document.getElementById('val-oferta-senior').textContent = s.oferta;
+        document.getElementById('val-demanda-senior').textContent = s.demanda;
+        
+        const badgeSen = document.getElementById('badge-senior');
+        const barSen = document.getElementById('bar-senior');
+        const msgSen = document.getElementById('msg-senior');
+        
+        let pctSen = s.demanda > 0 ? (s.oferta / s.demanda) * 100 : 100;
+        
+        if (s.estado === 'CRITICO') {
+            badgeSen.className = 'badge bg-danger';
+            badgeSen.textContent = 'DÉFICIT';
+            barSen.className = 'progress-bar bg-danger';
+            barSen.style.width = Math.min(pctSen, 100) + '%';
+            msgSen.textContent = `Faltan ${Math.abs(s.balance)} horas`;
+        } else {
+            badgeSen.className = 'badge bg-success';
+            badgeSen.textContent = 'CUBIERTO';
+            barSen.className = 'progress-bar bg-success';
+            barSen.style.width = '100%';
+            msgSen.textContent = '';
         }
+
+        // --- JUNIORS ---
+        const j = detalles.junior;
+        document.getElementById('val-oferta-junior').textContent = j.oferta;
+        document.getElementById('val-demanda-junior').textContent = j.demanda;
+        
+        const badgeJun = document.getElementById('badge-junior');
+        const barJun = document.getElementById('bar-junior');
+        const msgJun = document.getElementById('msg-junior');
+        
+        let pctJun = j.demanda > 0 ? (j.oferta / j.demanda) * 100 : 100;
+        
+        if (j.estado === 'CRITICO') {
+            badgeJun.className = 'badge bg-danger';
+            badgeJun.textContent = 'DÉFICIT';
+            barJun.className = 'progress-bar bg-danger';
+            barJun.style.width = Math.min(pctJun, 100) + '%';
+            msgJun.textContent = `Faltan ${Math.abs(j.balance)} horas`;
+        } else {
+            badgeJun.className = 'badge bg-success';
+            badgeJun.textContent = 'CUBIERTO';
+            barJun.className = 'progress-bar bg-success';
+            barJun.style.width = '100%';
+            msgJun.textContent = '';
+        }
+
+        // --- GLOBALES ---
+        const g = detalles.global || {};
+        const alertaAus = document.getElementById('alerta-ausencias');
+        
+        if (g.ausencias_impacto > 0) {
+            document.getElementById('val-ausencias').textContent = g.ausencias_impacto;
+            alertaAus.classList.remove('d-none');
+        } else {
+            alertaAus.classList.add('d-none');
+        }
+        
+        document.getElementById('val-margen').textContent = g.margen_seguridad || 10;
+
+        // Mostrar
+        modal.show();
     }
 
-    // Cargar plantillas al iniciar la página
-    document.addEventListener('DOMContentLoaded', cargarPlantillas);
+    // Helpers: configurar un wrapper de dropdown personalizado
+    function setupCustomDropdown(wrapper){
+        const nativeSelect = wrapper.querySelector('.form-select');
+        const header = wrapper.querySelector('.custom-dropdown-header');
+        const dropdown = wrapper.querySelector('.custom-dropdown');
+        const menu = wrapper.querySelector('.custom-dropdown-menu');
 
+        if (!header || !dropdown || !menu || !nativeSelect) return;
 
-    // 4. ACTUALIZAR LA FUNCIÓN DE INICIO PARA ENVIAR EL ID DE LA PLANTILLA
-    async function iniciarGeneracion() {
-        const btn = document.getElementById('btn-accion');
-        const container = document.getElementById('resultado-container');
-        const badge = document.getElementById('estado-badge');
-        const spinner = document.getElementById('loading-spinner');
-        const msg = document.getElementById('mensaje-estado');
-
-        // Validar que haya plantilla seleccionada
-        const plantillaId = selectPlantilla.value;
-        if (!plantillaId || selectPlantilla.disabled) {
-            alert("Por favor, selecciona una Plantilla de Demanda válida antes de continuar.");
-            return;
-        }
-
-        const payload = {
-            fecha_inicio: document.getElementById('fecha_inicio').value,
-            fecha_fin: document.getElementById('fecha_fin').value,
-            especialidad: selectEspecialidad.value,
-            plantilla_id: plantillaId // <--- AQUI ENVIAMOS EL DATO NUEVO
+        // Abrir/cerrar
+        header.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Cierra otros dropdowns abiertos si hubiera
+            document.querySelectorAll('.custom-dropdown.open').forEach(d => {
+                if(d !== dropdown) d.classList.remove('open');
+            });
+            dropdown.classList.toggle('open');
         };
 
-        // UI Loading
-        btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Enviando...`;
-        container.classList.remove('d-none', 'alert-success', 'alert-danger');
-        container.classList.add('alert-info');
-        badge.className = 'badge bg-info text-dark';
-        badge.innerText = 'Encolado';
-        spinner.classList.remove('d-none');
+        // Selección
+        menu.querySelectorAll('.custom-option').forEach((option, index) => {
+            option.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (index === 0) return; // placeholder
+                const value = option.getAttribute('data-value');
+                const text = option.textContent;
+                nativeSelect.value = value;
+                header.textContent = text;
+                dropdown.classList.remove('open');
+                // Disparar evento change manualmente para que lo detecte el otro script
+                nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            };
+        });
 
-        try {
-            const response = await fetch('/api/planificar/iniciar/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                msg.innerText = `Job ID: ${data.job_id}. Optimizando...`;
-                pollEstado(data.job_id); // Reutilizamos tu función pollEstado existente
-            } else {
-                mostrarError("Error al iniciar: " + (data.error || "Desconocido"));
+        // Cerrar al hacer click fuera
+        document.addEventListener('click', (e) => {
+            if (!wrapper.contains(e.target)) {
+                dropdown.classList.remove('open');
             }
-        } catch (error) {
-            console.error(error);
-            mostrarError("Error de conexión con el servidor.");
+        });
+    }
+
+    // Inicializar todos los wrappers existentes
+    document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
+
+    // --- Referencias ---
+    const $esp = document.getElementById('especialidad');
+    const $plant = document.getElementById('plantilla_id');
+    const $inicio = document.getElementById('fecha_inicio');
+    const $fin = document.getElementById('fecha_fin');
+    const $form = document.getElementById('form-generador');
+    const $btnStart = document.getElementById('btn-iniciar');
+    const $btnReset = document.getElementById('btn-reset');
+    const $panelEstado = document.getElementById('panel-estado');
+    const $badge = document.getElementById('estado-badge');
+    const $barra = document.getElementById('barra-progreso');
+    const $msg = document.getElementById('estado-mensajes');
+    const $ok = document.getElementById('resultado-ok');
+    const $err = document.getElementById('resultado-error');
+    const $errText = document.getElementById('error-text');
+    const $linkVer = document.getElementById('link-ver');
+    const $linkAnalisis = document.getElementById('link-analisis');
+    const $warn = document.getElementById('form-warning');
+    const $warnText = document.getElementById('form-warning-text');
+
+    // --- Sugerir período del próximo mes ---
+    try {
+        const hoy = new Date();
+        const y = hoy.getFullYear();
+        const m = hoy.getMonth();
+        const start = new Date(y, m + 1, 1);
+        const end = new Date(y, m + 2, 0);
+        
+        if($inicio) $inicio.value = start.toISOString().slice(0,10);
+        if($fin) $fin.value = end.toISOString().slice(0,10);
+    } catch(e) {}
+
+    // --- Funciones de UI ---
+    function setEstado(text, kind){
+        $badge.className = 'badge bg-' + (kind || 'secondary');
+        $badge.textContent = text;
+    }
+    
+    let currentProgress = 0;
+    function setProgreso(p, keepAnimated = true){ 
+        const newVal = Math.max(currentProgress, p || 0);
+        currentProgress = newVal;
+        if($barra) {
+            $barra.style.width = newVal + '%';
+            $barra.setAttribute('aria-valuenow', newVal);
+            
+            if (!keepAnimated) {
+                $barra.classList.remove('progress-bar-animated');
+            } else {
+                $barra.classList.add('progress-bar-animated');
+            }
+        }
+    }
+    
+    function setMsg(html){ if($msg) $msg.innerHTML = html; }
+    
+    function hideWarn(){
+        if ($warn) $warn.classList.add('d-none');
+        if ($warnText) $warnText.textContent = '';
+    }
+    
+    function showWarn(text){
+        if ($warn && $warnText) {
+            $warnText.textContent = text;
+            $warn.classList.remove('d-none');
+        }
+    }
+    
+    function toggleLoading(on){
+        if($btnStart) $btnStart.disabled = !!on;
+        if($esp) $esp.disabled = !!on;
+        if($plant) $plant.disabled = !!on;
+        if($inicio) $inicio.disabled = !!on;
+        if($fin) $fin.disabled = !!on;
+    }
+    
+    function resetUI(){
+        currentProgress = 0;
+        setEstado('Listo','secondary'); setProgreso(0, false); setMsg('Completa el formulario y presioná "Iniciar optimización".');
+        if($msg) $msg.classList.remove('d-none');
+        if($ok) $ok.classList.add('d-none'); 
+        if($err) $err.classList.add('d-none');
+        if($btnReset) $btnReset.classList.add('d-none');
+        if($panelEstado) $panelEstado.classList.add('d-none');
+        if($warn) $warn.classList.add('d-none');
+        toggleLoading(false);
+    }
+
+    resetUI();
+
+    // --- Cargar plantillas al cambiar especialidad ---
+    if($esp) {
+        $esp.addEventListener('change', async function(){
+            if(!$plant) return;
+            
+            $plant.innerHTML = '<option value="" selected>Cargando...</option>';
+            $plant.disabled = true;
+            
+            const plantWrapper = $plant.closest('.custom-select-wrapper');
+            if (plantWrapper) {
+                plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Cargando...';
+                plantWrapper.querySelector('.custom-dropdown').classList.remove('open');
+            }
+            
+            try {
+                const resp = await fetch(`{% url 'api_get_plantillas' %}?especialidad=${encodeURIComponent($esp.value)}`);
+                const data = await resp.json();
+                const items = (data.plantillas||[]);
+                
+                if(!items.length){
+                    $plant.innerHTML = '<option value="" selected>No hay plantillas disponibles</option>';
+                    $plant.disabled = true;
+                    if (plantWrapper) {
+                        plantWrapper.querySelector('.custom-dropdown-header').textContent = 'No hay plantillas disponibles';
+                        plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">No hay plantillas disponibles</div>';
+                        setupCustomDropdown(plantWrapper);
+                    }
+                    return;
+                }
+
+                $plant.innerHTML = '<option value="" selected>Seleccioná una plantilla</option>' + items.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+                $plant.disabled = false;
+                
+                if (plantWrapper) {
+                    plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Seleccioná una plantilla';
+                    const menuHTML = '<div class="custom-option" data-value="">Seleccioná una plantilla</div>' + 
+                        items.map(p=>`<div class="custom-option" data-value="${p.id}">${p.nombre}</div>`).join('');
+                    plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = menuHTML;
+                    setupCustomDropdown(plantWrapper);
+                }
+            } catch(e){
+                console.error(e);
+                $plant.innerHTML = '<option value="" selected>Error cargando plantillas</option>';
+                $plant.disabled = true;
+                if (plantWrapper) {
+                    plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Error cargando plantillas';
+                    plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">Error cargando plantillas</div>';
+                    setupCustomDropdown(plantWrapper);
+                }
+            }
+        });
+    }
+
+    // --- Envío del formulario ---
+    if($form) {
+        $form.addEventListener('submit', async function(ev){
+            ev.preventDefault();
+            
+            if($warn) $warn.classList.add('d-none');
+            
+            if(!$inicio.value || !$fin.value || !$esp.value || !$plant.value){
+                showWarn('Completá todos los campos requeridos.');
+                return;
+            }
+            if($fin.value <= $inicio.value){
+                showWarn('La fecha fin debe ser posterior a la fecha inicio.');
+                return;
+            }
+
+            // Validar rango de días (mínimo 7, máximo 31)
+            const fechaInicio = new Date($inicio.value);
+            const fechaFin = new Date($fin.value);
+            const diffTime = Math.abs(fechaFin - fechaInicio);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if(diffDays < 7){
+                showWarn('El período a planificar debe ser de al menos 7 días.');
+                return;
+            }
+            if(diffDays > 31){
+                showWarn('El período a planificar no puede superar los 31 días.');
+                return;
+            }
+
+            if($panelEstado) $panelEstado.classList.remove('d-none');
+            toggleLoading(true);
+            setEstado('Iniciando','primary');
+            setProgreso(15);
+            setMsg('Enviando parámetros al motor de optimización...');
+
+            try {
+                const resp = await fetch('{% url 'api_iniciar_planificacion' %}', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        fecha_inicio: $inicio.value,
+                        fecha_fin: $fin.value,
+                        especialidad: $esp.value,
+                        plantilla_id: $plant.value
+                    })
+                });
+                const data = await resp.json();
+                
+                // --- DETECCIÓN DE ERROR DE DOTACIÓN ---
+                if(!resp.ok){
+                    if(resp.status === 422 && data.tipo_error === 'FALTA_DOTACION') {
+                        mostrarErrorDotacion(data.detalles);
+                        resetUI(); // Ocultamos la barra de progreso
+                        return; // Cortamos ejecución aquí
+                    }
+                    throw new Error(data.error || 'Error al iniciar.');
+                }
+
+                setEstado('Ejecutando','primary');
+                setProgreso(40);
+                setMsg('<div class="d-flex align-items-center gap-2"><span class="spinner-border spinner-border-sm text-primary" role="status"></span><span>Algoritmo en ejecución. Este proceso puede tardar unos minutos...</span></div>');
+                if($btnReset) $btnReset.classList.remove('d-none');
+
+                await pollEstado(data.job_id);
+            } catch(e){
+                setEstado('Error','danger');
+                setProgreso(0, false);
+                if($msg) $msg.classList.add('d-none');
+                if($errText) $errText.textContent = e.message || 'Error desconocido.';
+                if($err) $err.classList.remove('d-none');
+                toggleLoading(false);
+            }
+        });
+    }
+
+    if($btnReset) {
+        $btnReset.addEventListener('click', () => {
+            resetUI();
+        });
+    }
+
+    // --- Polling de estado ---
+    async function pollEstado(jobId){
+        let p = 40;
+        const tick = setInterval(()=>{ p = Math.min(p+5, 90); setProgreso(p); }, 2000);
+        
+        try {
+            while(true){
+                const url = `{% url 'api_estado_planificacion' job_id='JOBID' %}`.replace('JOBID', jobId);
+                const resp = await fetch(url);
+                const data = await resp.json();
+                
+                if(data.status === 'completed'){
+                    clearInterval(tick);
+                    setEstado('Completado','success');
+                    setProgreso(100, false);
+                    if($msg) $msg.classList.add('d-none');
+                    if($ok) $ok.classList.remove('d-none');
+                    
+                    const id = data.cronograma_id;
+                    if($linkVer) $linkVer.href = `{% url 'ver_cronograma' cronograma_id=0 %}`.replace('/0/', `/${id}/`);
+                    if($linkAnalisis) $linkAnalisis.href = `{% url 'cronograma_analisis' pk=0 %}`.replace('/0/', `/${id}/`);
+                    
+                    toggleLoading(false);
+                    break;
+                } else if(data.status === 'running' || data.status === 'queued' || resp.status === 202){
+                    // Continúa esperando
+                } else if(data.status === 'failed' || data.error){
+                    throw new Error(data.error || 'Fallo en el proceso.');
+                }
+                await new Promise(r=>setTimeout(r, 2500));
+            }
+        } catch(e){
+            clearInterval(tick);
+            setEstado('Error','danger');
+            setProgreso(0, false);
+            if($msg) $msg.classList.add('d-none');
+            if($errText) $errText.textContent = e.message || 'Error durante el seguimiento.';
+            if($err) $err.classList.remove('d-none');
+            toggleLoading(false);
         }
     }
 
-    // ... (Tu función pollEstado y mostrarError siguen igual) ...
-    // Asegurate de copiar las funciones pollEstado, exitoPlanificacion y mostrarError 
-    // que ya tenías en el archivo anterior.
-    
-    // Solo pego pollEstado aquí para referencia, usá la que ya tenías
-    async function pollEstado(jobId) {
-        const intervalo = setInterval(async () => {
-            try {
-                const res = await fetch(`/api/planificar/estado/${jobId}/`);
-                const data = await res.json();
-                const badge = document.getElementById('estado-badge');
-
-                if (data.status === 'completed') {
-                    clearInterval(intervalo);
-                    exitoPlanificacion(data);
-                } else if (data.status === 'failed' || data.status === 'error') {
-                    clearInterval(intervalo);
-                    mostrarError(data.error || "El algoritmo falló.");
-                } else {
-                    badge.className = 'badge bg-warning text-dark';
-                    badge.innerText = 'Procesando';
-                }
-            } catch (e) {
-                clearInterval(intervalo);
-                mostrarError("Error de conexión.");
-            }
-        }, 2000);
-    }
-    
-    function exitoPlanificacion(data) {
-        const container = document.getElementById('resultado-container');
-        const spinner = document.getElementById('loading-spinner');
-        const badge = document.getElementById('estado-badge');
-        const msg = document.getElementById('mensaje-estado');
-        const btn = document.getElementById('btn-accion');
-
-        container.classList.remove('alert-info');
-        container.classList.add('alert-success');
-        spinner.classList.add('d-none');
-
-        badge.className = 'badge bg-success';
-        badge.innerText = '¡Finalizado!';
-        
-        msg.innerHTML = `<strong>Optimización exitosa.</strong><br>Fitness: ${parseFloat(data.fitness).toFixed(2)}`;
-
-        const urlBase = "{% url 'ver_cronograma' 0 %}"; 
-        const urlFinal = urlBase.replace('0', data.cronograma_id);
-
-        btn.disabled = false;
-        btn.className = "btn btn-success btn-lg shadow";
-        btn.innerHTML = `<i class="bi bi-eye"></i> Ver Cronograma Generado`;
-        btn.onclick = function() { window.location.href = urlFinal; };
-    }
-
-    function mostrarError(mensaje) {
-        const container = document.getElementById('resultado-container');
-        const spinner = document.getElementById('loading-spinner');
-        const badge = document.getElementById('estado-badge');
-        const msg = document.getElementById('mensaje-estado');
-        const btn = document.getElementById('btn-accion');
-
-        container.classList.remove('alert-info');
-        container.classList.add('alert-danger');
-        spinner.classList.add('d-none');
-        
-        badge.className = 'badge bg-danger';
-        badge.innerText = 'Falló';
-        msg.innerText = mensaje;
-
-        btn.disabled = false;
-        btn.innerText = "🚀 Reintentar";
-        btn.onclick = iniciarGeneracion; 
-    }
+});
 </script>
 {% endblock %}

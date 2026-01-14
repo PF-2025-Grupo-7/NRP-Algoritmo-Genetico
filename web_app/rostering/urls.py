@@ -3,9 +3,10 @@ from . import views
 
 urlpatterns = [
     # ==========================================================================
-    # DASHBOARD Y ACCESO
+    # LANDING Y DASHBOARD
     # ==========================================================================
-    path('', views.dashboard, name='dashboard'),
+    path('', views.landing, name='landing'),
+    path('dashboard/', views.dashboard, name='dashboard'),
     path('accounts/register/', views.registrar_usuario, name='register'),
 
     # ==========================================================================
@@ -33,6 +34,11 @@ urlpatterns = [
     path('cronograma/<int:pk>/analisis/', views.CronogramaAnalisisView.as_view(), name='cronograma_analisis'),
     path('cronograma/<int:pk>/publicar/', views.publicar_cronograma, name='cronograma_publish'),
     path('cronogramas/<int:pk>/eliminar/', views.CronogramaDeleteView.as_view(), name='cronograma_delete'),
+
+    # Exportar como PDF
+    path('cronograma/<int:cronograma_id>/exportar/pdf/', views.exportar_cronograma_pdf, name='exportar_pdf'),
+    # Exportar a Excel
+    path('cronograma/<int:cronograma_id>/exportar/excel/', views.exportar_cronograma_excel, name='exportar_excel'),
 
     # ==========================================================================
     # GESTIÓN DE EMPLEADOS
@@ -62,26 +68,26 @@ urlpatterns = [
     # ==========================================================================
     
     # Tipos de Turno
-    path('config/turnos/', views.TipoTurnoListView.as_view(), name='tipoturno_list'),
-    path('config/turnos/crear/', views.TipoTurnoCreateView.as_view(), name='tipoturno_create'),
-    path('config/turnos/<int:pk>/editar/', views.TipoTurnoUpdateView.as_view(), name='tipoturno_update'),
-    path('config/turnos/<int:pk>/eliminar/', views.TipoTurnoDeleteView.as_view(), name='tipoturno_delete'),
-
-    # Secuencias Prohibidas
-    path('config/secuencias/', views.SecuenciaProhibidaListView.as_view(), name='secuencia_list'),
-    path('config/secuencias/crear/', views.SecuenciaProhibidaCreateView.as_view(), name='secuencia_create'),
-    path('config/secuencias/<int:pk>/editar/', views.SecuenciaProhibidaUpdateView.as_view(), name='secuencia_update'),
-    path('config/secuencias/<int:pk>/eliminar/', views.SecuenciaProhibidaDeleteView.as_view(), name='secuencia_delete'),
+    path('config/turnos/', views.ConfiguracionTurnosListView.as_view(), name='tipoturno_list'),
+    path('config/turnos/<str:especialidad>/editar/', views.config_turnos_edit, name='tipoturno_edit'),
 
     # Plantillas de Demanda (Maestro)
     path('config/plantillas/', views.PlantillaListView.as_view(), name='plantilla_list'),
     path('config/plantillas/crear/', views.PlantillaCreateView.as_view(), name='plantilla_create'),
+    path('config/plantillas/<int:pk>/editar/', views.PlantillaUpdateView.as_view(), name='plantilla_update'), # actualizar
     path('config/plantillas/<int:pk>/', views.PlantillaDetailView.as_view(), name='plantilla_detail'),
     path('config/plantillas/<int:pk>/eliminar/', views.PlantillaDeleteView.as_view(), name='plantilla_delete'),
+    path('config/plantillas/<int:pk>/duplicar/', views.duplicar_plantilla, name='plantilla_duplicate'), # duplicar
 
     # Reglas y Excepciones (Detalle - Hijos de Plantilla)
     path('config/plantillas/<int:plantilla_id>/regla/nueva/', views.ReglaCreateView.as_view(), name='regla_create'),
+    path('config/regla/<int:pk>/editar/', views.ReglaUpdateView.as_view(), name='regla_update'),
     path('config/regla/<int:pk>/eliminar/', views.ReglaDeleteView.as_view(), name='regla_delete'),
+    
+    # APIs AJAX para edición inline
+    path('api/plantillas/<int:plantilla_id>/regla/crear/', views.api_crear_regla, name='api_crear_regla'),
+    path('api/regla/<int:regla_id>/actualizar/', views.api_actualizar_regla, name='api_actualizar_regla'),
+    path('api/regla/<int:regla_id>/eliminar/', views.api_eliminar_regla, name='api_eliminar_regla'),
     
     path('config/plantillas/<int:plantilla_id>/excepcion/nueva/', views.ExcepcionCreateView.as_view(), name='excepcion_create'),
     path('config/excepcion/<int:pk>/eliminar/', views.ExcepcionDeleteView.as_view(), name='excepcion_delete'),
