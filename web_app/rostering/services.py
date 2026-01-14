@@ -179,6 +179,9 @@ def iniciar_proceso_optimizacion(data):
     if not inicio or not fin:
         raise ValueError('Formato de fecha inválido. Usar YYYY-MM-DD.')
 
+    if fin < inicio:
+        raise ValueError("La fecha de fin debe ser posterior o igual a la fecha de inicio.")
+    
     # Validación RF04
     plantilla = PlantillaDemanda.objects.get(pk=plantilla_id)
     empleados_qs = Empleado.objects.filter(especialidad=especialidad, activo=True)
@@ -192,6 +195,8 @@ def iniciar_proceso_optimizacion(data):
             message="Imposible cubrir la demanda con la dotación actual.",
             params=datos_error # Adjuntamos los datos técnicos aquí
         )
+    
+
     
     # 2. Generar el Payload (Aquí ocurren las validaciones de negocio como uniformidad de turnos)
     payload = generar_payload_ag(inicio, fin, especialidad, plantilla_id)
