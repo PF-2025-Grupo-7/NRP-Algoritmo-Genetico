@@ -1,110 +1,188 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container py-4" style="max-width: 800px;">
-    <div class="d-flex align-items-center mb-4">
-        <a href="{% url 'tipoturno_list' %}" class="btn btn-outline-secondary me-3">
-            <i class="bi bi-arrow-left"></i>
-        </a>
-        <div>
-            <h2 class="fw-bold mb-0">Configurar: {{ especialidad_label }}</h2>
-            <p class="text-muted mb-0 small">Definición de esquema rotativo automático</p>
+<div class="container py-2" style="max-width: 900px;">
+    
+    <div class="row mb-4 align-items-center">
+        <div class="col-12">
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Esquema de Turnos - {{ especialidad_label }}</h1>
+            <p class="text-muted fs-5 mb-0">Definición de esquema rotativo automático</p>
         </div>
     </div>
 
-    <div class="card shadow-lg border-0">
+    <div class="card border-0" style="border-radius: 14px;">
         <div class="card-body p-4 p-lg-5">
             
-            <div class="alert alert-warning d-flex align-items-center mb-4 border-warning" role="alert">
-                <i class="bi bi-info-circle-fill fs-4 me-3"></i>
-                <div>
-                    <div class="fw-bold">Funcionamiento del Esquema</div>
-                    <div class="small">
-                        Definí la hora de inicio del primer turno. El sistema calculará automáticamente el resto para cubrir las 24 horas sin huecos.
-                    </div>
+            <div class="alert alert-info mb-4 border-0" role="alert" style="background-color: #e7f3ff; border-left: 4px solid #0d6efd !important;">
+                <div class="fw-bold" style="color: #2f3e4c;">Funcionamiento del Esquema</div>
+                <div class="small text-muted">
+                    Seleccioná el tipo de esquema y la hora de inicio del primer turno. El sistema calculará automáticamente los horarios restantes para cubrir el día completo sin superposiciones ni huecos.
                 </div>
             </div>
 
             <form method="post" id="schemaForm" novalidate>
                 {% csrf_token %}
-                
-                <h5 class="text-primary fw-bold mb-3 border-bottom pb-2">1. Estructura General</h5>
+                <div class="col-12">
+                    <div id="form-warning" class="field-error d-none" style="color: #c41c3b; font-size: 0.97rem; font-weight: 500; margin-bottom: 1.2rem;">
+                        <i class="bi bi-exclamation-circle" style="font-size: 1.1rem;"></i>
+                        <span id="form-warning-text"></span>
+                    </div>
+                </div>
+                {% if form.non_field_errors %}
+                    <div id="server-errors" class="field-error mb-4">
+                        <i class="bi bi-exclamation-circle"></i>
+                        <span>
+                            {{ form.non_field_errors|join:", " }}
+                        </span>
+                    </div>
+                {% endif %}
                 <div class="row g-3 mb-4">
-                    <div class="col-md-8">
-                        <label class="form-label fw-bold">Esquema Horario</label>
-                        {{ form.esquema }} </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold">Hora Inicio (1° Turno)</label>
-                        {{ form.hora_inicio_base }}
-                        <div class="form-text">El resto se calcula solo.</div>
+                    <div class="col-md-7">
+                        <div class="form-group">
+                            <label class="form-label fw-bold">Esquema Horario<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
+                            <div class="custom-select-wrapper">
+                                <select class="form-select d-none" id="{{ form.esquema.id_for_label }}" name="esquema">
+                                    {% for value, label in form.esquema.field.choices %}
+                                        {% if value %}
+                                            <option value="{{ value }}" {% if form.esquema.value == value %}selected{% endif %}>{{ label|cut:'('|cut:')'|cut:'Total 24hs' }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                                <div class="custom-dropdown">
+                                    <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná un esquema">
+                                        {% if form.esquema.value %}
+                                            {% for value, label in form.esquema.field.choices %}
+                                                {% if value == form.esquema.value %}{{ label|cut:'('|cut:')'|cut:'Total 24hs' }}{% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            Seleccioná un esquema
+                                        {% endif %}
+                                    </div>
+                                    <div class="custom-dropdown-menu">
+                                        {% for value, label in form.esquema.field.choices %}
+                                            {% if value %}
+                                                <div class="custom-option" data-value="{{ value }}">{{ label|cut:'('|cut:')'|cut:'Total 24hs' }}</div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="form-group">
+                            <label class="form-label fw-bold">Hora Inicio<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
+                            <div class="custom-select-wrapper">
+                                <select class="form-select d-none" id="{{ form.hora_inicio_base.id_for_label }}" name="hora_inicio_base">
+                                    {% for hora in horas %}
+                                        <option value="{{ hora }}" {% if form.hora_inicio_base.value == hora %}selected{% endif %}>{{ hora }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="custom-dropdown">
+                                    <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná una hora">
+                                        {% if form.hora_inicio_base.value %}
+                                            {{ form.hora_inicio_base.value }}
+                                        {% else %}
+                                            Seleccioná una hora
+                                        {% endif %}
+                                    </div>
+                                    <div class="custom-dropdown-menu">
+                                        {% for hora in horas %}
+                                            <div class="custom-option" data-value="{{ hora }}">{{ hora }}</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <h5 class="text-primary fw-bold mb-3 border-bottom pb-2">2. Nombres y Roles</h5>
+                <div class="divider-section my-4"></div>
                 
-                <div class="bg-light p-3 rounded mb-3">
-                    <div class="row align-items-center g-2">
-                        <div class="col-1 text-center fw-bold text-muted">T1</div>
+                <div class="turno-block mb-3">
+                    <div class="row align-items-center g-3">
+                        <div class="col-auto">
+                            <div class="turno-badge">T1</div>
+                        </div>
                         <div class="col-md-5">
-                            <label class="small text-muted fw-bold">Nombre</label>
-                            {{ form.nombre_t1 }}
+                            <div class="form-group">
+                                <label class="form-label-sm">Nombre<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
+                                {{ form.nombre_t1 }}
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <label class="small text-muted fw-bold">Abreviatura</label>
-                            {{ form.abrev_t1 }}
+                            <div class="form-group">
+                                <label class="form-label-sm">Abreviatura<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
+                                {{ form.abrev_t1 }}
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="form-check form-switch mt-4">
+                            <div class="form-check form-switch switch-custom mt-4 d-flex align-items-center gap-2">
                                 {{ form.nocturno_t1 }}
-                                <label class="form-check-label small" for="{{ form.nocturno_t1.id_for_label }}">Nocturno</label>
+                                <label class="form-check-label ms-2" for="{{ form.nocturno_t1.id_for_label }}">Nocturno</label>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-light p-3 rounded mb-3">
-                    <div class="row align-items-center g-2">
-                        <div class="col-1 text-center fw-bold text-muted">T2</div>
+                <div class="turno-block mb-3">
+                    <div class="row align-items-center g-3">
+                        <div class="col-auto">
+                            <div class="turno-badge">T2</div>
+                        </div>
                         <div class="col-md-5">
-                            <label class="small text-muted fw-bold">Nombre</label>
-                            {{ form.nombre_t2 }}
+                            <div class="form-group">
+                                <label class="form-label-sm">Nombre<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
+                                {{ form.nombre_t2 }}
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <label class="small text-muted fw-bold">Abreviatura</label>
-                            {{ form.abrev_t2 }}
+                            <div class="form-group">
+                                <label class="form-label-sm">Abreviatura<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
+                                {{ form.abrev_t2 }}
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="form-check form-switch mt-4">
+                            <div class="form-check form-switch switch-custom mt-4 d-flex align-items-center gap-2">
                                 {{ form.nocturno_t2 }}
-                                <label class="form-check-label small" for="{{ form.nocturno_t2.id_for_label }}">Nocturno</label>
+                                <label class="form-check-label ms-2" for="{{ form.nocturno_t2.id_for_label }}">Nocturno</label>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div id="bloque-t3" class="bg-light p-3 rounded mb-3" style="display: none;">
-                    <div class="row align-items-center g-2">
-                        <div class="col-1 text-center fw-bold text-muted">T3</div>
+                <div id="bloque-t3" class="turno-block mb-3" style="display: none;">
+                    <div class="row align-items-center g-3">
+                        <div class="col-auto">
+                            <div class="turno-badge">T3</div>
+                        </div>
                         <div class="col-md-5">
-                            <label class="small text-muted fw-bold">Nombre</label>
-                            {{ form.nombre_t3 }}
+                            <div class="form-group">
+                                <label class="form-label-sm">Nombre<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
+                                {{ form.nombre_t3 }}
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <label class="small text-muted fw-bold">Abreviatura</label>
-                            {{ form.abrev_t3 }}
+                            <div class="form-group">
+                                <label class="form-label-sm">Abreviatura<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
+                                {{ form.abrev_t3 }}
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="form-check form-switch mt-4">
+                            <div class="form-check form-switch switch-custom mt-4 d-flex align-items-center gap-2">
                                 {{ form.nocturno_t3 }}
-                                <label class="form-check-label small" for="{{ form.nocturno_t3.id_for_label }}">Nocturno</label>
+                                <label class="form-check-label ms-2" for="{{ form.nocturno_t3.id_for_label }}">Nocturno</label>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="d-grid mt-5">
-                    <button type="button" id="btnPreSave" class="btn btn-primary btn-lg fw-bold">
-                        <i class="bi bi-save me-2"></i> Guardar y Generar Turnos
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-5">
+                    <a href="{% url 'tipoturno_list' %}" class="btn btn-outline-secondary me-md-2 fw-bold px-4">
+                        Cancelar
+                    </a>
+                    <button type="button" id="btnPreSave" class="btn btn-primary fw-bold px-4">
+                        Guardar
                     </button>
                 </div>
             </form>
@@ -152,7 +230,7 @@
         const bloqueT3 = document.getElementById('bloque-t3');
         const btnPreSave = document.getElementById('btnPreSave');
         const btnConfirmar = document.getElementById('btnConfirmarNuclear');
-        
+
         // Modal Instance
         const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
 
@@ -171,39 +249,432 @@
         selectEsquema.addEventListener('change', toggleT3);
         toggleT3(); // Init
 
-        // 2. Manejo del Submit con Modal
-        btnPreSave.addEventListener('click', function() {
-            if (form.reportValidity()) {
-                // Lógica visual para el mensaje
-                const esquemaOriginal = "{{ esquema_actual|default:'' }}";
-                const esquemaSeleccionado = selectEsquema.value;
-                const alertaDiv = document.querySelector('#modalConfirmacion .alert');
-                const tituloModal = document.querySelector('#modalConfirmacion .modal-title');
-                
-                if (esquemaOriginal && esquemaOriginal !== esquemaSeleccionado) {
-                    // CAMBIO ESTRUCTURAL (NUCLEAR)
-                    tituloModal.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-2"></i>Atención: Acción Destructiva';
-                    alertaDiv.className = 'alert alert-danger bg-danger bg-opacity-10 border-0 mb-0';
-                    alertaDiv.innerHTML = '<ul class="mb-0 small"><li>Se <strong>eliminará</strong> el historial de turnos.</li><li>Se borrarán preferencias asociadas.</li></ul>';
-                    btnConfirmar.className = 'btn btn-danger px-4 fw-bold';
-                    btnConfirmar.textContent = 'Sí, Redefinir Esquema';
-                } else {
-                    // CAMBIO MENOR (UPDATE)
-                    tituloModal.innerHTML = '<i class="bi bi-info-circle-fill me-2"></i>Confirmar Cambios';
-                    alertaDiv.className = 'alert alert-primary bg-primary bg-opacity-10 border-0 mb-0';
-                    alertaDiv.innerHTML = '<div class="small">Se actualizarán los nombres y horarios manteniendo el historial y las preferencias actuales.</div>';
-                    btnConfirmar.className = 'btn btn-primary px-4 fw-bold';
-                    btnConfirmar.textContent = 'Sí, Guardar Cambios';
-                }
+        // Solo un switch nocturno activo
+        function setupNocturnoSwitches() {
+            const switches = [
+                document.getElementById('{{ form.nocturno_t1.id_for_label }}'),
+                document.getElementById('{{ form.nocturno_t2.id_for_label }}'),
+                document.getElementById('{{ form.nocturno_t3.id_for_label }}')
+            ].filter(Boolean);
+            switches.forEach((sw, idx) => {
+                sw.addEventListener('change', function() {
+                    if (sw.checked) {
+                        switches.forEach((other, i) => {
+                            if (i !== idx) other.checked = false;
+                        });
+                    }
+                });
+            });
+        }
+        setupNocturnoSwitches();
 
-                modal.show();
+        // 2. Manejo del Submit con Modal
+        btnPreSave.addEventListener('click', function(e) {
+            // Ocultar warning previo
+            const warningDiv = document.getElementById('form-warning');
+            const warningText = document.getElementById('form-warning-text');
+            warningDiv.classList.add('d-none');
+
+            // Validar campos obligatorios
+            let campos = [
+                { el: document.getElementById('{{ form.esquema.id_for_label }}'), nombre: 'Esquema Horario' },
+                { el: document.getElementById('{{ form.hora_inicio_base.id_for_label }}'), nombre: 'Hora Inicio' },
+                { el: document.getElementById('{{ form.nombre_t1.id_for_label }}'), nombre: 'Nombre T1' },
+                { el: document.getElementById('{{ form.abrev_t1.id_for_label }}'), nombre: 'Abreviatura T1' },
+                { el: document.getElementById('{{ form.nombre_t2.id_for_label }}'), nombre: 'Nombre T2' },
+                { el: document.getElementById('{{ form.abrev_t2.id_for_label }}'), nombre: 'Abreviatura T2' }
+            ];
+            if (selectEsquema.value === '3x8') {
+                campos.push(
+                    { el: document.getElementById('{{ form.nombre_t3.id_for_label }}'), nombre: 'Nombre T3' },
+                    { el: document.getElementById('{{ form.abrev_t3.id_for_label }}'), nombre: 'Abreviatura T3' }
+                );
             }
+            let vacios = campos.filter(c => !c.el.value || c.el.value.trim() === '');
+            if (vacios.length > 0) {
+                e.preventDefault();
+                warningText.textContent = 'Por favor, completá todos los campos obligatorios (*)';
+                warningDiv.classList.remove('d-none');
+                warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                vacios[0].el.focus();
+                return;
+            }
+            form.submit();
         });
 
-        // 3. Confirmación real (ESTO FALTABA)
-        btnConfirmar.addEventListener('click', function() {
-            form.submit();
+        // === CUSTOM DROPDOWN FUNCTIONALITY ===
+        function setupCustomDropdown(wrapper) {
+            const nativeSelect = wrapper.querySelector('.form-select');
+            const header = wrapper.querySelector('.custom-dropdown-header');
+            const dropdown = wrapper.querySelector('.custom-dropdown');
+            const menu = wrapper.querySelector('.custom-dropdown-menu');
+
+            if (!header || !dropdown || !menu || !nativeSelect) return;
+
+            const placeholder = header.getAttribute('data-placeholder');
+
+            // Inicializar el header con el texto de la opción seleccionada
+            const selectedOption = nativeSelect.options[nativeSelect.selectedIndex];
+            if (selectedOption && selectedOption.value !== '') {
+                header.textContent = selectedOption.textContent;
+            } else {
+                header.textContent = placeholder;
+            }
+
+            // Toggle dropdown
+            header.addEventListener('click', function(e) {
+                e.stopPropagation();
+                dropdown.classList.toggle('open');
+            });
+
+            // Cerrar al hacer clic fuera
+            document.addEventListener('click', function(e) {
+                if (!wrapper.contains(e.target)) {
+                    dropdown.classList.remove('open');
+                }
+            });
+
+            // Seleccionar opción
+            const options = menu.querySelectorAll('.custom-option');
+            options.forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const value = this.getAttribute('data-value');
+                    
+                    // Actualizar select nativo
+                    nativeSelect.value = value;
+                    
+                    // Trigger change event
+                    const event = new Event('change', { bubbles: true });
+                    nativeSelect.dispatchEvent(event);
+                    
+                    // Actualizar header
+                    header.textContent = this.textContent;
+                    
+                    // Cerrar dropdown
+                    dropdown.classList.remove('open');
+                });
+            });
+        }
+
+        // Inicializar custom dropdowns
+        document.querySelectorAll('.custom-select-wrapper').forEach(wrapper => {
+            setupCustomDropdown(wrapper);
         });
     });
 </script>
+
+<style>
+    /* === CARD STYLES === */
+    .card {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+        animation: slideInDown 0.3s ease;
+    }
+
+    /* === DIVIDER SECTION === */
+    .divider-section {
+        height: 2px;
+        background: #e9ecef;
+        border-radius: 2px;
+    }
+
+    /* === FORM CONTROLS === */
+    .form-control, .form-select {
+        height: 46px;
+        border-radius: 10px;
+        border: 1px solid #e0e5ec;
+        background-color: #ffffff;
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        color: #495057;
+        transition: all 0.2s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+        background-color: #ffffff;
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+    }
+
+    .form-control:hover:not(:disabled):not(:focus), 
+    .form-select:hover:not(:disabled):not(:focus) {
+        background-color: #f5f7fb;
+    }
+
+    .form-label {
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+        color: #2f3e4c;
+        letter-spacing: 0.3px;
+    }
+
+    .form-label-sm {
+        font-size: 0.85rem;
+        margin-bottom: 0.4rem;
+        color: #6c757d;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+    }
+
+    .form-text {
+        display: block;
+        margin-top: 0.35rem;
+        color: #6c757d;
+        font-size: 0.85rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* === CUSTOM SELECT STYLES === */
+    .custom-select-wrapper {
+        position: relative;
+        display: inline-block;
+        width: 100%;
+    }
+
+    .custom-dropdown {
+        position: relative;
+        pointer-events: auto;
+    }
+
+    .custom-dropdown-header {
+        height: 46px;
+        border-radius: 10px;
+        border: 1px solid #e0e5ec;
+        background-color: #ffffff;
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 16px;
+        padding-right: 40px;
+        pointer-events: auto;
+        min-width: 100%;
+    }
+
+    .custom-dropdown-header:hover {
+        background-color: #f5f7fb;
+    }
+
+    .custom-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: #ffffff;
+        border: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        pointer-events: none;
+        z-index: 100;
+        margin-top: 0;
+        padding: 0;
+    }
+
+    .custom-dropdown.open .custom-dropdown-menu {
+        max-height: 320px;
+        overflow-y: auto;
+        pointer-events: auto;
+        opacity: 1;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0;
+    }
+
+    .custom-option {
+        padding: 0.5rem 1.2rem;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.95rem;
+        border-bottom: none;
+        font-weight: 500;
+    }
+
+    .custom-option:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.4rem;
+    }
+
+    /* === TURNO BLOCK STYLES === */
+    .turno-block {
+        background-color: #f8f9fa;
+        padding: 1.25rem;
+        border-radius: 10px;
+        border: 1px solid #e9ecef;
+        transition: all 0.2s ease;
+    }
+
+    .turno-block:hover {
+        background-color: #f0f2f5;
+        border-color: #dee2e6;
+    }
+
+    .turno-badge {
+        width: 45px;
+        height: 45px;
+        background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+        color: white;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1rem;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 8px rgba(13, 110, 253, 0.25);
+    }
+
+    /* === SWITCHES === */
+    .switch-custom .form-check-input {
+        width: 3.5em;
+        height: 1.75em;
+        cursor: pointer;
+        border: 2px solid #dee2e6;
+    }
+
+    .switch-custom .form-check-input:checked {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+
+    .form-check-label {
+        cursor: pointer;
+        user-select: none;
+        font-size: 0.9rem;
+        color: #495057;
+        font-weight: 500;
+    }
+
+    /* === ALERT STYLES === */
+    .alert {
+        border-radius: 10px;
+    }
+
+    /* === BOTONES === */
+    .btn {
+        border-radius: 8px;
+        font-size: 0.95rem;
+        padding: 0.625rem 1.25rem;
+        transition: all 0.3s ease;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+    }
+
+    .btn i {
+        margin-right: 0.3rem;
+    }
+
+    .btn-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+
+    .btn-primary:hover {
+        background-color: #0b5ed7;
+        border-color: #0b5ed7;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+    }
+
+    .btn-primary:active {
+        transform: translateY(0);
+    }
+
+    .btn-outline-secondary {
+        color: #6c757d;
+        border-color: #6c757d;
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: #6c757d;
+        border-color: #6c757d;
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-lg {
+        padding: 0.75rem 1.5rem;
+        font-size: 1.05rem;
+    }
+
+    /* === MODAL === */
+    .modal-content {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+        border-radius: 12px 12px 0 0;
+        padding: 1.5rem;
+    }
+
+    .modal-body {
+        color: #2f3e4c;
+        line-height: 1.6;
+        padding: 1.5rem;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #dee2e6;
+    }
+
+    /* === ANIMACIONES === */
+    @keyframes slideInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 768px) {
+        .card-body {
+            padding: 1.5rem !important;
+        }
+
+        h1 {
+            font-size: 1.5rem !important;
+        }
+
+        h5 {
+            font-size: 1rem !important;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .turno-badge {
+            width: 40px;
+            height: 40px;
+            font-size: 0.9rem;
+        }
+
+        .turno-block {
+            padding: 1rem;
+        }
+    }
+</style>
 {% endblock %}
