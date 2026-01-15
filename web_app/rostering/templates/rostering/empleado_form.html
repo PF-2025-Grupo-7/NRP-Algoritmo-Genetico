@@ -8,6 +8,16 @@
             <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">{{ titulo }}</h1>
             <p class="text-muted fs-5 mb-0">Gestión de datos del personal hospitalario</p>
         </div>
+        {% if not form.activo.is_hidden %}
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <div class="form-check form-switch d-inline-flex align-items-center gap-2 switch-custom">
+                <input type="checkbox" class="form-check-input" id="{{ form.activo.id_for_label }}" name="activo" {% if form.activo.value %}checked{% endif %} form="form-empleado">
+                <label class="form-check-label mb-0 fw-semibold" for="{{ form.activo.id_for_label }}" style="color: #2f3e4c;">
+                    Activo en planificaciones
+                </label>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <div class="card border-0" style="border-radius: 14px;">
@@ -24,7 +34,7 @@
                 </div>
                 
                 {% if form.non_field_errors or form.legajo.errors %}
-                    <div class="field-error mb-4">
+                    <div id="server-errors" class="field-error mb-4">
                         <i class="bi bi-exclamation-circle"></i>
                         <span>
                             {% if form.legajo.errors %}
@@ -40,8 +50,13 @@
                 <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label class="form-label fw-bold" for="{{ form.legajo.id_for_label }}">{{ form.legajo.label }}</label>
-                            {{ form.legajo }}
+                            <label class="form-label fw-bold" for="{{ form.legajo.id_for_label }}">{{ form.legajo.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            {% if form.instance.pk %}
+                                <input type="text" class="form-control" value="{{ form.legajo.value }}" disabled readonly style="background-color: #f5f5f5; cursor: not-allowed; opacity: 0.6;">
+                                <input type="hidden" name="legajo" value="{{ form.legajo.value }}">
+                            {% else %}
+                                {{ form.legajo }}
+                            {% endif %}
                             {% if form.legajo.help_text %}
                                 <div class="form-text text-muted small fst-italic">
                                     {{ form.legajo.help_text|safe }}
@@ -52,7 +67,7 @@
                     
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label class="form-label fw-bold" for="{{ form.nombre_completo.id_for_label }}">{{ form.nombre_completo.label }}</label>
+                            <label class="form-label fw-bold" for="{{ form.nombre_completo.id_for_label }}">{{ form.nombre_completo.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
                             {{ form.nombre_completo }}
                             {% if form.nombre_completo.help_text %}
                                 <div class="form-text text-muted small fst-italic">
@@ -66,27 +81,36 @@
                 <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label class="form-label fw-bold" for="{{ form.especialidad.id_for_label }}">{{ form.especialidad.label }}</label>
-                            <div class="custom-select-wrapper">
-                                <select class="form-select d-none" id="{{ form.especialidad.id_for_label }}" name="especialidad">
-                                    <option value=""></option>
-                                    {% for value, label in form.especialidad.field.choices %}
-                                        {% if value %}
-                                            <option value="{{ value }}" {% if form.especialidad.value == value %}selected{% endif %}>{{ label }}</option>
-                                        {% endif %}
-                                    {% endfor %}
-                                </select>
-                                <div class="custom-dropdown">
-                                    <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná una especialidad">Seleccioná una especialidad</div>
-                                    <div class="custom-dropdown-menu">
-                                        {% for value, label in form.especialidad.field.choices %}
-                                            {% if value %}
-                                                <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
-                                            {% endif %}
-                                        {% endfor %}
+                            <label class="form-label fw-bold" for="{{ form.especialidad.id_for_label }}">{{ form.especialidad.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            {% if form.instance.pk %}
+                                <div class="custom-select-wrapper">
+                                    <div class="custom-dropdown">
+                                        <div class="custom-dropdown-header" style="cursor: not-allowed; opacity: 0.6; background-color: #f5f5f5;">{{ form.instance.get_especialidad_display }}</div>
                                     </div>
                                 </div>
-                            </div>
+                                <input type="hidden" name="especialidad" value="{{ form.especialidad.value }}">
+                            {% else %}
+                                <div class="custom-select-wrapper">
+                                    <select class="form-select d-none" id="{{ form.especialidad.id_for_label }}" name="especialidad">
+                                        <option value=""></option>
+                                        {% for value, label in form.especialidad.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if form.especialidad.value == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                    <div class="custom-dropdown">
+                                        <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná una especialidad">Seleccioná una especialidad</div>
+                                        <div class="custom-dropdown-menu">
+                                            {% for value, label in form.especialidad.field.choices %}
+                                                {% if value %}
+                                                    <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
                             {% if form.especialidad.help_text %}
                                 <div class="form-text text-muted small fst-italic">
                                     {{ form.especialidad.help_text|safe }}
@@ -97,27 +121,36 @@
                     
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label class="form-label fw-bold" for="{{ form.experiencia.id_for_label }}">{{ form.experiencia.label }}</label>
-                            <div class="custom-select-wrapper">
-                                <select class="form-select d-none" id="{{ form.experiencia.id_for_label }}" name="experiencia">
-                                    <option value=""></option>
-                                    {% for value, label in form.experiencia.field.choices %}
-                                        {% if value %}
-                                            <option value="{{ value }}" {% if form.experiencia.value == value %}selected{% endif %}>{{ label }}</option>
-                                        {% endif %}
-                                    {% endfor %}
-                                </select>
-                                <div class="custom-dropdown">
-                                    <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná una experiencia">Seleccioná una experiencia</div>
-                                    <div class="custom-dropdown-menu">
-                                        {% for value, label in form.experiencia.field.choices %}
-                                            {% if value %}
-                                                <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
-                                            {% endif %}
-                                        {% endfor %}
+                            <label class="form-label fw-bold" for="{{ form.experiencia.id_for_label }}">{{ form.experiencia.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            {% if form.instance.pk %}
+                                <div class="custom-select-wrapper">
+                                    <div class="custom-dropdown">
+                                        <div class="custom-dropdown-header" style="cursor: not-allowed; opacity: 0.6; background-color: #f5f5f5;">{{ form.instance.get_experiencia_display }}</div>
                                     </div>
                                 </div>
-                            </div>
+                                <input type="hidden" name="experiencia" value="{{ form.experiencia.value }}">
+                            {% else %}
+                                <div class="custom-select-wrapper">
+                                    <select class="form-select d-none" id="{{ form.experiencia.id_for_label }}" name="experiencia">
+                                        <option value=""></option>
+                                        {% for value, label in form.experiencia.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if form.experiencia.value == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                    <div class="custom-dropdown">
+                                        <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná una experiencia">Seleccioná una experiencia</div>
+                                        <div class="custom-dropdown-menu">
+                                            {% for value, label in form.experiencia.field.choices %}
+                                                {% if value %}
+                                                    <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
                             {% if form.experiencia.help_text %}
                                 <div class="form-text text-muted small fst-italic">
                                     {{ form.experiencia.help_text|safe }}
@@ -128,26 +161,16 @@
                 </div>
 
 
-                <!-- Switch de estado activo -->
-                <div class="form-group mb-4">
-                    <div class="form-check form-switch" style="padding-left: 2.5rem;">
-                        {{ form.activo_en_planificaciones }}
-                        <label class="form-check-label fw-bold" for="{{ form.activo_en_planificaciones.id_for_label }}">
-                            {{ form.activo_en_planificaciones.label }}
-                        </label>
-                    </div>
-                    {% if form.activo_en_planificaciones.help_text %}
-                        <div class="form-text text-muted small fst-italic ms-3">
-                            {{ form.activo_en_planificaciones.help_text|safe }}
-                        </div>
-                    {% endif %}
-                </div>
+                <!-- Estado activo (hidden en creación) -->
+                {% if form.activo.is_hidden %}
+                    {{ form.activo }}
+                {% endif %}
                 
                 <!-- Rango de turnos -->
                 <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label class="form-label fw-bold" for="{{ form.min_turnos_mensuales.id_for_label }}">{{ form.min_turnos_mensuales.label }}</label>
+                            <label class="form-label fw-bold" for="{{ form.min_turnos_mensuales.id_for_label }}">{{ form.min_turnos_mensuales.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
                             {{ form.min_turnos_mensuales }}
                             {% if form.min_turnos_mensuales.help_text %}
                                 <div class="form-text text-muted small fst-italic">
@@ -159,7 +182,7 @@
                     
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label class="form-label fw-bold" for="{{ form.max_turnos_mensuales.id_for_label }}">{{ form.max_turnos_mensuales.label }}</label>
+                            <label class="form-label fw-bold" for="{{ form.max_turnos_mensuales.id_for_label }}">{{ form.max_turnos_mensuales.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
                             {{ form.max_turnos_mensuales }}
                             {% if form.max_turnos_mensuales.help_text %}
                                 <div class="form-text text-muted small fst-italic">
@@ -374,6 +397,12 @@
         gap: 0.5rem;
     }
 
+    .required-asterisk {
+        color: #dc3545;
+        margin-left: 0.25rem;
+        font-weight: 700;
+    }
+
     .text-danger i {
         font-size: 0.85rem;
         flex-shrink: 0;
@@ -387,46 +416,15 @@
     }
 
     /* === SWITCHES === */
-    .form-check {
-        position: relative;
-        display: block;
-        padding-left: 0;
-    }
-
-    .form-check-input {
-        width: 2.2em;
-        height: 1.3em;
-        border-radius: 1.1em;
-        border: 2px solid #dee2e6;
+    .switch-custom .form-check-input {
+        width: 3.5em;
+        height: 1.75em;
         cursor: pointer;
-        transition: all 0.3s ease;
-        margin-top: 0.125rem;
-        vertical-align: middle;
-        position: relative;
-    }
-
-    .form-check-input:checked {
-        background-color: #198754;
-        border-color: #198754;
-        background-image: none;
-    }
-
-    .form-check-input:focus {
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-        outline: none;
-    }
-
-    .form-check-input:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
     }
 
     .form-check-label {
         cursor: pointer;
         user-select: none;
-        color: #2f3e4c;
-        font-size: 0.95rem;
     }
 
     /* === BOTONES === */
@@ -575,44 +573,6 @@
         }
     }
 </style>
-
-<div class="modal fade" id="modalAdvertenciaEspecialidad" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header border-bottom-0 bg-warning bg-opacity-10">
-                <h5 class="modal-title fw-bold text-warning">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Cambio de Especialidad
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            
-            <div class="modal-body p-4">
-                <p class="fw-bold mb-3">Estás a punto de cambiar la especialidad de este empleado.</p>
-                
-                <div class="alert alert-warning bg-warning bg-opacity-10 border-warning mb-3 d-flex align-items-start">
-                    <i class="bi bi-info-circle-fill me-3 mt-1" style="flex-shrink: 0;"></i>
-                    <div>
-                        <strong>Consecuencia Importante:</strong>
-                        <div class="small mt-1">
-                            Al guardar, el sistema <strong>eliminará automáticamente</strong> todas las Preferencias y Ausencias futuras asociadas a turnos de la especialidad anterior, para evitar inconsistencias en la planificación.
-                        </div>
-                    </div>
-                </div>
-                
-                <p class="mb-0">¿Deseas continuar y aplicar estos cambios?</p>
-            </div>
-            
-            <div class="modal-footer border-top-0 pt-0 pb-4 px-4 justify-content-center">
-                <button type="button" class="btn btn-outline-secondary px-4 fw-bold" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle me-2"></i>Cancelar
-                </button>
-                <button type="button" class="btn btn-warning px-4 fw-bold" id="btn-confirmar-cambio">
-                    <i class="bi bi-check-circle me-2"></i>Sí, cambiar y limpiar datos
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -635,6 +595,14 @@
             header.textContent = selectedOption.textContent;
         } else {
             header.textContent = placeholder;
+        }
+
+        // Si el select está disabled, bloquear interacción
+        if (nativeSelect.disabled) {
+            header.style.cursor = 'not-allowed';
+            header.style.opacity = '0.6';
+            header.style.backgroundColor = '#f5f5f5';
+            return; // No agregar event listeners
         }
 
         // Abrir/cerrar
@@ -670,6 +638,7 @@
 
     document.addEventListener("DOMContentLoaded", function() {
         const form = document.getElementById('form-empleado');
+        const serverErrors = document.getElementById('server-errors');
         
         // Limpiar formulario al recargar la página (solo si no hay errores de validación)
         {% if not form.errors and not form.non_field_errors %}
@@ -686,14 +655,14 @@
         
         // Inicializar custom dropdowns
         document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
-
-        const selectEspecialidad = form.querySelector('[name="especialidad"]');
         
         // Prevenir números negativos en campos numéricos
         const numericInputs = form.querySelectorAll('input[type="number"]');
         numericInputs.forEach(input => {
             // Agregar atributo min="0"
             input.setAttribute('min', '0');
+            // Agregar atributo max="31" (máximo de días del mes)
+            input.setAttribute('max', '31');
             
             // Prevenir entrada de números negativos
             input.addEventListener('keydown', function(e) {
@@ -707,20 +676,18 @@
                 if (this.value < 0) {
                     this.value = 0;
                 }
+                if (this.value > 31) {
+                    this.value = 31;
+                }
             });
         });
         
-        if (!selectEspecialidad) return;
-
-        const especialidadInicial = selectEspecialidad.value;
-
         form.addEventListener('submit', function(e) {
-            const especialidadActual = selectEspecialidad.value;
-            
             // Ocultar warning previo
             const warningDiv = document.getElementById('form-warning');
             const warningText = document.getElementById('form-warning-text');
             warningDiv.classList.add('d-none');
+            if (serverErrors) serverErrors.classList.add('d-none');
 
             // Validar campos obligatorios
             const requiredFields = [
@@ -759,18 +726,6 @@
                     return;
                 }
             }
-
-            // Solo mostrar el modal si hay un valor inicial (edición) y cambió
-            if (especialidadInicial && especialidadInicial !== '' && especialidadInicial !== especialidadActual) {
-                e.preventDefault();
-                const modalEl = document.getElementById('modalAdvertenciaEspecialidad');
-                const modal = new bootstrap.Modal(modalEl);
-                modal.show();
-            }
-        });
-
-        document.getElementById('btn-confirmar-cambio').addEventListener('click', function() {
-            form.submit();
         });
     });
 </script>

@@ -40,6 +40,23 @@ class EmpleadoForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Empleado
         fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # En creación, el campo activo se oculta y se fuerza a True
+        if not self.instance.pk:
+            self.fields['activo'].initial = True
+            self.fields['activo'].widget = forms.HiddenInput()
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        # En edición, restaurar valores originales de campos bloqueados para evitar modificaciones
+        if self.instance.pk:
+            cleaned_data['legajo'] = self.instance.legajo
+            cleaned_data['especialidad'] = self.instance.especialidad
+            cleaned_data['experiencia'] = self.instance.experiencia
+        # NO tocar el campo 'activo', Django lo maneja automáticamente
+        return cleaned_data
     
     def clean_legajo(self):
         legajo = self.cleaned_data.get('legajo')

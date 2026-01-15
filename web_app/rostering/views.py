@@ -305,7 +305,7 @@ class EmpleadoListView(LoginRequiredMixin, ListView):
     paginate_by = 15 
 
     def get_queryset(self):
-        qs = super().get_queryset().order_by('id')
+        qs = super().get_queryset().order_by('-activo', '-id')
         self.filterset = EmpleadoFilter(self.request.GET, queryset=qs)
         qs = self.filterset.qs
         return qs

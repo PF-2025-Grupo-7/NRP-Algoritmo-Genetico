@@ -149,21 +149,12 @@
                             </td>
 
                             <td class="text-center">
-                                <div class="action-buttons">
-                                    <a href="{% url 'empleado_update' empleado.pk %}" 
-                                       class="btn btn-sm btn-action btn-action-edit" 
-                                       data-bs-toggle="tooltip" 
-                                       data-bs-title="Editar">
-                                        <i class="bi bi-pencil-fill"></i>
-                                    </a>
-                                    <button type="button"
-                                       class="btn btn-sm btn-action btn-action-delete" 
-                                       data-bs-toggle="tooltip" 
-                                       data-bs-title="Eliminar"
-                                       onclick="openDeleteModal('{{ empleado.nombre_completo }}', '{{ empleado.get_especialidad_display }}', '{{ empleado.legajo }}', '{% url 'empleado_delete' empleado.pk %}')">
-                                        <i class="bi bi-trash-fill"></i>
-                                    </button>
-                                </div>
+                                <a href="{% url 'empleado_update' empleado.pk %}" 
+                                   class="btn btn-sm btn-action btn-action-edit" 
+                                   data-bs-toggle="tooltip" 
+                                   data-bs-title="Editar">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </a>
                             </td>
                         </tr>
                         {% empty %}

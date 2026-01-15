@@ -51,13 +51,13 @@ class Empleado(models.Model):
 
     min_turnos_mensuales = models.IntegerField(
         default=10,
-        validators=[MinValueValidator(0)],
+        validators=[MinValueValidator(0), MaxValueValidator(31)],
         verbose_name="Mínimo de turnos/mes",
         help_text="Cantidad mínima de turnos a asignar en el periodo."
     )
     max_turnos_mensuales = models.IntegerField(
         default=20,
-        validators=[MinValueValidator(0)],
+        validators=[MinValueValidator(0), MaxValueValidator(31)],
         verbose_name="Máximo de turnos/mes",
         help_text="Límite máximo de turnos a asignar en el periodo."
     )
