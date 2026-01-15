@@ -40,6 +40,18 @@ class EmpleadoForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Empleado
         fields = '__all__'
+    
+    def clean_legajo(self):
+        legajo = self.cleaned_data.get('legajo')
+        # Si estamos editando, excluir el empleado actual de la búsqueda
+        if self.instance.pk:
+            if Empleado.objects.filter(legajo=legajo).exclude(pk=self.instance.pk).exists():
+                raise ValidationError('Ya existe un empleado con este legajo.')
+        else:
+            # Si estamos creando, verificar que no exista
+            if Empleado.objects.filter(legajo=legajo).exists():
+                raise ValidationError('Ya existe un empleado con este legajo.')
+        return legajo
 
 # Borrá o comentá la clase TipoTurnoForm vieja
 

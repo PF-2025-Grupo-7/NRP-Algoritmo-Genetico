@@ -321,6 +321,11 @@ class EmpleadoCreateView(LoginRequiredMixin, CreateView):
     template_name = 'rostering/empleado_form.html'
     success_url = reverse_lazy('empleado_list')
     extra_context = {'titulo': 'Nuevo Empleado'}
+    
+    def get_initial(self):
+        initial = super().get_initial()
+        initial['activo'] = True
+        return initial
 
 class EmpleadoUpdateView(LoginRequiredMixin, UpdateView):
     model = Empleado
