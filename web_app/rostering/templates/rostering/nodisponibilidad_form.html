@@ -4,8 +4,8 @@
 <div class="container py-4" style="max-width: 900px;">
     <div class="row mb-4 align-items-center">
         <div class="col-md-8">
-            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Nueva ausencia</h1>
-            <p class="text-muted fs-5 mb-0">Gestión de ausencias o no disponibilidad del personal</p>
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Nueva Ausencia</h1>
+            <p class="text-muted fs-5 mb-0">Gestión de no disponibilidades del personal</p>
         </div>
     </div>
 
@@ -44,11 +44,12 @@
     .custom-select-wrapper { position: relative; display: inline-block; width: 100%; }
     .custom-dropdown { position: relative; pointer-events: auto; }
     .custom-dropdown-header {
-        height: 46px; border-radius: 10px; border: 1px solid #e0e5ec; background-color: #ffffff;
-        padding: 12px 16px; font-size: 0.95rem; color: #495057; display: flex; align-items: center;
+        /* Match .form-control exact box model */
+        height: 46px; box-sizing: border-box; border-radius: 8px; border: 1px solid #e0e5ec; background-color: #ffffff;
+        padding: 0.75rem 1rem; font-size: 0.95rem; line-height: 1; color: #495057; display: inline-flex; align-items: center; width: 100%;
         transition: all 0.2s ease; cursor: pointer;
         background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
-        background-repeat: no-repeat; background-position: right 12px center; background-size: 16px; padding-right: 40px; pointer-events: auto; min-width: 100%;
+        background-repeat: no-repeat; background-position: right 12px center; background-size: 16px; padding-right: 40px; pointer-events: auto;
     }
     .custom-dropdown-header.is-invalid {
         border-color: #c41c3b !important;
@@ -79,7 +80,10 @@
     .btn-outline-secondary { color: #6c757d; border-color: #6c757d; }
     .btn-outline-secondary:hover { background-color: #6c757d; border-color: #6c757d; color: white; transform: translateY(-2px); }
     @keyframes slideInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
-    .card { animation: slideInDown 0.3s ease; }
+    .card {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+        animation: slideInDown 0.3s ease;
+    }
     @media (max-width: 768px) { .card-body { padding: 1.5rem !important; } h1 { font-size: 1.5rem !important; } .btn { padding: 0.5rem 1rem; font-size: 0.9rem; } .form-control, .form-select { padding: 0.625rem 0.875rem; font-size: 0.9rem; } .custom-dropdown-header { height: 42px; font-size: 0.9rem; padding: 10px 14px; padding-right: 36px; } }
     </style>
     <div class="card border-0" style="border-radius: 14px;">
@@ -129,7 +133,7 @@
                                 <label class="form-label fw-bold" for="id_tipo_turno">Turno<span class="required-asterisk" aria-hidden="true">*</span></label>
                             <div class="custom-select-wrapper">
                                 <select class="form-select d-none" id="id_tipo_turno" name="tipo_turno" required>
-                                    <option value="" {% if not form.instance.tipo_turno and not form.initial.tipo_turno %}selected{% endif %}>Todo el día</option>
+                                    <option value="" {% if not form.instance.tipo_turno and not form.initial.tipo_turno %}selected{% endif %}></option>
                                     {% for turno in form.fields.tipo_turno.queryset.all %}
                                         <option value="{{ turno.pk }}" data-especialidad="{{ turno.especialidad }}" {% if form.instance.tipo_turno and form.instance.tipo_turno.pk == turno.pk %}selected{% endif %}>{{ turno.nombre }}</option>
                                     {% endfor %}
@@ -137,7 +141,7 @@
                                 <div class="custom-dropdown">
                                     <div class="custom-dropdown-header" tabindex="0">{% if form.instance.tipo_turno %}{{ form.instance.tipo_turno.nombre }}{% elif form.initial.tipo_turno %}{{ form.initial.tipo_turno }}{% else %}Seleccioná un turno{% endif %}</div>
                                     <div class="custom-dropdown-menu">
-                                        <div class="custom-option" data-value="">Todo el día</div>
+                                        <div class="custom-option" data-value="">&nbsp;</div>
                                         {% for turno in form.fields.tipo_turno.queryset.all %}
                                             <div class="custom-option" data-value="{{ turno.pk }}" data-especialidad="{{ turno.especialidad }}">{{ turno.nombre }}</div>
                                         {% endfor %}
@@ -482,10 +486,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 turnoHeader.textContent = 'Seleccioná un empleado primero';
             } else {
                 turnoHeader.classList.remove('disabled');
-                // si ya hay un turno seleccionado, mostrar su texto, si no, mostrar placeholder
+                // si ya hay un turno seleccionado, mostrar su texto, si no, dejar el header vacío
                 const sel = $turno.options[$turno.selectedIndex];
-                if (sel && $turno.value) turnoHeader.textContent = sel.textContent;
-                else turnoHeader.textContent = 'Seleccioná un turno';
+                if (sel && $turno.value) {
+                    turnoHeader.textContent = sel.textContent;
+                } else {
+                    turnoHeader.textContent = '';
+                }
             }
         }
         if (turnoMenu && !enabled){
@@ -519,11 +526,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (turnoHeaderInit) {
             if ($turno && $turno.value && selectedOption && selectedOption.style.display !== 'none') {
                 turnoHeaderInit.textContent = selectedOption.textContent;
-            } else if ($turno && $turno.value === '') {
-                // Si no hay valor seleccionado, preferimos mostrar 'Todo el día' cuando exista
-                const optTodo = Array.from($turno.options).find(o => !o.value);
-                if (optTodo) turnoHeaderInit.textContent = optTodo.textContent || 'Todo el día';
-                else turnoHeaderInit.textContent = 'Seleccioná un turno';
+            } else {
+                // If no selection, leave header empty (user can choose 'Todo el día' from menu)
+                turnoHeaderInit.textContent = '';
             }
         }
     } catch (e) { console.error('init turno header error', e); }
