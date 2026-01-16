@@ -296,6 +296,36 @@
                 warningText.textContent = 'Por favor, completá todos los campos obligatorios (*)';
                 warningDiv.classList.remove('d-none');
                 warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // Marcar visualmente los campos vacíos
+                vacios.forEach(function(c) {
+                    try {
+                        c.el.classList.add('is-invalid');
+                        // Si es un select personalizado, marcar también el header
+                        if (c.el.classList && c.el.classList.contains('form-select')) {
+                            const wrapper = c.el.closest('.custom-select-wrapper');
+                            if (wrapper) {
+                                const header = wrapper.querySelector('.custom-dropdown-header');
+                                if (header) header.classList.add('is-invalid');
+                            }
+                            c.el.addEventListener('change', function handler() {
+                                c.el.classList.remove('is-invalid');
+                                const wrapper = c.el.closest('.custom-select-wrapper');
+                                if (wrapper) {
+                                    const header = wrapper.querySelector('.custom-dropdown-header');
+                                    if (header) header.classList.remove('is-invalid');
+                                }
+                                c.el.removeEventListener('change', handler);
+                            });
+                        } else {
+                            c.el.addEventListener('input', function handler() {
+                                c.el.classList.remove('is-invalid');
+                                c.el.removeEventListener('input', handler);
+                            });
+                        }
+                    } catch (ex) { console.error('mark invalid', ex); }
+                });
+
                 vacios[0].el.focus();
                 return;
             }
@@ -396,6 +426,16 @@
         background-color: #ffffff;
         outline: 2px solid transparent;
         outline-offset: 2px;
+    }
+    .is-invalid {
+        border-color: #c41c3b !important;
+        box-shadow: 0 0 0 0.15rem rgba(196,28,59,0.12) !important;
+        color: #c41c3b !important;
+    }
+    .custom-dropdown-header.is-invalid {
+        border-color: #c41c3b !important;
+        color: #c41c3b !important;
+        box-shadow: 0 0 0 0.15rem rgba(196,28,59,0.15);
     }
 
     .form-control:hover:not(:disabled):not(:focus), 

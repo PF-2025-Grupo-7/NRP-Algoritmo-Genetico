@@ -1,7 +1,11 @@
 from django.urls import path
+
 from . import views
+from . import api_empleados
 
 urlpatterns = [
+    # API para autocompletar legajos de empleados
+    path('api/empleados/legajos/', api_empleados.api_empleados_legajos, name='api_empleados_legajos'),
     # ==========================================================================
     # LANDING Y DASHBOARD
     # ==========================================================================

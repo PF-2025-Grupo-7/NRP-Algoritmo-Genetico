@@ -298,6 +298,12 @@
         display: flex;
         align-items: center;
         transition: all 0.2s ease;
+    }
+    .custom-dropdown-header.is-invalid {
+        border-color: #c41c3b !important;
+        color: #c41c3b !important;
+        box-shadow: 0 0 0 0.15rem rgba(196,28,59,0.15);
+    }
         cursor: pointer;
         background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
         background-repeat: no-repeat;
@@ -700,23 +706,45 @@
             ];
 
             const emptyFields = requiredFields.filter(item => !item.field.value || item.field.value.trim() === '');
-            
+
             if (emptyFields.length > 0) {
                 e.preventDefault();
                 warningText.textContent = 'Por favor, completá todos los campos obligatorios (*)';
                 warningDiv.classList.remove('d-none');
                 warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Marcar los campos vacíos como inválidos visualmente
+                emptyFields.forEach(function(item) {
+                    item.field.classList.add('is-invalid');
+                    item.field.addEventListener('input', function handler() {
+                        item.field.classList.remove('is-invalid');
+                        item.field.removeEventListener('input', handler);
+                    });
+                    // Si el campo es un select personalizado, marcar el header también
+                    if (item.field.classList.contains('form-select')) {
+                        var wrapper = item.field.closest('.custom-select-wrapper');
+                        if (wrapper) {
+                            var header = wrapper.querySelector('.custom-dropdown-header');
+                            if (header) {
+                                header.classList.add('is-invalid');
+                                item.field.addEventListener('change', function handler2() {
+                                    header.classList.remove('is-invalid');
+                                    item.field.removeEventListener('change', handler2);
+                                });
+                            }
+                        }
+                    }
+                });
                 return;
             }
 
             // Validar que el máximo no sea menor que el mínimo
             const minTurnos = form.querySelector('[name="min_turnos_mensuales"]');
             const maxTurnos = form.querySelector('[name="max_turnos_mensuales"]');
-            
+
             if (minTurnos && maxTurnos) {
                 const minValue = parseInt(minTurnos.value) || 0;
                 const maxValue = parseInt(maxTurnos.value) || 0;
-                
+
                 if (maxValue < minValue) {
                     e.preventDefault();
                     warningText.textContent = 'El máximo de turnos no puede ser menor que el mínimo de turnos.';

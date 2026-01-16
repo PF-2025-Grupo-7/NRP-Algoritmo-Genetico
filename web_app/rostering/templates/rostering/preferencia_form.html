@@ -1,74 +1,87 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <div class="card shadow border-0">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">{{ titulo }}</h4>
-                </div>
-                <div class="card-body p-4">
-
-                    {# --- INICIO AVISO DE EQUIDAD (VERSIÓN SIMPLE) --- #}
-                    <div class="alert alert-info border-0 shadow-sm d-flex align-items-center mb-4" role="alert" style="background-color: #e3f2fd; color: #084298;">
-                        <div class="me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; background-color: white; border-radius: 50%;">
-                            <i class="bi bi-people-fill fs-5 text-primary"></i>
-                        </div>
-                        <div>
-                            <h6 class="fw-bold mb-1">Política de Equidad</h6>
-                            <p class="mb-0 small">
-                                Recordá que solo se procesarán tus <strong>3 últimas solicitudes</strong> para esta planificación. 
-                                Si cargás más de 3, las más viejas quedarán sin efecto.
-                            </p>
-                        </div>
-                    </div>
-                    {# --- FIN AVISO DE EQUIDAD --- #}
-
-                    <form method="post">
-                        {% csrf_token %}
-                        
-                        {% if form.non_field_errors %}
-                            <div class="alert alert-danger mb-3">
-                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                                {{ form.non_field_errors|join:", " }}
-                            </div>
-                        {% endif %}
-
-                        {% for field in form %}
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">{{ field.label }}</label>
-                            
-                            {{ field }}
-                            
-                            {% if field.help_text %}
-                                <div class="form-text text-muted small fst-italic">
-                                    {{ field.help_text }}
-                                </div>
-                            {% endif %}
-                            
-                            {% for error in field.errors %}
-                                <div class="text-danger small mt-1">
-                                    <i class="bi bi-x-circle"></i> {{ error }}
-                                </div>
-                            {% endfor %}
-                        </div>
-                        {% endfor %}
-
-                        <hr class="my-4">
-
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary me-md-2">
-                                Cancelar
-                            </a>
-                            <button type="submit" class="btn btn-success px-4">
-                                <i class="bi bi-save me-2"></i> Guardar Cambios
-                            </button>
-                        </div>
-                    </form>
+<div class="container py-4" style="max-width: 900px;">
+    <div class="row mb-4 align-items-center">
+        <div class="col-12">
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">{{ titulo }}</h1>
+            <p class="text-muted fs-5 mb-0">Gestión de preferencias de turnos del personal</p>
+        </div>
+    </div>
+    <div class="card border-0" style="border-radius: 14px;">
+        <div class="card-body p-4 p-lg-5">
+            <!-- Aviso de equidad con diseño consistente -->
+            <div class="mb-4" style="background: #e7f3ff; border-radius: 16px; border-left: 4px solid #2196f3; padding: 1.25rem 1.5rem;">
+                <div class="fw-bold mb-1" style="color: #2f3e4c; font-size: 1rem;">Política de Equidad</div>
+                <div class="small text-muted">
+                    Recordá que solo se procesarán tus <strong>3 últimas solicitudes</strong> para esta planificación. Si cargás más de 3, las más viejas quedarán sin efecto.
                 </div>
             </div>
+
+            <form method="post" id="form-preferencia" novalidate autocomplete="off">
+                {% csrf_token %}
+                <div class="col-12">
+                    <div id="form-warning" class="field-error d-none">
+                        <i class="bi bi-exclamation-circle"></i>
+                        <span id="form-warning-text"></span>
+                    </div>
+                </div>
+                {% if form.non_field_errors %}
+                    <div id="server-errors" class="field-error mb-4">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <span>{{ form.non_field_errors|join:", " }}</span>
+                    </div>
+                {% endif %}
+
+                <div class="row g-3 mb-4">
+                    {% for field in form.visible_fields %}
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="{{ field.id_for_label }}">
+                                {{ field.label }}{% if field.field.required %}<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span>{% endif %}
+                            </label>
+                            {% if field.field.widget.input_type == 'select' %}
+                                <select name="{{ field.html_name }}" id="{{ field.id_for_label }}" class="form-select" {% if field.field.required %}required{% endif %}>
+                                    <option value="" disabled {% if not field.value %}selected{% endif %}>Seleccioná {{ field.label|lower }}</option>
+                                    {% for option in field.field.choices %}
+                                        {% if option.0 %}
+                                            <option value="{{ option.0 }}" {% if field.value == option.0 %}selected{% endif %}>{{ option.1 }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                            {% else %}
+                                {{ field }}
+                            {% endif %}
+                            {% if field.help_text %}
+                                <div class="form-text text-muted small fst-italic">{{ field.help_text }}</div>
+                            {% endif %}
+                            {% for error in field.errors %}
+                                <div class="text-danger small mt-1"><i class="bi bi-x-circle"></i> {{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <hr class="my-4">
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary me-md-2 fw-bold px-4">
+                        Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                        Guardar
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+<style>
+    .required-asterisk { color: #dc3545; margin-left: 0.25rem; font-weight: 700; }
+    .form-group input, .form-group select, .form-group textarea {
+        border-radius: 0.5rem;
+        border: 1px solid #ced4da;
+        padding: 0.5rem 0.75rem;
+    }
+</style>
 {% endblock %}

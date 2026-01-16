@@ -21,18 +21,18 @@
                     </div>
                 </div>
                 <div class="col-sm-6">
-                    <label class="form-label fw-semibold">Fecha inicio</label>
+                    <label class="form-label fw-semibold">Fecha inicio<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
                     <input type="date" class="form-control" id="fecha_inicio" required>
                     <div class="invalid-feedback">Ingresá una fecha válida.</div>
                 </div>
                 <div class="col-sm-6">
-                    <label class="form-label fw-semibold">Fecha fin</label>
+                    <label class="form-label fw-semibold">Fecha fin<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
                     <input type="date" class="form-control" id="fecha_fin" required>
                     <div class="invalid-feedback">La fecha fin debe ser posterior al inicio.</div>
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label fw-semibold">Especialidad</label>
+                    <label class="form-label fw-semibold">Especialidad<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
                     <div class="custom-select-wrapper">
                         <select class="form-select d-none" id="especialidad" required>
                             <option value="" selected disabled>Seleccioná una especialidad</option>
@@ -55,7 +55,7 @@
                 </div>
 
                 <div class="col-md-6">
-                    <label class="form-label fw-semibold">Plantilla de demanda</label>
+                    <label class="form-label fw-semibold">Plantilla de demanda<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
                     <div class="custom-select-wrapper">
                         <select class="form-select d-none" id="plantilla_id" required disabled>
                             <option value="" selected>Seleccioná una especialidad primero</option>
@@ -359,6 +359,18 @@
         background-color: #ffffff;
     }
 
+    /* Invalid state (same look used elsewhere) */
+    .is-invalid {
+        border-color: #c41c3b !important;
+        box-shadow: 0 0 0 0.15rem rgba(196,28,59,0.12) !important;
+        color: #c41c3b !important;
+    }
+    .custom-dropdown-header.is-invalid {
+        border-color: #c41c3b !important;
+        color: #c41c3b !important;
+        box-shadow: 0 0 0 0.15rem rgba(196,28,59,0.15);
+    }
+
     /* Warning estilo login */
     .field-error {
         display: flex;
@@ -652,18 +664,58 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // --- Envío del formulario ---
-    if($form) {
+            if($form) {
         $form.addEventListener('submit', async function(ev){
             ev.preventDefault();
             
             if($warn) $warn.classList.add('d-none');
-            
-            if(!$inicio.value || !$fin.value || !$esp.value || !$plant.value){
-                showWarn('Completá todos los campos requeridos.');
+
+            // Validación visual: marcar campos requeridos vacíos
+            const requiredChecks = [
+                { el: $inicio, name: 'Fecha inicio' },
+                { el: $fin, name: 'Fecha fin' },
+                { el: $esp, name: 'Especialidad' },
+                { el: $plant, name: 'Plantilla' }
+            ];
+
+            let missing = requiredChecks.filter(c => !c.el || !c.el.value || c.el.value.trim() === '');
+            if (missing.length > 0) {
+                showWarn('Por favor, completá todos los campos obligatorios (*)');
+                // Marcar visualmente
+                missing.forEach(function(c){
+                    try{
+                        if(c.el.classList && c.el.classList.contains('form-select')){
+                            c.el.classList.add('is-invalid');
+                            const wrapper = c.el.closest('.custom-select-wrapper');
+                            if(wrapper){
+                                const header = wrapper.querySelector('.custom-dropdown-header');
+                                if(header) header.classList.add('is-invalid');
+                            }
+                            c.el.addEventListener('change', function handler(){
+                                c.el.classList.remove('is-invalid');
+                                const wrapper = c.el.closest('.custom-select-wrapper');
+                                if(wrapper){
+                                    const header = wrapper.querySelector('.custom-dropdown-header');
+                                    if(header) header.classList.remove('is-invalid');
+                                }
+                                c.el.removeEventListener('change', handler);
+                            });
+                        } else if(c.el.classList){
+                            c.el.classList.add('is-invalid');
+                            c.el.addEventListener('input', function handler(){
+                                c.el.classList.remove('is-invalid');
+                                c.el.removeEventListener('input', handler);
+                            });
+                        }
+                    }catch(e){console.error('mark missing', e)}
+                });
+                missing[0].el.focus();
                 return;
             }
+
             if($fin.value <= $inicio.value){
                 showWarn('La fecha fin debe ser posterior a la fecha inicio.');
+                try{ $fin.classList.add('is-invalid'); $fin.addEventListener('input', function h(){ $fin.classList.remove('is-invalid'); $fin.removeEventListener('input', h); }); }catch(e){}
                 return;
             }
 
