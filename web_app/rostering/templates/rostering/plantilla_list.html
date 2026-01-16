@@ -1,39 +1,55 @@
 {% extends 'base.html' %}
 
+{% block title %}Plantillas de Demanda - Hospital Planner{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2><i class="bi bi-list-check"></i> Plantillas de Demanda</h2>
-        <a href="{% url 'plantilla_create' %}" class="btn btn-primary">
-            <i class="bi bi-plus-lg"></i> Nueva Plantilla
-        </a>
+<div class="container py-2" style="max-width: 1400px;">
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Plantillas de Demanda</h1>
+            <p class="text-muted fs-5 mb-0">Gestión de plantillas y reglas de demanda semanal</p>
+        </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <a href="{% url 'plantilla_create' %}" class="btn btn-primary px-4 shadow-sm fw-bold">
+                <i class="bi bi-plus-lg me-2"></i>Nueva Plantilla
+            </a>
+        </div>
     </div>
 
-    <div class="row">
+    <div class="row g-4">
         {% for p in plantillas %}
-        <div class="col-md-6 mb-4">
-            <div class="card shadow-sm h-100 border-0">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h5 class="card-title text-primary fw-bold">{{ p.nombre }}</h5>
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 bg-white card-esquema">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="icon-esquema bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center">
+                            <i class="bi bi-list-check text-primary"></i>
+                        </div>
                         {% if p.especialidad == 'MEDICO' %}
-                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary">Médico</span>
+                            <span class="badge shadow-sm bg-primary bg-opacity-10 text-primary" style="min-width:60px; font-size:1rem; padding:10px 12px;">Médico</span>
                         {% else %}
-                            <span class="badge bg-success bg-opacity-10 text-success border border-success">Enfermero</span>
+                            <span class="badge shadow-sm bg-success bg-opacity-10 text-success" style="min-width:60px; font-size:1rem; padding:10px 12px;">Enfermero</span>
                         {% endif %}
                     </div>
-                    <p class="card-text text-muted small">{{ p.descripcion|default:"Sin descripción" }}</p>
-                    
-                    <div class="d-flex justify-content-between align-items-center mt-4">
-                        <div class="small text-muted">
-                            <i class="bi bi-calendar-week"></i> {{ p.reglas.count }} Reglas
+
+                    <h4 class="card-title fw-bold mb-2" style="color: #2f3e4c;">{{ p.nombre }}</h4>
+                    <div class="divider-esquema"></div>
+
+                    <div class="info-section mt-3 mb-4">
+                        <p class="text-muted mb-2">{{ p.descripcion|default:"Sin descripción" }}</p>
+                        <div class="info-item">
+                            <i class="bi bi-calendar-week me-2 text-muted"></i>
+                            <span class="text-muted">Reglas:</span>
+                            <strong class="ms-1">{{ p.reglas.count }}</strong>
                         </div>
-                        
-                        <div class="btn-group">
-                            <a href="{% url 'plantilla_detail' p.pk %}" class="btn btn-outline-primary btn-sm">
-                                <i class="bi bi-gear"></i> Configurar
+                    </div>
+
+                    <div class="d-flex justify-content-end mt-auto">
+                        <div class="card-actions d-flex gap-2">
+                            <a href="{% url 'plantilla_detail' p.pk %}" class="btn btn-action-icon" title="Editar">
+                                <i class="bi bi-pencil-fill"></i>
                             </a>
-                            
+
                             <button type="button" 
                                     class="btn btn-outline-secondary btn-sm" 
                                     data-bs-toggle="modal" 
@@ -52,14 +68,11 @@
                 </div>
             </div>
         </div>
-        {% empty %}
-        <div class="col-12 text-center py-5 text-muted">
-            <i class="bi bi-inbox fs-1 d-block"></i> No hay plantillas creadas.
-        </div>
         {% endfor %}
     </div>
 </div>
 
+<!-- Modal duplicar (reutilizado) -->
 <div class="modal fade" id="modalDuplicar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -69,39 +82,136 @@
             </div>
             <div class="modal-body">
                 <p class="text-muted">¿Deseas crear una copia exacta de la plantilla <strong id="nombrePlantillaModal" class="text-dark">...</strong>?</p>
-                <div class="alert alert-info py-2 small border-0 bg-info bg-opacity-10 text-info-emphasis">
-                    <i class="bi bi-info-circle me-1"></i> Se copiarán todas las reglas semanales y excepciones.
+                <div class="alert alert-info mb-0 border-0" role="alert" style="background-color: #e7f3ff; border-left: 4px solid #0d6efd !important;">
+                    <div class="fw-bold" style="color: #2f3e4c;">Información</div>
+                    <div class="small text-muted">Se copiarán todas las reglas semanales y excepciones.</div>
                 </div>
             </div>
             <div class="modal-footer border-0 pt-0">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                <a href="#" id="btnConfirmarDuplicar" class="btn btn-primary fw-bold">
+                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+                <a href="#" id="btnConfirmarDuplicar" class="btn btn-primary fw-bold px-4">
                     <i class="bi bi-files me-1"></i> Sí, duplicar
                 </a>
             </div>
         </div>
     </div>
-</div>
+}</div>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         var modalDuplicar = document.getElementById('modalDuplicar');
-        
+        if (!modalDuplicar) return;
         modalDuplicar.addEventListener('show.bs.modal', function (event) {
-            // Botón que disparó el modal
             var button = event.relatedTarget;
-            
-            // Extraer info de los atributos data-*
             var url = button.getAttribute('data-url');
             var nombre = button.getAttribute('data-nombre');
-            
-            // Actualizar el contenido del modal
             var modalTitle = modalDuplicar.querySelector('#nombrePlantillaModal');
             var confirmBtn = modalDuplicar.querySelector('#btnConfirmarDuplicar');
-            
             modalTitle.textContent = '"' + nombre + '"';
             confirmBtn.href = url;
         });
     });
 </script>
+
+<style>
+    /* Card Esquema Styles (copiado de config_turnos_list) */
+    .card-esquema { border-radius: 12px; transition: transform 0.3s ease, box-shadow 0.3s ease; min-height: 220px; }
+    .card-esquema:hover { transform: translateY(-5px); box-shadow: 0 0.75rem 1.5rem rgba(0,0,0,0.12) !important; }
+    .icon-esquema { width: 65px; height: 65px; flex-shrink: 0; }
+    .icon-esquema i { font-size: 2rem; }
+    .badge-custom { display: inline-block; padding: 0.4rem 0.9rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-radius: 20px; }
+    .badge-success { background-color: #d1e7dd; color: #0f5132; }
+    .badge-warning { background-color: #fff3cd; color: #997404; }
+    .divider-esquema { height: 2px; background: #e9ecef; margin: 0.75rem 0; border-radius: 2px; transform-origin: center; transform: scaleX(0.98); transition: background-color 0.2s ease, transform 0.2s ease; }
+    .card-esquema:hover .divider-esquema { background-color: #0d6efd; transform: scaleX(1); }
+    .info-section { font-size: 0.95rem; line-height: 1.6; }
+    .info-item { color: #495057; }
+    .info-item i { font-size: 0.9rem; }
+    .btn-action { background-color: #f8f9fa; color: #0d6efd; border: 2px solid #e9ecef; padding: 0.65rem 1.2rem; border-radius: 8px; transition: all 0.3s ease; font-size: 0.95rem; }
+    .btn-action:hover { background-color: #0d6efd; color: white; border-color: #0d6efd; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(13,110,253,0.3); }
+    .btn-action i { transition: transform 0.3s ease; }
+    .btn-action:hover i { transform: scale(1.1); }
+    .card-esquema .card-body { display: flex; flex-direction: column; }
+
+    /* Mejora visual de badges y botones dentro de las tarjetas */
+    /* Badges estilo pill (Médico / Enfermero / etc) */
+    /* Match typography & sizing from config_turnos_list (.badge-custom) */
+    .card-esquema .badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-radius: 20px;
+    }
+
+    /* Variantes por color, manteniendo el pill look */
+    .card-esquema .badge.bg-primary {
+        background-color: rgba(13,110,253,0.08) !important;
+        color: #0d6efd !important;
+        border: none !important;
+    }
+
+    .card-esquema .badge.bg-success {
+        background-color: rgba(31,122,83,0.12) !important;
+        color: #1f7a53 !important;
+        border: none !important;
+    }
+
+    /* Compact action button (Configurar) - estilo inspirado en config_turnos pero más pequeño */
+    .btn-action-sm {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background-color: #f8f9fa;
+        color: #0d6efd;
+        border: 1px solid #e9ecef;
+        padding: 0.45rem 0.9rem;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 0.92rem;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+    }
+
+    .btn-action-sm i { font-size: 1.05rem; }
+
+    .btn-action-sm:hover {
+        background-color: #0d6efd;
+        color: #fff !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(13,110,253,0.12);
+    }
+
+    /* Styles for secondary/delete buttons kept subtle and consistent */
+    .card-esquema .btn-sm { border-radius: 8px; padding: 0.45rem 0.8rem; }
+    .card-esquema .btn-outline-secondary { color: #6c757d; border-color: rgba(108,117,125,0.14); background-color: rgba(108,117,125,0.02); }
+    .card-esquema .btn-outline-secondary:hover { background-color: #6c757d; color: white !important; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(108,117,125,0.12); }
+    .card-esquema .btn-outline-danger { color: #dc3545; border-color: rgba(220,53,69,0.14); background-color: rgba(220,53,69,0.02); }
+    .card-esquema .btn-outline-danger:hover { background-color: #dc3545; color: white !important; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(220,53,69,0.12); }
+
+    /* Icon-only action button used for edit (matches list style) */
+    .btn-action-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        background-color: rgba(13,110,253,0.04);
+        border: 1px solid rgba(13,110,253,0.12);
+        color: #0d6efd;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+        font-size: 1.05rem;
+    }
+
+    .btn-action-icon i { margin: 0; }
+
+    .btn-action-icon:hover {
+        background-color: #0d6efd;
+        color: #fff !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(13,110,253,0.12);
+    }
+</style>
 {% endblock %}
