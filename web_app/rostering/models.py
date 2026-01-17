@@ -206,11 +206,11 @@ class SecuenciaProhibida(models.Model):
 class PlantillaDemanda(models.Model):
     nombre = models.CharField(max_length=50, unique=True, help_text="Ej: Demanda Estándar 2025")
     especialidad = models.CharField(
-        max_length=20, 
+        max_length=20,
         choices=Empleado.TipoEspecialidad.choices,
         default=Empleado.TipoEspecialidad.MEDICO
     )
-    descripcion = models.TextField(blank=True)
+    descripcion = models.TextField(blank=True, verbose_name="Descripción")
 
     def __str__(self):
         return f"{self.nombre} ({self.get_especialidad_display()})"

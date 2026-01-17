@@ -158,6 +158,27 @@ class PlantillaDemandaForm(BootstrapFormMixin, forms.ModelForm):
             'especialidad': SELECT_WIDGET,
             'descripcion': forms.Textarea(attrs={'rows': 3}),
         }
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Si estamos creando una nueva plantilla, no pre-seleccionar especialidad
+        if not self.instance or not getattr(self.instance, 'pk', None):
+            if 'especialidad' in self.fields:
+                self.fields['especialidad'].initial = ''
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        nombre = cleaned_data.get('nombre')
+
+        if nombre:
+            qs = PlantillaDemanda.objects.filter(nombre=nombre)
+            if self.instance and getattr(self.instance, 'pk', None):
+                qs = qs.exclude(pk=self.instance.pk)
+
+            if qs.exists():
+                self.add_error('nombre', 'Ya existe otra plantilla con este nombre.')
+
+        return cleaned_data
 
 class PlantillaDemandaUpdateForm(forms.ModelForm):
     class Meta:

@@ -632,6 +632,9 @@ class PlantillaCreateView(LoginRequiredMixin, CreateView):
     template_name = 'rostering/plantilla_form.html'
     success_url = reverse_lazy('plantilla_list')
     extra_context = {'titulo': 'Nueva Plantilla'}
+    
+    def form_valid(self, form):
+        return super().form_valid(form)
 
 class PlantillaDetailView(LoginRequiredMixin, DetailView):
     model = PlantillaDemanda
@@ -655,12 +658,12 @@ class PlantillaUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'rostering/plantilla_form.html' # Reutilizamos el template de form
     
     def get_success_url(self):
-        # Al guardar, volvemos al detalle de la plantilla
-        return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.pk})
+        # Al guardar, volvemos a la lista de plantillas
+        return reverse_lazy('plantilla_list')
         
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['titulo'] = f"Editar: {self.object.nombre}"
+        ctx['titulo'] = f"{self.object.nombre}"
         return ctx
 
 class PlantillaDeleteView(LoginRequiredMixin, DeleteView):
@@ -1188,7 +1191,7 @@ def duplicar_plantilla(request, pk):
                 ))
             ExcepcionDemanda.objects.bulk_create(excepciones_a_crear)
 
-        messages.success(request, f"Plantilla duplicada exitosamente como '{nuevo_nombre}'.")
+        # No mostramos mensaje de éxito para duplicación; redirigimos directamente a la edición
         
         # 6. Redirigimos directamente a EDITAR la nueva copia, por si quiere cambiarle el nombre
         return redirect('plantilla_update', pk=nueva_plantilla.pk)
