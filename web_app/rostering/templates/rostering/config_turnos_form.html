@@ -77,13 +77,13 @@
                             <div class="custom-select-wrapper">
                                 <select class="form-select d-none" id="{{ form.hora_inicio_base.id_for_label }}" name="hora_inicio_base">
                                     {% for hora in horas %}
-                                        <option value="{{ hora }}" {% if form.hora_inicio_base.value == hora %}selected{% endif %}>{{ hora }}</option>
+                                        <option value="{{ hora }}" {% if form.hora_inicio_base.value|time:"H:i" == hora %}selected{% endif %}>{{ hora }}</option>
                                     {% endfor %}
                                 </select>
                                 <div class="custom-dropdown">
                                     <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná una hora">
                                         {% if form.hora_inicio_base.value %}
-                                            {{ form.hora_inicio_base.value }}
+                                            {{ form.hora_inicio_base.value|time:"H:i" }}
                                         {% else %}
                                             Seleccioná una hora
                                         {% endif %}
