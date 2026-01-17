@@ -305,7 +305,7 @@ class EmpleadoListView(LoginRequiredMixin, ListView):
     paginate_by = 15 
 
     def get_queryset(self):
-        qs = super().get_queryset().order_by('id')
+        qs = super().get_queryset().order_by('-activo', '-id')
         self.filterset = EmpleadoFilter(self.request.GET, queryset=qs)
         qs = self.filterset.qs
         return qs
@@ -321,6 +321,11 @@ class EmpleadoCreateView(LoginRequiredMixin, CreateView):
     template_name = 'rostering/empleado_form.html'
     success_url = reverse_lazy('empleado_list')
     extra_context = {'titulo': 'Nuevo Empleado'}
+    
+    def get_initial(self):
+        initial = super().get_initial()
+        initial['activo'] = True
+        return initial
 
 class EmpleadoUpdateView(LoginRequiredMixin, UpdateView):
     model = Empleado
@@ -530,11 +535,13 @@ def config_turnos_edit(request, especialidad):
         
         form = ConfiguracionTurnosForm(instance=instance, initial=initial_data)
 
+    horas = [f"{h:02d}:{m:02d}" for h in range(0,24) for m in (0,30)]
     context = {
         'form': form,
         'especialidad_label': dict(Empleado.TipoEspecialidad.choices).get(especialidad),
         'especialidad_code': especialidad,
-        'esquema_actual': esquema_anterior 
+        'esquema_actual': esquema_anterior,
+        'horas': horas
     }
     return render(request, 'rostering/config_turnos_form.html', context)
 
