@@ -420,7 +420,6 @@ def config_turnos_edit(request, especialidad):
                 config = form.save(commit=False)
                 config.especialidad = especialidad
                 
-                # Guardamos los nombres en el JSONField
                 nombres = {
                     "t1": {"n": form.cleaned_data['nombre_t1'], "a": form.cleaned_data['abrev_t1'], "noc": form.cleaned_data['nocturno_t1']},
                     "t2": {"n": form.cleaned_data['nombre_t2'], "a": form.cleaned_data['abrev_t2'], "noc": form.cleaned_data['nocturno_t2']},
@@ -458,22 +457,22 @@ def config_turnos_edit(request, especialidad):
                         es_noc_calc = datos['fin'] < datos['inicio']
                         es_noc_final = True if es_noc_calc else meta['noc']
 
+                        # CORRECCIÓN: Eliminamos activo=True
                         TipoTurno.objects.create(
                             nombre=meta['n'], abreviatura=meta['a'], especialidad=especialidad,
                             hora_inicio=datos['inicio'], hora_fin=datos['fin'], 
-                            es_nocturno=es_noc_final, activo=True
+                            es_nocturno=es_noc_final
                         )
                     
-                    # Generar Secuencias (Solo al crear)
                     regenerar_secuencias(especialidad)
 
                 else:
                     # CASO 2: EDICIÓN (Actualizar existentes)
                     print(f"🔄 ACTUALIZACIÓN: Modificando detalles para {especialidad}")
-                    # Buscamos los turnos activos ordenados
-                    turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad, activo=True).order_by('hora_inicio'))
                     
-                    # Validación de seguridad: Si la cantidad no coincide, algo está roto en la BD
+                    # CORRECCIÓN: Eliminamos activo=True del filtro
+                    turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
+                    
                     if len(turnos_existentes) == len(nuevos_datos):
                         for idx, turno_obj in enumerate(turnos_existentes):
                             datos = nuevos_datos[idx]
@@ -489,16 +488,13 @@ def config_turnos_edit(request, especialidad):
                             turno_obj.hora_fin = datos['fin']
                             turno_obj.save()
                         
-                        # Regenerar secuencias por si cambió la hora y afectó el orden lógico
                         regenerar_secuencias(especialidad)
                     else:
-                        # Fallback de seguridad (no debería pasar con el esquema bloqueado)
-                        print("⚠️ ERROR DE INTEGRIDAD: Cantidad de turnos en BD no coincide con esquema. No se tocaron los turnos.")
+                        print("⚠️ ERROR DE INTEGRIDAD: Cantidad de turnos en BD no coincide con esquema.")
 
-            
+            return redirect('tipoturno_list')
             
     else:
-        # GET (Carga inicial)
         initial_data = {}
         if instance and instance.nombres_turnos:
             nt = instance.nombres_turnos
@@ -508,20 +504,24 @@ def config_turnos_edit(request, especialidad):
         
         form = ConfiguracionTurnosForm(instance=instance, initial=initial_data)
 
-    # horas = [f"{h:02d}:{m:02d}" for h in range(0,24) for m in (0,30)]
+    # CORRECCIÓN: Definimos la lista de horas aquí
+    horas = [f"{h:02d}:{m:02d}" for h in range(0,24) for m in (0,30)]
 
     context = {
         'form': form,
         'especialidad_label': dict(Empleado.TipoEspecialidad.choices).get(especialidad),
         'es_edicion': es_edicion,
-        # 'horas': horas
+        'horas': horas 
     }
     return render(request, 'rostering/config_turnos_form.html', context)
 
 def regenerar_secuencias(especialidad):
     """Helper para regenerar secuencias prohibidas."""
     SecuenciaProhibida.objects.filter(especialidad=especialidad).delete()
-    turnos_ordenados = list(TipoTurno.objects.filter(especialidad=especialidad, activo=True).order_by('hora_inicio'))
+    
+    # CORRECCIÓN: Eliminamos activo=True
+    turnos_ordenados = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
+    
     secuencias = []
 
     if len(turnos_ordenados) == 2: # 2x12
@@ -533,6 +533,7 @@ def regenerar_secuencias(especialidad):
 
     if secuencias:
         SecuenciaProhibida.objects.bulk_create(secuencias)
+    
 
 # --- Ausencias ---
 class NoDisponibilidadListView(LoginRequiredMixin, ListView):
