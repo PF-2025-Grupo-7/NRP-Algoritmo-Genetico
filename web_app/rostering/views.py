@@ -406,18 +406,11 @@ class ConfiguracionTurnosListView(SuperUserRequiredMixin, ListView):
 
 @login_required
 def config_turnos_edit(request, especialidad):
-    """
-    Vista Lógica Principal (Refactorizada - Smart Update + Auto Secuencias):
-    1. Si cambia el Esquema (2x12 <-> 3x8) -> Opción Nuclear (Borra todo).
-    2. Si el Esquema se mantiene -> Actualiza los objetos existentes.
-    3. AUTOMÁTICO: Regenera las secuencias prohibidas según la topología.
-    """
-    # --- NUEVO BLOQUEO MANUAL ---
     if not request.user.is_superuser:
         raise PermissionDenied("Solo los administradores pueden modificar la estructura de turnos.")
-    # ----------------------------
+    
     instance = ConfiguracionTurnos.objects.filter(especialidad=especialidad).first()
-    esquema_anterior = instance.esquema if instance else None
+    es_edicion = (instance is not None)
     
     if request.method == 'POST':
         form = ConfiguracionTurnosForm(request.POST, instance=instance)
@@ -427,6 +420,7 @@ def config_turnos_edit(request, especialidad):
                 config = form.save(commit=False)
                 config.especialidad = especialidad
                 
+                # Guardamos los nombres en el JSONField
                 nombres = {
                     "t1": {"n": form.cleaned_data['nombre_t1'], "a": form.cleaned_data['abrev_t1'], "noc": form.cleaned_data['nocturno_t1']},
                     "t2": {"n": form.cleaned_data['nombre_t2'], "a": form.cleaned_data['abrev_t2'], "noc": form.cleaned_data['nocturno_t2']},
@@ -437,7 +431,7 @@ def config_turnos_edit(request, especialidad):
                 config.nombres_turnos = nombres
                 config.save()
 
-                # --- LÓGICA SMART UPDATE DE TURNOS ---
+                # --- CÁLCULO DE HORARIOS ---
                 hora_base = config.hora_inicio_base
                 d = datetime(2000, 1, 1, hora_base.hour, hora_base.minute)
                 
@@ -455,77 +449,56 @@ def config_turnos_edit(request, especialidad):
                             'fin': (d + timedelta(hours=(i+1)*8)).time()
                         })
 
-                turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
-                mismo_esquema = (esquema_anterior == config.esquema)
-                consistencia_db = (len(turnos_existentes) == len(nuevos_datos))
-
-                if mismo_esquema and consistencia_db:
-                    print(f"🔄 SMART UPDATE: Actualizando turnos existentes para {especialidad} (IDs conservados)")
-                    for idx, turno_obj in enumerate(turnos_existentes):
-                        datos = nuevos_datos[idx]
-                        meta = nombres[datos['key']]
-                        turno_obj.nombre = meta['n']
-                        turno_obj.abreviatura = meta['a']
-                        turno_obj.es_nocturno = meta['noc']
-                        turno_obj.hora_inicio = datos['inicio']
-                        turno_obj.hora_fin = datos['fin']
-                        turno_obj.save()
-                else:
-                    print(f"☢️ NUCLEAR RESET: Esquema cambió o DB inconsistente. Regenerando para {especialidad}.")
-                    TipoTurno.objects.filter(especialidad=especialidad).delete()
-                    
-                    # Creación con .save() individual para calcular duración
+                # --- CREACIÓN O ACTUALIZACIÓN ---
+                if not es_edicion:
+                    # CASO 1: PRIMERA VEZ (Crear objetos TipoTurno)
+                    print(f"✨ CREACIÓN INICIAL: Generando turnos para {especialidad}")
                     for datos in nuevos_datos:
                         meta = nombres[datos['key']]
-                        t = TipoTurno(
+                        es_noc_calc = datos['fin'] < datos['inicio']
+                        es_noc_final = True if es_noc_calc else meta['noc']
+
+                        TipoTurno.objects.create(
                             nombre=meta['n'], abreviatura=meta['a'], especialidad=especialidad,
-                            hora_inicio=datos['inicio'], hora_fin=datos['fin'], es_nocturno=meta['noc']
+                            hora_inicio=datos['inicio'], hora_fin=datos['fin'], 
+                            es_nocturno=es_noc_final, activo=True
                         )
-                        t.save()
-
-                # --- LÓGICA AUTOMÁTICA DE SECUENCIAS PROHIBIDAS ---
-                # 1. Borrar reglas viejas para esta especialidad (limpieza total)
-                SecuenciaProhibida.objects.filter(especialidad=especialidad).delete()
-                
-                # 2. Obtener los turnos frescos y ordenados
-                turnos_ordenados = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
-                secuencias_nuevas = []
-
-                if len(turnos_ordenados) == 2: 
-                    # CASO A: ESQUEMA 2x12 (Día, Noche)
-                    # Regla: Prohibido Noche -> Día (T2 -> T1 del día siguiente)
-                    # Asumimos T1=Mañana/Día, T2=Noche (ordenados por hora)
-                    secuencias_nuevas.append(SecuenciaProhibida(
-                        especialidad=especialidad,
-                        turno_previo=turnos_ordenados[1], # 2do turno (Noche)
-                        turno_siguiente=turnos_ordenados[0] # 1er turno (Día)
-                    ))
-                
-                elif len(turnos_ordenados) == 3:
-                    # CASO B: ESQUEMA 3x8 (Mañana, Tarde, Noche)
-                    # T1=M, T2=T, T3=N
                     
-                    # 1. Noche -> Mañana (Crítico)
-                    secuencias_nuevas.append(SecuenciaProhibida(
-                        especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[0]
-                    ))
-                    # 2. Noche -> Tarde (Descanso insuficiente)
-                    secuencias_nuevas.append(SecuenciaProhibida(
-                        especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[1]
-                    ))
-                    # 3. Tarde -> Mañana (Quick Return < 12hs)
-                    secuencias_nuevas.append(SecuenciaProhibida(
-                        especialidad=especialidad, turno_previo=turnos_ordenados[1], turno_siguiente=turnos_ordenados[0]
-                    ))
+                    # Generar Secuencias (Solo al crear)
+                    regenerar_secuencias(especialidad)
 
-                if secuencias_nuevas:
-                    SecuenciaProhibida.objects.bulk_create(secuencias_nuevas)
-                    print(f"🔒 Se generaron automáticamente {len(secuencias_nuevas)} reglas de descanso para {especialidad}")
+                else:
+                    # CASO 2: EDICIÓN (Actualizar existentes)
+                    print(f"🔄 ACTUALIZACIÓN: Modificando detalles para {especialidad}")
+                    # Buscamos los turnos activos ordenados
+                    turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad, activo=True).order_by('hora_inicio'))
+                    
+                    # Validación de seguridad: Si la cantidad no coincide, algo está roto en la BD
+                    if len(turnos_existentes) == len(nuevos_datos):
+                        for idx, turno_obj in enumerate(turnos_existentes):
+                            datos = nuevos_datos[idx]
+                            meta = nombres[datos['key']]
+                            
+                            turno_obj.nombre = meta['n']
+                            turno_obj.abreviatura = meta['a']
+                            
+                            es_noc_calc = datos['fin'] < datos['inicio']
+                            turno_obj.es_nocturno = True if es_noc_calc else meta['noc']
+                            
+                            turno_obj.hora_inicio = datos['inicio']
+                            turno_obj.hora_fin = datos['fin']
+                            turno_obj.save()
+                        
+                        # Regenerar secuencias por si cambió la hora y afectó el orden lógico
+                        regenerar_secuencias(especialidad)
+                    else:
+                        # Fallback de seguridad (no debería pasar con el esquema bloqueado)
+                        print("⚠️ ERROR DE INTEGRIDAD: Cantidad de turnos en BD no coincide con esquema. No se tocaron los turnos.")
 
-            return redirect('tipoturno_list')
+            
             
     else:
-        # GET (Carga del formulario)
+        # GET (Carga inicial)
         initial_data = {}
         if instance and instance.nombres_turnos:
             nt = instance.nombres_turnos
@@ -535,15 +508,31 @@ def config_turnos_edit(request, especialidad):
         
         form = ConfiguracionTurnosForm(instance=instance, initial=initial_data)
 
-    horas = [f"{h:02d}:{m:02d}" for h in range(0,24) for m in (0,30)]
+    # horas = [f"{h:02d}:{m:02d}" for h in range(0,24) for m in (0,30)]
+
     context = {
         'form': form,
         'especialidad_label': dict(Empleado.TipoEspecialidad.choices).get(especialidad),
-        'especialidad_code': especialidad,
-        'esquema_actual': esquema_anterior,
-        'horas': horas
+        'es_edicion': es_edicion,
+        # 'horas': horas
     }
     return render(request, 'rostering/config_turnos_form.html', context)
+
+def regenerar_secuencias(especialidad):
+    """Helper para regenerar secuencias prohibidas."""
+    SecuenciaProhibida.objects.filter(especialidad=especialidad).delete()
+    turnos_ordenados = list(TipoTurno.objects.filter(especialidad=especialidad, activo=True).order_by('hora_inicio'))
+    secuencias = []
+
+    if len(turnos_ordenados) == 2: # 2x12
+        secuencias.append(SecuenciaProhibida(especialidad=especialidad, turno_previo=turnos_ordenados[1], turno_siguiente=turnos_ordenados[0]))
+    elif len(turnos_ordenados) == 3: # 3x8
+        secuencias.append(SecuenciaProhibida(especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[0]))
+        secuencias.append(SecuenciaProhibida(especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[1]))
+        secuencias.append(SecuenciaProhibida(especialidad=especialidad, turno_previo=turnos_ordenados[1], turno_siguiente=turnos_ordenados[0]))
+
+    if secuencias:
+        SecuenciaProhibida.objects.bulk_create(secuencias)
 
 # --- Ausencias ---
 class NoDisponibilidadListView(LoginRequiredMixin, ListView):

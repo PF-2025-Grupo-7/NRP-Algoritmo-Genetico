@@ -95,18 +95,42 @@ class ConfiguracionTurnosForm(BootstrapFormMixin, forms.ModelForm):
             'hora_inicio_base': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # --- LÓGICA DE BLOQUEO DE ESQUEMA ---
+        if self.instance and self.instance.pk:
+            # Si ya existe, el esquema es inmutable
+            self.fields['esquema'].disabled = True
+            self.fields['esquema'].help_text = "El tipo de esquema no se puede modificar una vez creado."
+            
+            # Ajustamos los campos requeridos visualmente según el esquema guardado
+            es_3x8 = (self.instance.esquema == ConfiguracionTurnos.TipoEsquema.TURNO_08_HS)
+            self.fields['nombre_t3'].required = es_3x8
+            self.fields['abrev_t3'].required = es_3x8
+
+    def clean_esquema(self):
+        """Validación de seguridad: Evitar cambio de esquema por HTML injection."""
+        dato_nuevo = self.cleaned_data.get('esquema')
+        
+        if self.instance and self.instance.pk:
+            # Si estamos editando, devolvemos SIEMPRE el valor original de la BD
+            return self.instance.esquema
+            
+        return dato_nuevo
+
     def clean(self):
         cleaned_data = super().clean()
         esquema = cleaned_data.get('esquema')
 
-        # Validación condicional
+        # Validación condicional (Igual que antes)
         if esquema == ConfiguracionTurnos.TipoEsquema.TURNO_08_HS:
             if not cleaned_data.get('nombre_t3') or not cleaned_data.get('abrev_t3'):
                 self.add_error('nombre_t3', 'Requerido para esquema de 3 turnos.')
                 self.add_error('abrev_t3', 'Requerido.')
         
         return cleaned_data
-
+    
 class NoDisponibilidadForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = NoDisponibilidad

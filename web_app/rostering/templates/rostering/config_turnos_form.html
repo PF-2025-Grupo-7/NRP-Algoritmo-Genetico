@@ -49,7 +49,9 @@
                                     {% endfor %}
                                 </select>
                                 <div class="custom-dropdown">
-                                    <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná un esquema">
+                                    <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná un esquema"
+                                         {% if es_edicion %}style="background-color: #e9ecef; pointer-events: none; color: #6c757d;"{% endif %}>
+                                        
                                         {% if form.esquema.value %}
                                             {% for value, label in form.esquema.field.choices %}
                                                 {% if value == form.esquema.value %}{{ label|cut:'('|cut:')'|cut:'Total 24hs' }}{% endif %}
@@ -193,29 +195,31 @@
 <div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header bg-danger text-white border-bottom-0">
+            <div class="modal-header bg-primary text-white border-bottom-0">
                 <h5 class="modal-title fw-bold">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Atención: Acción Destructiva
+                    <i class="bi bi-info-circle-fill me-2"></i>Confirmar Esquema
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
-                <p class="mb-3">Estás a punto de <strong>redefinir el esquema horario</strong> para {{ especialidad_label }}.</p>
+                <p class="mb-3">Vas a definir el esquema horario para <strong>{{ especialidad_label }}</strong>.</p>
                 
-                <div class="alert alert-danger bg-danger bg-opacity-10 border-0 mb-0">
-                    <ul class="mb-0 small">
-                        <li>Se <strong>eliminarán</strong> todos los Tipos de Turno anteriores.</li>
-                        <li>Se generarán nuevos turnos automáticamente.</li>
-                        <li>Las preferencias o reglas asociadas a los turnos viejos <strong>se perderán</strong>.</li>
-                    </ul>
+                <div class="alert alert-warning bg-warning bg-opacity-10 border-0 mb-0">
+                    <div class="d-flex">
+                        <i class="bi bi-exclamation-triangle-fill me-2 text-warning mt-1"></i>
+                        <ul class="mb-0 small ps-1" style="list-style: none;">
+                            <li class="mb-1"><strong>Importante:</strong> El tipo de esquema (2x12 o 3x8) <strong>no se podrá cambiar</strong> una vez creado.</li>
+                            <li>Asegurate de que sea la estructura correcta para esta especialidad.</li>
+                        </ul>
+                    </div>
                 </div>
                 
-                <p class="mt-4 mb-0 fw-bold text-center">¿Estás seguro de que querés continuar?</p>
+                <p class="mt-4 mb-0 fw-bold text-center">¿Confirmar configuración?</p>
             </div>
             <div class="modal-footer border-top-0 pt-0 pb-4 px-4 justify-content-center">
-                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" id="btnConfirmarNuclear" class="btn btn-danger px-4 fw-bold">
-                    Sí, Redefinir Esquema
+                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Revisar</button>
+                <button type="button" id="btnConfirmarNuclear" class="btn btn-primary px-4 fw-bold">
+                    Sí, Crear Esquema
                 </button>
             </div>
         </div>
@@ -233,6 +237,11 @@
 
         // Modal Instance
         const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+
+        // Listener del botón del modal para enviar el form (NUEVO)
+        btnConfirmar.addEventListener('click', function() {
+            form.submit();
+        });
 
         // 1. Lógica T3 (Mostrar/Ocultar)
         function toggleT3() {
@@ -329,7 +338,15 @@
                 vacios[0].el.focus();
                 return;
             }
-            form.submit();
+            
+            // --- LÓGICA DE ENVÍO ---
+            {% if es_edicion %}
+                // Si es edición, el esquema está bloqueado y es seguro guardar directo
+                form.submit();
+            {% else %}
+                // Si es creación, mostramos advertencia sobre la inmutabilidad del esquema
+                modal.show();
+            {% endif %}
         });
 
         // === CUSTOM DROPDOWN FUNCTIONALITY ===
@@ -353,6 +370,9 @@
 
             // Toggle dropdown
             header.addEventListener('click', function(e) {
+                // Si está deshabilitado visualmente (edición), no abrir
+                if (getComputedStyle(header).pointerEvents === 'none') return;
+
                 e.stopPropagation();
                 dropdown.classList.toggle('open');
             });
