@@ -3,51 +3,61 @@
 {% block title %}Vista Diaria{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4 no-print">
+<div class="d-flex justify-content-between align-items-center mb-4 no-print border-bottom pb-3">
     <div>
-        <h2 class="mb-0">📅 Vista Operativa Diaria</h2>
-        <p class="text-muted small">
-            {{ cronograma.get_especialidad_display }} | {{ cronograma.fecha_inicio }} - {{ cronograma.fecha_fin }}
-        </p>
+        <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Vista Diaria - {{ cronograma.get_especialidad_display }}</h1>
+        <p class="text-muted fs-5 mb-0">{{ cronograma.fecha_inicio|date:"d/m/Y" }} al {{ cronograma.fecha_fin|date:"d/m/Y" }}</p>
     </div>
-    <div>
-        <a href="{% url 'ver_cronograma' cronograma.id %}" class="btn btn-outline-primary">
-            <i class="bi bi-grid-3x3"></i> Ver Matriz
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{% url 'exportar_pdf' cronograma.id %}" class="btn btn-outline-secondary fw-bold px-3 me-2">
+            <i class="bi bi-file-earmark-pdf-fill me-1"></i>PDF
         </a>
-        <button class="btn btn-success" onclick="window.print()">
-            <i class="bi bi-printer"></i> Imprimir PDF
-        </button>
+        <a href="{% url 'exportar_excel' cronograma.id %}" class="btn btn-outline-secondary fw-bold px-3 me-3">
+            <i class="bi bi-file-earmark-excel-fill me-1"></i>Excel
+        </a>
+
+        <div>
+            <form id="form-toggle-publicado" method="post" style="display:inline-block;">
+                {% csrf_token %}
+                <input type="hidden" name="silent" id="silent_toggle" value="1">
+                <div class="form-check form-switch d-inline-flex align-items-center gap-2 switch-custom">
+                    <input class="form-check-input" type="checkbox" id="togglePublicado" name="publicado" {% if cronograma.estado == 'PUBLICADO' %}checked{% endif %}>
+                    <label class="form-check-label mb-0 fw-semibold" for="togglePublicado" style="color: #2f3e4c;">Publicado</label>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
 <div class="container-fluid">
     {% for fecha, turnos in agenda.items %}
-        <div class="card mb-4 shadow-sm page-break-card border-secondary">
-            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center print-header">
-                <h5 class="mb-0 text-capitalize">
-                    {{ fecha|date:"l d \d\e F Y" }}
-                </h5> 
-                <span class="badge bg-light text-dark border">Día {{ forloop.counter }}</span>
+        <div class="card mb-4 page-break-card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center print-header">
+                <div>
+                    <h5 class="mb-0 text-capitalize" style="color:#2f3e4c; font-weight:700;">{{ fecha|date:"l d \\d\\e F Y" }}</h5>
+                </div>
             </div>
-            
+
             <div class="card-body">
                 <div class="row g-3"> {% for nombre_turno, empleados in turnos.items %}
                         <div class="col-md-4 print-col-4">
-                            <div class="card h-100 border bg-light turno-card">
+                            <div class="card h-100 turno-card">
                                 <div class="card-header bg-white border-bottom-0 pt-3 pb-1">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <h6 class="card-title text-primary fw-bold mb-0">{{ nombre_turno }}</h6>
                                         <span class="badge bg-secondary rounded-pill">{{ empleados|length }}</span>
                                     </div>
                                 </div>
-                                
+
                                 <div class="card-body p-2">
                                     <ul class="list-group list-group-flush rounded-2">
                                         {% for emp in empleados %}
-                                            <li class="list-group-item bg-white py-1 px-2 d-flex justify-content-between align-items-center mb-1 border rounded-1 shadow-sm small-text">
+                                            <li class="list-group-item bg-white py-1 px-2 d-flex justify-content-between align-items-center mb-1 rounded-1 shadow-sm small-text">
                                                 <span class="fw-medium text-dark">{{ emp.nombre_completo }}</span>
                                                 {% if emp.experiencia == 'SENIOR' %}
-                                                    <span class="badge bg-warning text-dark border" title="Senior" style="font-size: 0.65em">S</span>
+                                                    <span class="badge rounded-pill exp-badge ms-2" title="Senior">S</span>
+                                                {% elif emp.experiencia == 'JUNIOR' %}
+                                                    <span class="badge rounded-pill exp-badge ms-2" title="Junior">J</span>
                                                 {% endif %}
                                             </li>
                                         {% empty %}
@@ -68,7 +78,65 @@
 
 <style>
     /* Estilos normales de pantalla */
+    :root{ --accent-blue: #0d6efd; }
     .small-text { font-size: 0.9rem; }
+
+    /* Harmonize with cronograma_detail styles */
+    .titulo-principal { color: #2f3e4c; }
+    .turno-card { background-color: #f8f9fa; border-radius: 12px; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.04); }
+    .card-header .card-title { color: var(--accent-blue); }
+
+    /* Remove outer card divider/shadow under the day header */
+    .page-break-card {
+        border: none;
+        box-shadow: none;
+    }
+    .page-break-card > .card-header {
+        border-bottom: none !important;
+        padding-bottom: 0.6rem;
+    }
+
+    /* Fix card header rendering so top corners aren't visually cut */
+    .turno-card {
+        overflow: visible;
+    }
+    .turno-card .card-header {
+        background: transparent !important;
+        border-bottom: none !important;
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
+        padding-top: 0.75rem;
+        padding-bottom: 0.5rem;
+    }
+    .turno-card .card-body {
+        padding-top: 0.5rem;
+    }
+
+    /* Experience badges: white background for both Senior and Junior */
+    .exp-badge {
+        background: #ffffff !important;
+        color: #2f3e4c !important;
+        border: 1px solid #dee2e6 !important;
+        padding: 0.15rem 0.45rem !important;
+        font-size: 0.75rem !important;
+        font-weight: 600 !important;
+    }
+
+    /* Match switch sizing used in cronograma_detail (3.5em x 1.75em) */
+    .switch-custom .form-check-input {
+        width: 3.5em;
+        height: 1.75em;
+        cursor: pointer;
+        border: 2px solid #dee2e6;
+    }
+    .switch-custom .form-check-input:checked { background-color: var(--accent-blue); border-color: var(--accent-blue); }
+    .switch-custom .form-check-label {
+        cursor: pointer;
+        user-select: none;
+        font-size: 1.05rem;
+        color: #2f3e4c;
+        font-weight: 700;
+    }
 
     /* ESTILOS DE IMPRESIÓN */
     @media print {
@@ -103,7 +171,7 @@
         .page-break-card {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-            border: 1px solid #000 !important; /* Borde sólido para definir bien el día */
+            border: none !important;
             box-shadow: none !important;
             margin-bottom: 15px !important;
         }
@@ -131,7 +199,7 @@
 
         /* Limpieza visual de las tarjetas internas */
         .turno-card {
-            border: 1px solid #ccc !important;
+            border: none !important;
             background-color: #f8f9fa !important;
         }
         

@@ -44,22 +44,22 @@
 
         /* (no circular badges) full-cell coloring is used for schedule */
 
-            /* Cells colored to fill entire TD (like on-screen) */
-            .shift-cell { font-weight: 700; border-radius: 6px; padding: 2px 0; }
-            .shift-cell span { display:block; width:100%; }
+            /* Cells colored to fill entire TD for PDF: avoid border-radius/padding that overflow in WeasyPrint */
+            td.shift-cell { font-weight: 700; padding: 0; overflow: hidden; vertical-align: middle; text-align: center; }
 
-            /* Darkened background tones for better contrast (PDF) */
-            td.bg-M.shift-cell { background-color: rgba(255,230,150,1); color: #7a5b00; }
-            td.bg-T.shift-cell { background-color: rgba(180,235,210,1); color: #0f6b46; }
-            td.bg-N.shift-cell { background-color: rgba(255,220,225,1); color: #8b1e29; }
-            td.bg-G.shift-cell { background-color: rgba(210,228,255,1); color: #0d6efd; }
-            td.bg-X.shift-cell { background-color: rgba(235,235,235,1); color: #495057; }
-        /* Subtle background tones and text colors to match on-screen */
-        .bg-M { background-color: rgba(255,243,205,0.95); color: #997404; border: 1px solid rgba(153,116,4,0.12); }
-        .bg-T { background-color: rgba(31,122,83,0.18); color: #1f7a53; border: 1px solid rgba(31,122,83,0.12); }
-        .bg-N { background-color: rgba(220,53,69,0.16); color: #dc3545; border: 1px solid rgba(220,53,69,0.12); }
-        .bg-G { background-color: rgba(13,110,253,0.12); color: #0d6efd; border: 1px solid rgba(13,110,253,0.08); } /* Guardia */
-        .bg-X { background-color: rgba(108,117,125,0.12); color: #6c757d; border: 1px solid rgba(0,0,0,0.06); } /* Default */
+            /* Darkened background tones for better contrast (PDF) - apply directly to TD */
+            td.bg-M.shift-cell { background-color: #fff3cd; color: #7a5b00; }
+            td.bg-T.shift-cell { background-color: #b4ebd2; color: #0f6b46; }
+            td.bg-N.shift-cell { background-color: #ffdce0; color: #8b1e29; }
+            td.bg-G.shift-cell { background-color: #d2e4ff; color: #0d6efd; }
+            td.bg-X.shift-cell { background-color: #ebebeb; color: #495057; }
+
+        /* Subtle background tones and text colors to match on-screen (fallback classes) */
+        .bg-M { background-color: #fff8e1; color: #997404; }
+        .bg-T { background-color: #e6f7ee; color: #1f7a53; }
+        .bg-N { background-color: #fff0f2; color: #dc3545; }
+        .bg-G { background-color: #e9f0ff; color: #0d6efd; }
+        .bg-X { background-color: #f1f1f1; color: #6c757d; }
 
         .page-break { page-break-before: always; }
         
