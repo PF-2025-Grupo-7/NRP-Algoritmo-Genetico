@@ -302,6 +302,8 @@ class ExcepcionDemandaForm(BootstrapFormMixin, forms.ModelForm):
             'turno': SELECT_WIDGET,
             # Checkbox estilizado (opcional, el mixin ya le pone form-check-input)
             'es_turno_dificil': forms.CheckboxInput(attrs={'class': 'form-check-input ms-2'}),
+            'cantidad_senior': forms.NumberInput(attrs={'min': '0', 'required': 'required', 'class': 'form-control'}),
+            'cantidad_junior': forms.NumberInput(attrs={'min': '0', 'required': 'required', 'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):
