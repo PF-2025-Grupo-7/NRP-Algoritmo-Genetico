@@ -5,83 +5,60 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4 no-print border-bottom pb-3">
     <div>
-        <div class="d-flex align-items-center gap-2 mb-1">
-            <h2 class="mb-0 fw-bold">📅 Cronograma {{ cronograma.get_especialidad_display }}</h2>
-            
-            {% if cronograma.estado == 'PUBLICADO' %}
-                <span class="badge rounded-pill bg-success bg-opacity-10 text-success border border-success fs-6">
-                    <i class="bi bi-check-circle-fill me-1"></i> Publicado
-                </span>
-            {% else %}
-                <span class="badge rounded-pill bg-warning bg-opacity-10 text-dark border border-warning fs-6">
-                    <i class="bi bi-pencil-fill me-1"></i> Borrador
-                </span>
-            {% endif %}
-        </div>
-
-        <p class="text-muted small mb-0">
-            <i class="bi bi-calendar-range"></i> Del {{ cronograma.fecha_inicio|date:"d M" }} al {{ cronograma.fecha_fin|date:"d M Y" }} 
-            <span class="mx-2">|</span> 
-            <i class="bi bi-activity"></i> Fitness: <strong>{{ cronograma.fitness|default:"-"|floatformat:2 }}</strong>
-        </p>
+        <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Cronograma - {{ cronograma.get_especialidad_display }}</h1>
+        <p class="text-muted fs-5 mb-0">{{ cronograma.fecha_inicio|date:"d/m/Y" }} al {{ cronograma.fecha_fin|date:"d/m/Y" }}</p>
     </div>
 
-    <div class="d-flex gap-2">
-        <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Volver
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{% url 'exportar_pdf' cronograma.id %}" class="btn btn-outline-secondary fw-bold px-3 me-2">
+            <i class="bi bi-file-earmark-pdf-fill me-1"></i>PDF
+        </a>
+        <a href="{% url 'exportar_excel' cronograma.id %}" class="btn btn-outline-secondary fw-bold px-3 me-3">
+            <i class="bi bi-file-earmark-excel-fill me-1"></i>Excel
         </a>
 
-        <button class="btn btn-dark" onclick="window.print()" title="Imprimir o Guardar como PDF">
-            <i class="bi bi-printer-fill"></i> PDF
-        </button>
-
-        {% if cronograma.estado != 'PUBLICADO' %}
-            <button type="button" class="btn btn-success shadow-sm" data-bs-toggle="modal" data-bs-target="#modalPublicar">
-                <i class="bi bi-megaphone-fill me-1"></i> Publicar Oficialmente
-            </button>
-        {% endif %}
-    </div>
-</div>
-
-{% if cronograma.estado != 'PUBLICADO' %}
-<div class="modal fade" id="modalPublicar" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title fw-bold"><i class="bi bi-check-circle"></i> Confirmar Publicación</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body text-center py-4">
-                <i class="bi bi-exclamation-circle text-success" style="font-size: 3rem;"></i>
-                <h5 class="mt-3">¿Hacer oficial esta planificación?</h5>
-                <p class="text-muted mb-0">
-                    El estado pasará a <strong>PUBLICADO</strong> y quedará visible como la versión definitiva para este período.
-                </p>
-            </div>
-            <div class="modal-footer bg-light justify-content-center">
-                <button type="button" class="btn btn-link text-secondary text-decoration-none" data-bs-dismiss="modal">Cancelar</button>
-                
-                <form action="{% url 'cronograma_publish' cronograma.id %}" method="post">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-success px-4 fw-bold">Sí, Publicar</button>
-                </form>
-            </div>
+        <div>
+            <form id="form-toggle-publicado" method="post" style="display:inline-block;">
+                {% csrf_token %}
+                <input type="hidden" name="silent" id="silent_toggle" value="1">
+                <div class="form-check form-switch d-inline-flex align-items-center gap-2 switch-custom">
+                    <input class="form-check-input" type="checkbox" id="togglePublicado" name="publicado" {% if cronograma.estado == 'PUBLICADO' %}checked{% endif %}>
+                    <label class="form-check-label mb-0 fw-semibold" for="togglePublicado" style="color: #2f3e4c;">Publicado</label>
+                </div>
+            </form>
         </div>
     </div>
 </div>
-{% endif %}
+
+{# Modal de publicación eliminado: usamos switch para publicar/despublicar #}
 
 
 <div class="card shadow-sm border-0">
     <div class="card-body p-0">
+        <div class="cronograma-legend d-flex align-items-center gap-3 no-print">
+            <div class="d-flex gap-3 align-items-center">
+                <div class="legend-item d-inline-flex align-items-center" title="Mañana">
+                    <div class="legend-swatch bg-warning bg-opacity-10 text-warning" aria-hidden="true">M</div>
+                    <div class="legend-label small text-muted ms-2">Mañana</div>
+                </div>
+                <div class="legend-item d-inline-flex align-items-center" title="Tarde">
+                    <div class="legend-swatch bg-success bg-opacity-10 text-success" aria-hidden="true">T</div>
+                    <div class="legend-label small text-muted ms-2">Tarde</div>
+                </div>
+                <div class="legend-item d-inline-flex align-items-center" title="Noche">
+                    <div class="legend-swatch bg-danger bg-opacity-10 text-danger" aria-hidden="true">N</div>
+                    <div class="legend-label small text-muted ms-2">Noche</div>
+                </div>
+            </div>
+        </div>
         <div class="table-responsive" style="max-height: 80vh;">
-            <table class="table table-bordered table-hover mb-0 text-center align-middle" style="font-size: 0.85rem;">
+            <table class="table table-bordered table-hover mb-0 text-center align-middle" style="font-size: 0.9rem;">
                 <thead class="table-light sticky-top" style="z-index: 2;">
                     <tr>
                         <th class="sticky-col-start bg-light" style="min-width: 200px;">Profesional</th>
-                        <th style="min-width: 60px;">Total</th>
+                        <th class="total-col" style="min-width: 60px;">Total</th>
                         {% for fecha in rango_fechas %}
-                            <th style="min-width: 45px;" class="{% if fecha.weekday >= 5 %}bg-warning-subtle{% endif %}">
+                            <th style="min-width: 45px;" class="{% if fecha.weekday >= 5 or fecha.es_dificil %}weekend-col{% endif %}">
                                 <div class="small fw-bold">{{ fecha|date:"D"|upper|slice:":2" }}</div>
                                 <div>{{ fecha|date:"d" }}</div>
                             </th>
@@ -91,31 +68,28 @@
                 <tbody>
                     {% for fila in filas_tabla %}
                     <tr>
-                        <td class="text-start sticky-col-start bg-white fw-bold text-truncate" style="max-width: 200px;">
-                            {{ fila.empleado.nombre_completo }}
-                            <span class="badge rounded-pill text-bg-light border ms-1" style="font-size: 0.6em;">
-                                {{ fila.empleado.get_experiencia_display|slice:":1" }}
-                            </span>
+                        <td class="text-start sticky-col-start bg-white fw-bold text-truncate" style="max-width: 220px;">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="flex-grow-1 text-truncate">{{ fila.empleado.nombre_completo }}</div>
+                                <span class="badge rounded-pill text-bg-light border ms-1" style="font-size: 0.65em;">
+                                    {{ fila.empleado.get_experiencia_display|slice:":1" }}
+                                </span>
+                            </div>
                         </td>
                         
-                        <td class="bg-light">
+                        <td class="bg-light total-col">
                             <strong>{{ fila.stats.turnos }}</strong> <small class="text-muted">t</small>
                         </td>
 
                         {% for celda in fila.celdas %}
-                            <td class="p-1 {% if not celda.turno %}bg-light text-muted{% endif %}">
-                                {% if celda.turno %}
-                                    <div class="badge w-100 py-2 shadow-sm
-                                        {% if celda.turno.es_nocturno %}bg-dark text-white
-                                        {% elif celda.turno.hora_inicio.hour < 12 %}bg-warning text-dark
-                                        {% else %}bg-primary text-white{% endif %}"
-                                        title="{{ celda.turno.nombre }} ({{ celda.turno.duracion_horas }}hs)">
-                                        {{ celda.turno.abreviatura }}
-                                    </div>
-                                {% else %}
-                                    <span class="small text-black-50">-</span>
-                                {% endif %}
-                            </td>
+                            {% if celda.turno %}
+                                <td class="p-1 text-center align-middle {% if celda.turno.abreviatura == 'N' %}bg-danger bg-opacity-10 text-danger{% elif celda.turno.abreviatura == 'M' %}bg-warning bg-opacity-10 text-warning{% elif celda.turno.abreviatura == 'T' %}bg-success bg-opacity-10 text-success{% elif celda.turno.es_nocturno %}bg-danger bg-opacity-10 text-danger{% elif celda.turno.hora_inicio.hour < 12 %}bg-warning bg-opacity-10 text-warning{% else %}bg-success bg-opacity-10 text-success{% endif %}">
+                                    <span class="fw-bold">{{ celda.turno.abreviatura }}</span>
+                                </td>
+                            {% else %}
+                                <td class="p-1 bg-light text-center align-middle">
+                                </td>
+                            {% endif %}
                         {% endfor %}
                     </tr>
                     {% endfor %}
@@ -127,74 +101,158 @@
 
 <style>
     /* 1. ESTILOS DE VISUALIZACIÓN EN PANTALLA */
+    :root{
+        --accent-blue: #0d6efd;
+        --muted-ink: #5a5c69;
+        --card-radius: 12px;
+        --shift-yellow: #ffd43b;
+    }
+
     .sticky-col-start {
         position: sticky;
         left: 0;
-        z-index: 1;
-        border-right: 2px solid #dee2e6 !important;
+        z-index: 3;
+        border-right: 1px solid #e9ecef !important;
+        background-color: #fff;
     }
     thead .sticky-col-start {
-        z-index: 3 !important; /* Esquina superior izquierda siempre arriba */
+        z-index: 4 !important; /* Esquina superior izquierda siempre arriba */
+    }
+
+    /* Shift badge: estilo consistente con resto de la app (rounded, sombra, colores)
+       Se determinan aquí según propiedad de turno en template */
+    .shift-badge{
+        display: inline-block;
+        padding: 0.35rem 0.9rem; /* pill-like padding like plantilla_list */
+        font-size: 1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        border-radius: 16px;
+        min-height: 36px;
+        line-height: 1;
+        vertical-align: middle;
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
+    .shift-badge:active, .shift-badge:focus{ transform: translateY(0); }
+    .shift-badge.shadow-sm{ box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+
+    /* Darker backgrounds for full table cells when using bg-*-bg-opacity-10 classes */
+    td.bg-warning.bg-opacity-10 { background-color: rgba(237, 208, 115, 0.5) !important; }
+    td.bg-success.bg-opacity-10 { background-color: rgba(34, 167, 109, 0.318) !important; }
+    td.bg-danger.bg-opacity-10 { background-color: rgba(220, 53, 70, 0.256) !important; }
+
+    /* Weekend / difícil day styling (blue/celeste) - header only */
+    th.weekend-col { background-color: rgba(200,230,242,0.95); color: #5a5c69 !important; }
+    /* Keep body cells white unless a shift color is applied; header numbers remain muted */
+    th.weekend-col .small { color: #5a5c69 !important; }
+
+    /* Ensure letter contrast inside colored cells */
+    td.text-warning { color: #c59e12 !important; }
+    td.text-success { color: #1f7a53 !important; }
+    td.text-danger { color: #dc3545 !important; }
+
+    /* Hover y separación de filas */
+    tbody tr:hover { background-color: #fbfdff; transform: translateY(0); }
+    td { vertical-align: middle !important; }
+
+    /* Separation between professional columns (Profesional + Total) and the day columns */
+    .table { border-collapse: collapse; }
+    /* make the first day column visually separated with a darker left border and extra padding */
+    .table thead th:nth-child(3),
+    .table tbody td:nth-child(3) {
+        border-left: 4px solid rgba(0,0,0,0.10);
+        padding-left: 1.05rem;
+    }
+    /* Give the Total column a bit more right padding to increase separation */
+    .table thead th.total-col, .table tbody td.total-col {
+        padding-right: 1.2rem;
+        background-color: #f7fbfd; /* slightly more contrast */
+        border-right: 4px solid rgba(0,0,0,0.10);
+    }
+
+    /* Make first column slightly distinct from table body to emphasize 'profesional' area */
+    .sticky-col-start { background-color: #f7fbfd !important; }
+
+    /* Add a subtle shadow on the separation to give depth */
+    .table tbody td.total-col { box-shadow: inset -6px 0 10px -8px rgba(0,0,0,0.05); }
+
+    /* Leyenda compacta encima de la tabla para referencia rápida */
+    .cronograma-legend { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f3f5; background: #ffffff; }
+
+    /* Legend swatches (compact visual indicators) */
+    .legend-item { display: inline-flex; align-items: center; gap: 0.5rem; }
+    .legend-swatch{ width: 32px; height: 32px; border-radius: 8px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .cronograma-legend .legend-item + .legend-item { margin-left: 10px; }
+    .legend-label { font-weight:600; color: #5a5c69; }
+    .legend-caption { line-height: 1; }
+
+    /* Tipografía y colores coherentes con dashboard */
+    .cronograma-title { color: #2f3e4c; }
+
+    .badge-status {
+        display: inline-block;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-transform: none;
+        border-radius: 8px;
+    }
+
+    .bg-success-subtle-custom { background-color: #d1e7dd !important; color: #678d7b !important; }
+    .bg-warning-subtle-custom { background-color: #fff3cd !important; color: #928560 !important; }
+
+    /* Table color harmonization with dashboard */
+    .table tbody td { color: #6c757d; }
+    .table thead th { color: #5a5c69 !important; }
+
+    /* Card adjustments to match dashboard look */
+    .card { box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important; border-radius: var(--card-radius); }
+
+    /* Aumentar tamaño del switch y la etiqueta (estilo empleado_form / regla_form) */
+    .switch-custom .form-check-input {
+        width: 3.8em;
+        height: 2em;
+        cursor: pointer;
+        border: 2px solid #dee2e6;
+    }
+    .switch-custom .form-check-input:checked { background-color: var(--accent-blue); border-color: var(--accent-blue); }
+    .switch-custom .form-check-label {
+        cursor: pointer;
+        user-select: none;
+        font-size: 1.05rem;
+        color: #2f3e4c;
+        font-weight: 700;
     }
 
     /* 2. ESTILOS PARA IMPRESIÓN (PDF) */
     @media print {
-        @page {
-            size: landscape; /* Hoja horizontal */
-            margin: 5mm;     /* Márgenes mínimos */
-        }
-
-        /* Ocultar elementos de navegación y botones */
-        header, footer, nav, .sidebar, .navbar, .no-print, .btn {
-            display: none !important;
-        }
-
-        /* Ajustes del cuerpo para impresión limpia */
-        body {
-            background-color: white !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            /* Forzar impresión de colores de fondo (badges) */
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-
-        /* Ajustes de contenedores */
-        .container, .container-fluid, .main-content, .card {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            box-shadow: none !important;
-            border: none !important;
-        }
-
-        /* Ajustes de la tabla para que entre todo */
-        .table-responsive {
-            overflow: visible !important;
-            max-height: none !important;
-        }
-        
-        table {
-            font-size: 9px !important; /* Letra más chica para que entren 31 días */
-            width: 100% !important;
-        }
-
-        th, td {
-            padding: 2px !important;
-            white-space: nowrap;
-        }
-
-        /* Desactivar sticky en impresión para evitar cortes raros */
-        .sticky-col-start {
-            position: static !important;
-            border-right: 1px solid #dee2e6 !important;
-        }
-        
-        /* Evitar que se parta una fila a la mitad entre hojas */
-        tr {
-            page-break-inside: avoid;
-        }
+        @page { size: landscape; margin: 5mm; }
+        header, footer, nav, .sidebar, .navbar, .no-print, .btn { display: none !important; }
+        body { background-color: white !important; padding: 0 !important; margin: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .container, .container-fluid, .main-content, .card { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; border: none !important; }
+        .table-responsive { overflow: visible !important; max-height: none !important; }
+        table { font-size: 9px !important; width: 100% !important; }
+        th, td { padding: 2px !important; white-space: nowrap; }
+        .sticky-col-start { position: static !important; border-right: 1px solid #dee2e6 !important; }
+        tr { page-break-inside: avoid; }
     }
 </style>
+<script>
+    document.addEventListener('DOMContentLoaded', function(){
+        var toggle = document.getElementById('togglePublicado');
+        var form = document.getElementById('form-toggle-publicado');
+        if(!toggle || !form) return;
+        toggle.addEventListener('change', function(){
+            if(this.checked){
+                form.action = "{% url 'cronograma_publish' cronograma.id %}";
+            } else {
+                form.action = "{% url 'cronograma_unpublish' cronograma.id %}";
+            }
+            form.submit();
+        });
+
+        // No automatic coloring of body cells for weekends: headers only
+    });
+</script>
 {% endblock %}

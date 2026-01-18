@@ -286,12 +286,34 @@ def publicar_cronograma(request, pk):
         return redirect('cronograma_analisis', pk=cronograma.id)
     # ---------------
 
+    silent = request.POST.get('silent')
     if cronograma.estado == Cronograma.Estado.PUBLICADO:
-        messages.warning(request, "Este cronograma ya está publicado.")
+        if not silent:
+            messages.warning(request, "Este cronograma ya está publicado.")
     else:
         cronograma.estado = Cronograma.Estado.PUBLICADO
         cronograma.save()
-        messages.success(request, f"¡Planificación {cronograma.fecha_inicio} PUBLICADA!")
+        if not silent:
+            messages.success(request, f"¡Planificación {cronograma.fecha_inicio} PUBLICADA!")
+    return redirect('ver_cronograma', cronograma_id=pk)
+
+
+@login_required
+@require_POST
+def despublicar_cronograma(request, pk):
+    cronograma = get_object_or_404(Cronograma, pk=pk)
+    if cronograma.estado == Cronograma.Estado.FALLIDO:
+        messages.error(request, "Error: no se puede cambiar el estado de un cronograma NO VIABLE.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    silent = request.POST.get('silent')
+    if cronograma.estado != Cronograma.Estado.PUBLICADO:
+        if not silent:
+            messages.warning(request, "Este cronograma no está publicado.")
+    else:
+        cronograma.estado = Cronograma.Estado.BORRADOR
+        cronograma.save()
+        if not silent:
+            messages.success(request, f"Planificación {cronograma.fecha_inicio} marcada como Borrador.")
     return redirect('ver_cronograma', cronograma_id=pk)
 
 # ==============================================================================
@@ -1005,29 +1027,21 @@ def exportar_cronograma_excel(request, cronograma_id):
     border_thin = Border(left=Side(style='thin'), right=Side(style='thin'), 
                          top=Side(style='thin'), bottom=Side(style='thin'))
     
-    # Colores de fondo (Fills)
-    fill_manana = PatternFill(start_color="FFC107", end_color="FFC107", fill_type="solid") # Amarillo
-    fill_tarde = PatternFill(start_color="FD7E14", end_color="FD7E14", fill_type="solid")  # Naranja
-    fill_noche = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")  # Azul
-    fill_guardia = PatternFill(start_color="198754", end_color="198754", fill_type="solid") # Verde
-    fill_enfermeria = PatternFill(start_color="6F42C1", end_color="6F42C1", fill_type="solid") # Violeta
-    fill_franco = PatternFill(start_color="E9ECEF", end_color="E9ECEF", fill_type="solid") # Gris claro
+    # Colores de fondo (Fills) - tonos ligeramente más oscuros para mejor contraste
+    fill_manana = PatternFill(start_color="FFE082", end_color="FFE082", fill_type="solid") # Amarillo
+    fill_tarde = PatternFill(start_color="AEEACB", end_color="AEEACB", fill_type="solid")  # Verde/menta
+    fill_noche = PatternFill(start_color="FFD6D9", end_color="FFD6D9", fill_type="solid")  # Rosado claro
+    fill_guardia = PatternFill(start_color="CFE4FF", end_color="CFE4FF", fill_type="solid") # Celeste claro
+    fill_enfermeria = PatternFill(start_color="EADCFF", end_color="EADCFF", fill_type="solid") # Violeta claro
+    fill_franco = PatternFill(start_color="EEEEEE", end_color="EEEEEE", fill_type="solid") # Gris claro
     
-    # 2. Encabezado Principal
-    # CORRECCIÓN: Generamos el nombre dinámicamente con los datos que SÍ existen
-    titulo_plan = f"Plan {cronograma.get_especialidad_display()}"
-    periodo_str = f"Período: {cronograma.fecha_inicio.strftime('%d/%m/%Y')} al {cronograma.fecha_fin.strftime('%d/%m/%Y')}"
-    
-    ws.merge_cells('A1:E1')
-    ws['A1'] = titulo_plan
-    ws['A1'].font = Font(size=14, bold=True, color="0D6EFD")
-    
-    ws.merge_cells('A2:E2')
-    ws['A2'] = periodo_str
+    # 2. Encabezado Principal: usar mismo título y subtítulo que el PDF
+    titulo_plan = "Planificación de Guardias"
+    periodo_sub = f"{cronograma.get_especialidad_display()} | {cronograma.fecha_inicio.strftime('%d/%m/%Y')} al {cronograma.fecha_fin.strftime('%d/%m/%Y')}"
     
     # 3. Fila de Días (Encabezados de Tabla)
     ws.cell(row=4, column=1, value="Profesional").font = font_bold
-    ws.column_dimensions['A'].width = 25 
+    ws.column_dimensions['A'].width = 20 
 
     dias = []
     fecha_iter = cronograma.fecha_inicio
@@ -1054,6 +1068,18 @@ def exportar_cronograma_excel(request, cronograma_id):
         dias.append(fecha_iter)
         fecha_iter += timedelta(days=1) # Ahora sí funciona timedelta
         col_idx += 1
+
+    # Merge title across all used columns so it spans the whole schedule
+    last_col = col_idx - 1
+    last_col_letter = get_column_letter(last_col)
+    ws.merge_cells(f'A1:{last_col_letter}1')
+    ws['A1'] = titulo_plan
+    ws['A1'].font = Font(size=14, bold=True, color='333333')
+    ws['A1'].alignment = Alignment(horizontal='left', vertical='center')
+
+    ws.merge_cells(f'A2:{last_col_letter}2')
+    ws['A2'] = periodo_sub
+    ws['A2'].alignment = Alignment(horizontal='left', vertical='center')
 
     # 4. Cargar Datos
     asignaciones = Asignacion.objects.filter(
@@ -1086,28 +1112,31 @@ def exportar_cronograma_excel(request, cronograma_id):
                 # Lógica visual de colores (Igual que en PDF)
                 sigla = nombre_t[0] 
                 fill_to_use = fill_guardia 
-                font_color = "FFFFFF" 
+                font_color = "495057" 
                 
                 if "Mañana" in nombre_t:
                     sigla = "M"
                     fill_to_use = fill_manana
-                    font_color = "000000"
+                    font_color = "7A5B00"
                 elif "Tarde" in nombre_t:
                     sigla = "T"
                     fill_to_use = fill_tarde
+                    font_color = "0F6B46"
                 elif "Noche" in nombre_t:
                     sigla = "N"
                     fill_to_use = fill_noche
+                    font_color = "8B1E29"
                 elif "Enferme" in nombre_t:
                     sigla = "E"
                     fill_to_use = fill_enfermeria
-                
+                    font_color = "4B2E83"
+
                 cell.value = sigla
                 cell.fill = fill_to_use
                 cell.font = Font(color=font_color, bold=True)
             else:
-                cell.value = "-"
-                cell.font = Font(color="CCCCCC")
+                # dejar celda en blanco para mimetizar la vista web/PDF
+                cell.value = ""
 
             current_col += 1
         
