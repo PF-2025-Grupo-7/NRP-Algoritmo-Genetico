@@ -95,18 +95,42 @@ class ConfiguracionTurnosForm(BootstrapFormMixin, forms.ModelForm):
             'hora_inicio_base': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # --- LÓGICA DE BLOQUEO DE ESQUEMA ---
+        if self.instance and self.instance.pk:
+            # Si ya existe, el esquema es inmutable
+            self.fields['esquema'].disabled = True
+            self.fields['esquema'].help_text = "El tipo de esquema no se puede modificar una vez creado."
+            
+            # Ajustamos los campos requeridos visualmente según el esquema guardado
+            es_3x8 = (self.instance.esquema == ConfiguracionTurnos.TipoEsquema.TURNO_08_HS)
+            self.fields['nombre_t3'].required = es_3x8
+            self.fields['abrev_t3'].required = es_3x8
+
+    def clean_esquema(self):
+        """Validación de seguridad: Evitar cambio de esquema por HTML injection."""
+        dato_nuevo = self.cleaned_data.get('esquema')
+        
+        if self.instance and self.instance.pk:
+            # Si estamos editando, devolvemos SIEMPRE el valor original de la BD
+            return self.instance.esquema
+            
+        return dato_nuevo
+
     def clean(self):
         cleaned_data = super().clean()
         esquema = cleaned_data.get('esquema')
 
-        # Validación condicional
+        # Validación condicional (Igual que antes)
         if esquema == ConfiguracionTurnos.TipoEsquema.TURNO_08_HS:
             if not cleaned_data.get('nombre_t3') or not cleaned_data.get('abrev_t3'):
                 self.add_error('nombre_t3', 'Requerido para esquema de 3 turnos.')
                 self.add_error('abrev_t3', 'Requerido.')
         
         return cleaned_data
-
+    
 class NoDisponibilidadForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = NoDisponibilidad
@@ -214,25 +238,28 @@ class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        """Filtra los turnos disponibles según la especialidad de la plantilla padre."""
         plantilla_id = kwargs.pop('plantilla_id', None)
         super().__init__(*args, **kwargs)
         
-        self.plantilla_obj = None # Variable para guardar la instancia de la plantilla
+        self.plantilla_obj = None 
+
+        # CORRECCIÓN: Quitamos el filtro de activo=True
+        qs = TipoTurno.objects.all()
 
         if plantilla_id:
             try:
                 self.plantilla_obj = PlantillaDemanda.objects.get(id=plantilla_id)
-                self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=self.plantilla_obj.especialidad)
+                qs = qs.filter(especialidad=self.plantilla_obj.especialidad)
             except PlantillaDemanda.DoesNotExist:
                 pass
-        
-        # Si estamos editando, marcar los días seleccionados
-        if self.instance and self.instance.pk:
-            # Si estamos editando, la plantilla ya está en la instancia
-            if not self.plantilla_obj:
-                self.plantilla_obj = self.instance.plantilla
+        elif self.instance.pk and self.instance.plantilla:
+            self.plantilla_obj = self.instance.plantilla
+            qs = qs.filter(especialidad=self.plantilla_obj.especialidad)
 
+        self.fields['turno'].queryset = qs.order_by('hora_inicio')
+
+        # Lógica de checkboxes (Igual que antes)
+        if self.instance and self.instance.pk:
             dias_seleccionados = self.instance.dias or []
             if 0 in dias_seleccionados: self.fields['dia_lunes'].initial = True
             if 1 in dias_seleccionados: self.fields['dia_martes'].initial = True
@@ -241,7 +268,7 @@ class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
             if 4 in dias_seleccionados: self.fields['dia_viernes'].initial = True
             if 5 in dias_seleccionados: self.fields['dia_sabado'].initial = True
             if 6 in dias_seleccionados: self.fields['dia_domingo'].initial = True
-    
+            
     def clean(self):
         cleaned_data = super().clean()
         
