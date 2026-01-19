@@ -394,4 +394,17 @@ class ConfiguracionAvanzadaForm(BootstrapFormMixin, forms.ModelForm):
             'estrategia_seleccion': SELECT_WIDGET,
             'estrategia_cruce': SELECT_WIDGET,
             'estrategia_mutacion': SELECT_WIDGET,
+            # Atributos numéricos con límites para validación cliente
+            'tamano_poblacion': forms.NumberInput(attrs={'type': 'number', 'min': '10', 'max': '10000', 'step': '1', 'class': 'form-control'}),
+            'generaciones': forms.NumberInput(attrs={'type': 'number', 'min': '1', 'max': '10000', 'step': '1', 'class': 'form-control'}),
+            'prob_cruce': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'max': '1', 'step': '0.01', 'class': 'form-control'}),
+            'prob_mutacion': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'max': '1', 'step': '0.01', 'class': 'form-control'}),
+            'semilla': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'step': '1', 'class': 'form-control'}),
+            'tolerancia_general': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'max': '168', 'step': '1', 'class': 'form-control'}),
+            'tolerancia_dificil': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'max': '168', 'step': '1', 'class': 'form-control'}),
+            'peso_equidad_general': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'step': '0.1', 'class': 'form-control'}),
+            'peso_equidad_dificil': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'step': '0.1', 'class': 'form-control'}),
+            'peso_preferencia_dias_libres': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'step': '0.1', 'class': 'form-control'}),
+            'peso_preferencia_turno': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'step': '0.1', 'class': 'form-control'}),
+            'factor_alpha_pte': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'max': '1', 'step': '0.01', 'class': 'form-control'}),
         }
