@@ -28,9 +28,19 @@
                     </form>
                 </div>
             {% else %}
-                <button disabled class="btn btn-secondary" title="No se puede exportar un cronograma fallido">
+                <button disabled class="btn btn-outline-secondary fw-bold px-3 me-2" title="No se puede exportar un cronograma fallido">
                     <i class="bi bi-file-earmark-pdf-fill me-1"></i>PDF
                 </button>
+                <button disabled class="btn btn-outline-secondary fw-bold px-3 me-3" title="No se puede exportar un cronograma fallido">
+                    <i class="bi bi-file-earmark-excel-fill me-1"></i>Excel
+                </button>
+
+                <div>
+                    <div class="form-check form-switch d-inline-flex align-items-center gap-2 switch-custom">
+                        <input class="form-check-input" type="checkbox" id="togglePublicado" name="publicado" disabled>
+                        <label class="form-check-label mb-0 fw-semibold" for="togglePublicado" style="color: #2f3e4c;">Publicado</label>
+                    </div>
+                </div>
             {% endif %}
         </div>
     </div>
@@ -38,25 +48,45 @@
     {# --- Alerta General --- #}
     {% if cronograma.estado == 'FALLIDO' %}
     <div class="alert alert-danger d-flex align-items-center mb-4 shadow-sm" role="alert">
-        <i class="bi bi-exclamation-octagon-fill fs-3 me-3"></i>
         <div>
             <h5 class="alert-heading fw-bold mb-1">Cronograma Rechazado por Normativa</h5>
             <p class="mb-0">
                 La solución generada no cumple con los estándares mínimos de seguridad o cobertura. 
-                Revisá el reporte de incidentes para ver los detalles (Seniors faltantes o déficit excesivo).
+                Se recomienda revisar el reporte de incidentes para ver los detalles.
             </p>
         </div>
     </div>
     {% endif %}
 
-    <div class="row g-4 mb-4">
+    {% if cronograma.reporte_analisis.insights %}
+    <div class="row mb-0">
+        <div class="col-12">
+            {% for insight in cronograma.reporte_analisis.insights %}
+                    {% if insight.tipo == 'PATRON_DIA' %}
+                    {% with day=insight.titulo|cut:"Cuello de Botella: " %}
+                        <div class="alert alert-warning d-flex align-items-center mb-4 shadow-sm" role="alert">
+                            <div>
+                                <h5 class="alert-heading fw-bold mb-1">Cuello de Botella</h5>
+                                <p class="mb-0" id="cuello-mensaje" data-day="{{ day }}" style="font-size: 0.98rem;">El 100% de los déficits ocurren los días {{ day }}. Se recomienda revisar ausencias y preferencias, o reforzar la dotación de profesionales para mejorar la cobertura de ese día.</p>
+                            </div>
+                        </div>
+                    {% endwith %}
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row g-4 mb-4 kpi-row">
         <div class="col-md-4">
             <div class="card mb-2 h-100 card-soft kpi-card">
-                <div class="card-header bg-white border-bottom-0">Profesionales en Rango</div>
+                <div class="card-header bg-white border-bottom-0">Profesionales faltantes</div>
                 <div class="card-body text-center">
-                    <div id="kpi-inrange" class="kpi-metric">-</div>
+                    {% with s=violaciones_duras.deficit_critico_senior|default:""|length c=violaciones_duras.deficit_cobertura|default:""|length p1=violaciones_blandas.preferencia_libre_incumplida|default:""|length p2=violaciones_blandas.preferencia_turno_incumplida|default:""|length %}
+                        <div id="kpi-inrange" class="kpi-metric">{{ s|add:c|add:p1|add:p2 }}</div>
+                    {% endwith %}
                     <div class="kpi-divider"></div>
-                    <p class="card-text mb-0 small text-muted">Porcentaje de profesionales dentro del rango contractual</p>
+                    <p class="card-text mb-0 small text-muted">Cantidad de profesionales faltantes</p>
                 </div>
             </div>
         </div>
@@ -67,21 +97,21 @@
                 <div class="card-body text-center">
                     {% if violaciones_duras.deficit_critico_senior %}
                         <div class="text-danger mb-2 animate__animated animate__tada animate__infinite">
-                            <i class="bi bi-radioactive" style="font-size: 2.25rem;"></i>
+                            <i class="bi bi-x-circle-fill" style="font-size: 2.25rem;"></i>
                         </div>
-                        <div class="fw-bold text-danger">Falta Supervisión</div>
-                        <small class="text-danger">Turnos sin Senior a cargo</small>
+                        <div class="kpi-status-title fw-bold text-danger">Cantidad insuficiente de Seniors</div>
+                        <small class="text-muted">Varios turnos sin profesionales Seniors asignados.</small>
                     {% elif violaciones_duras.deficit_cobertura %}
                         <div class="text-warning mb-2">
                             <i class="bi bi-exclamation-triangle-fill" style="font-size: 2.25rem;"></i>
                         </div>
-                        <div class="fw-bold text-warning">Déficit Detectado</div>
+                        <div class="kpi-status-title fw-bold text-warning">Déficit Detectado</div>
                         <small class="text-muted">Cobertura insuficiente en algunos turnos.</small>
                     {% else %}
                         <div class="text-success mb-2">
                             <i class="bi bi-check-circle-fill" style="font-size: 2.25rem;"></i>
                         </div>
-                        <div class="fw-bold text-success">Completa</div>
+                        <div class="kpi-status-title fw-bold text-success">Completa</div>
                         <small class="text-muted">Se cumplieron todas las reglas</small>
                     {% endif %}
                 </div>
@@ -100,23 +130,7 @@
         </div>
     </div>
     
-    {# --- SECCIÓN NUEVA: DIAGNÓSTICO INTELIGENTE (Solo si hay insights) --- #}
-    {% if cronograma.reporte_analisis.insights %}
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-info mb-4 border-0" role="alert" style="background-color: #e7f3ff; border-left: 4px solid #0d6efd !important;">
-                {% for insight in cronograma.reporte_analisis.insights %}
-                    {% if insight.tipo == 'PATRON_DIA' %}
-                        {% with day=insight.titulo|cut:"Cuello de Botella: " %}
-                            <div class="fw-bold" style="color: #2f3e4c; font-size: 1.03rem;">Cuello de Botella</div>
-                            <div id="cuello-mensaje" class="text-muted" data-day="{{ day }}" style="font-size: 0.98rem;">{{ insight.mensaje }}</div>
-                        {% endwith %}
-                    {% endif %}
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-    {% endif %}
+    
 
     <div class="row">
         <div class="col-lg-8 mb-4">
@@ -141,36 +155,32 @@
                 <div class="card-body p-0 overflow-auto" style="max-height: 500px;">
                     <ul class="list-group list-group-flush">
                         {% if violaciones_duras.deficit_critico_senior %}
-                            <li class="list-group-item bg-danger text-white fw-bold small text-uppercase border-bottom-0">
-                                <i class="bi bi-shield-x me-1"></i> Faltan Seniors (Crítico)
-                            </li>
                             {% for v in violaciones_duras.deficit_critico_senior %}
                                 <li class="list-group-item list-group-item-danger bg-opacity-10">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="me-2">
-                                            <div class="fw-bold text-danger mb-0">
-                                                <i class="bi bi-person-x-fill me-1"></i> {{ v.turno }}
-                                            </div>
+                                            <div class="fw-bold text-danger mb-0">{{ v.turno }}</div>
                                             <small class="text-danger lh-1" style="font-size: 0.85rem;">{{ v.detalle }}</small>
                                         </div>
-                                        <span class="badge bg-danger text-white border border-danger">{{ v.fecha|slice:"5:" }}</span>
+                                        <span class="badge rounded-pill bg-white text-muted border">{{ v.fecha|slice:"5:" }}</span>
                                     </div>
                                 </li>
                             {% endfor %}
                         {% endif %}
 
                         {% if violaciones_duras.deficit_cobertura %}
-                            {# Header 'Huecos Generales' removed to keep list compact #}
                             {% for v in violaciones_duras.deficit_cobertura %}
+                                {% if 'senior' not in v.detalle|lower %}
                                 <li class="list-group-item">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="me-2">
                                             <div class="fw-bold text-dark mb-0">{{ v.turno }}</div>
                                             <small class="text-muted lh-1" style="font-size: 0.85rem;">{{ v.detalle }}</small>
                                         </div>
-                                        <span class="badge bg-light text-dark border">{{ v.fecha|slice:"5:" }}</span>
+                                        <span class="badge rounded-pill bg-white text-muted border">{{ v.fecha|slice:"5:" }}</span>
                                     </div>
                                 </li>
+                                {% endif %}
                             {% endfor %}
                         {% endif %}
 
@@ -182,7 +192,7 @@
                                 <li class="list-group-item">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="me-2">
-                                            <div class="fw-bold text-dark mb-0"><i class="bi bi-person-exclamation text-warning me-1"></i> {{ v.nombre }}</div>
+                                            <div class="fw-bold text-dark mb-0">{{ v.nombre }}</div>
                                             <small class="text-muted lh-1" style="font-size: 0.85rem;">{{ v.detalle }}</small>
                                         </div>
                                         <span class="badge bg-white text-muted border">{{ v.fecha|slice:"5:" }}</span>
@@ -335,24 +345,7 @@
             }
         });
 
-            // Calculate percentage of professionals within contractual range and display in KPI
-            try {
-                const limitesArr = limites || [];
-                const horasArr = horasReales || [];
-                let within = 0;
-                let total = horasArr.length;
-                for (let i = 0; i < total; i++) {
-                    const val = horasArr[i];
-                    const lim = limitesArr[i];
-                    if (!lim || lim.length < 2) continue;
-                    if (val >= lim[0] && val <= lim[1]) within += 1;
-                }
-                const pct = total > 0 ? Math.round((within / total) * 100) : 0;
-                const el = document.getElementById('kpi-inrange');
-                if (el) el.textContent = pct + '%';
-            } catch (e) {
-                console.error('Error computing in-range KPI', e);
-            }
+            // KPI percentage removed: card now displays incident count (server-side)
     });
 </script>
 
@@ -372,10 +365,6 @@ document.addEventListener('DOMContentLoaded', function(){
         day = match[0];
     }
     el.innerHTML = html.slice(0, idx) + '<strong class="cuello-day">' + day + '</strong>' + html.slice(idx + day.length);
-    var extra = ' Considere reprogramar recursos o activar personal de reserva.';
-    if(!el.innerText.includes('reprogramar recursos') && !el.innerText.includes('activar personal')) {
-        el.innerHTML = el.innerHTML + extra;
-    }
 });
 </script>
 
@@ -430,5 +419,9 @@ document.addEventListener('DOMContentLoaded', function(){
     .badge-attention-blue { background: linear-gradient(180deg,#2b8cff,#0d6efd); color: #fff; padding: 0.35rem 0.75rem; border-radius: 999px; font-weight:700; box-shadow: 0 6px 18px rgba(13,110,253,0.12); }
     /* Emphasis for the 'day' inside the Cuello de Botella message */
     .cuello-day { color: #495057; font-weight:700; }
+    /* Reduce gap between alert-cuello and KPI cards */
+    .kpi-row { margin-top: -1rem !important; }
+    /* KPI status title style kept consistent */
+    .kpi-status-title { font-size: 1.05rem; margin-top: 0.35rem; }
 </style>
 {% endblock %}
