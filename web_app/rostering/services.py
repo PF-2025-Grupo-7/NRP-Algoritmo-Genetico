@@ -452,7 +452,6 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         # A. Aplicamos el recorte: Nos quedamos con las ÚLTIMAS (más recientes)
         if len(lista_prefs) > MAX_PREFERENCIAS_MVP:
             seleccionadas = lista_prefs[-MAX_PREFERENCIAS_MVP:]
-            print(f"⚖️ EQUIDAD: Empleado {emp_id} tenía {len(lista_prefs)} prefs. Se recortaron a las últimas {MAX_PREFERENCIAS_MVP}.")
         else:
             seleccionadas = lista_prefs
 
@@ -526,13 +525,12 @@ def invocar_api_planificacion(payload):
     url = "http://optimizer:8000/planificar" 
     
     # --- BLOQUE ESPÍA: GUARDAR PAYLOAD ---
-    print("🕵️ INTERCEPTANDO PAYLOAD...")
     try:
         with open('debug_payload.json', 'w', encoding='utf-8') as f:
             json.dump(payload, f, indent=4, default=str)
-        print("✅ Payload guardado en 'debug_payload.json'")
+        print("Payload guardado en 'debug_payload.json'")
     except Exception as e:
-        print(f"⚠️ Error al guardar payload: {e}")
+        print(f"Error al guardar payload: {e}")
     # -------------------------------------
 
     try:
@@ -547,17 +545,11 @@ def invocar_api_planificacion(payload):
         return response.json()
         
     except requests.exceptions.RequestException as e:
-        # Si lanzamos el ValueError arriba, caerá aquí o en el try/catch superior
-        print(f"Error fatal: {e}")
         raise e # Re-lanzamos para que se vea
 
     except requests.exceptions.HTTPError as e:
-        # Si fue un 422, ya lo imprimimos arriba. 
-        # Si fue otro error (500, 404), se imprimirá aquí.
-        print(f"❌ Error HTTP: {e}")
         return None
     except requests.exceptions.RequestException as e:
-        print(f"❌ Error de conexión: {e}")
         return None
 
 def consultar_resultado_ag(job_id):
@@ -581,7 +573,6 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
     1. Validación Post-Algoritmo (RF04).
     2. Detección Inteligente de Patrones (Insights).
     """
-    print("--- DEBUG: INICIANDO GUARDADO CON VALIDACIÓN Y BI ---")
     try:
         matriz_solucion = resultado.get('matriz_solucion') or resultado.get('solution')
         if not matriz_solucion:
@@ -833,8 +824,7 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             if demanda_total_teorica > 0:
                 porcentaje_deficit = (contador_slots_vacios_total / demanda_total_teorica) * 100
             
-            print(f"📊 ANÁLISIS FINAL: Vacíos {contador_slots_vacios_total} ({porcentaje_deficit:.2f}%)")
-
+            
             if contador_slots_vacios_senior > 0:
                 estado_cronograma = 'FALLIDO'
                 mensaje_validacion = f"FALLIDO: Faltan cubrir {contador_slots_vacios_senior} puestos Críticos de Senior."
@@ -899,6 +889,5 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
         return cronograma
 
     except Exception as e:
-        print("\n🔴 CRASH EN GUARDAR_SOLUCION")
         print(traceback.format_exc()) 
         raise e

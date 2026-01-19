@@ -71,8 +71,7 @@ class Empleado(models.Model):
             try:
                 old_instance = Empleado.objects.get(pk=self.pk)
                 if old_instance.especialidad != self.especialidad:
-                    print(f"--- ⚠️ Cambio de Especialidad detectado para {self.nombre_completo}: {old_instance.especialidad} -> {self.especialidad} ---")
-                    
+                   
                     # 1. Limpiar Preferencias (Turnos específicos incompatibles)
                     # Las preferencias con tipo_turno=None (Franco completo) se conservan.
                     deleted_prefs, _ = self.preferencia_set.filter(
@@ -83,10 +82,7 @@ class Empleado(models.Model):
                     deleted_nd, _ = self.no_disponibilidades.filter(
                         tipo_turno__especialidad=old_instance.especialidad
                     ).delete()
-
-                    if deleted_prefs > 0 or deleted_nd > 0:
-                        print(f"    🧹 Limpieza realizada: {deleted_prefs} preferencias y {deleted_nd} ausencias eliminadas por inconsistencia.")
-                        
+                       
             except Empleado.DoesNotExist:
                 pass 
 

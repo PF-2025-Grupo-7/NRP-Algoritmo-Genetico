@@ -184,9 +184,6 @@ def verificar_estado_planificacion(request, job_id):
                     'mensaje': 'Planificación guardada con éxito.'
                 })
             except Exception as e:
-                # Esto imprimirá el error real en tu consola de Docker
-                print("🔴 ERROR CRÍTICO EN POLLING/GUARDADO:")
-                print(traceback.format_exc()) 
                 return JsonResponse({'error': f"Error interno: {str(e)}"}, status=500)
 
         return JsonResponse({'status': 'running'})
@@ -460,7 +457,6 @@ def config_turnos_edit(request, especialidad):
                 consistencia_db = (len(turnos_existentes) == len(nuevos_datos))
 
                 if mismo_esquema and consistencia_db:
-                    print(f"🔄 SMART UPDATE: Actualizando turnos existentes para {especialidad} (IDs conservados)")
                     for idx, turno_obj in enumerate(turnos_existentes):
                         datos = nuevos_datos[idx]
                         meta = nombres[datos['key']]
@@ -471,7 +467,6 @@ def config_turnos_edit(request, especialidad):
                         turno_obj.hora_fin = datos['fin']
                         turno_obj.save()
                 else:
-                    print(f"☢️ NUCLEAR RESET: Esquema cambió o DB inconsistente. Regenerando para {especialidad}.")
                     TipoTurno.objects.filter(especialidad=especialidad).delete()
                     
                     # Creación con .save() individual para calcular duración
@@ -520,8 +515,7 @@ def config_turnos_edit(request, especialidad):
 
                 if secuencias_nuevas:
                     SecuenciaProhibida.objects.bulk_create(secuencias_nuevas)
-                    print(f"🔒 Se generaron automáticamente {len(secuencias_nuevas)} reglas de descanso para {especialidad}")
-
+                
             return redirect('tipoturno_list')
             
     else:
