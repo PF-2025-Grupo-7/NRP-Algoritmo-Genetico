@@ -48,9 +48,9 @@
             td.shift-cell { font-weight: 700; padding: 0; overflow: hidden; vertical-align: middle; text-align: center; }
 
             /* Darkened background tones for better contrast (PDF) - apply directly to TD */
-            td.bg-M.shift-cell { background-color: #fff3cd; color: #7a5b00; }
-            td.bg-T.shift-cell { background-color: #b4ebd2; color: #0f6b46; }
-            td.bg-N.shift-cell { background-color: #ffdce0; color: #8b1e29; }
+            td.bg-0.shift-cell { background-color: #fff3cd; color: #7a5b00; } /* amarillo */
+            td.bg-1.shift-cell { background-color: #b4ebd2; color: #0f6b46; } /* verde */
+            td.bg-2.shift-cell { background-color: #ffdce0; color: #8b1e29; } /* rojo (noche) */
             td.bg-G.shift-cell { background-color: #d2e4ff; color: #0d6efd; }
             td.bg-X.shift-cell { background-color: #ebebeb; color: #495057; }
 
@@ -68,6 +68,13 @@
         .ref-badge { display: inline-block; padding: 2px 6px; min-width:14px; height:18px; line-height:14px; border-radius:8px; font-weight:700; font-size:9px; margin-right:6px; }
         .references { margin-top: 12px; padding-top: 6px; border-top: 1px dotted #ccc; }
         .refs { display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; align-items:center; }
+
+        /* Legend badge colors mapped to index-based classes (same palette as table cells) */
+        .ref-badge.bg-0 { background-color: #fff3cd; color: #7a5b00; }
+        .ref-badge.bg-1 { background-color: #b4ebd2; color: #0f6b46; }
+        .ref-badge.bg-2 { background-color: #ffdce0; color: #8b1e29; }
+        .ref-badge.bg-G { background-color: #d2e4ff; color: #0d6efd; }
+        .ref-badge.bg-X { background-color: #ebebeb; color: #495057; }
     </style>
 </head>
 <body>
@@ -104,19 +111,13 @@
                 
                 {% for celda in fila.celdas %}
                     {% if celda %}
-                        {% with nombre=celda.tipo_turno.nombre %}
-                            {% if 'Mañana' in nombre %}
-                                <td class="bg-M shift-cell">M</td>
-                            {% elif 'Tarde' in nombre %}
-                                <td class="bg-T shift-cell">T</td>
-                            {% elif 'Noche' in nombre %}
-                                <td class="bg-N shift-cell">N</td>
-                            {% elif 'Guardia' in nombre %}
-                                <td class="bg-G shift-cell">G</td>
-                            {% else %}
-                                <td class="bg-X shift-cell">{{ nombre|slice:":1" }}</td>
-                            {% endif %}
-                        {% endwith %}
+                                {% with ct=celda.tipo_turno %}
+                                    {% for turno_def in tipos_turno %}
+                                        {% if turno_def.id == ct.id %}
+                                            <td class="bg-{{ forloop.counter0 }} shift-cell">{{ turno_def.abreviatura|default:turno_def.nombre|slice:":1" }}</td>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endwith %}
                     {% else %}
                         <td></td>
                     {% endif %}
@@ -131,20 +132,8 @@
         <div class="refs">
         {% for turno in tipos_turno %}
             <div class="ref-item">
-                {% with n=turno.nombre %}
-                    {% if "Mañana" in n %}
-                        <span class="ref-badge bg-M">M</span>
-                    {% elif "Tarde" in n %}
-                        <span class="ref-badge bg-T">T</span>
-                    {% elif "Noche" in n %}
-                        <span class="ref-badge bg-N">N</span>
-                    {% elif "Guardia" in n %}
-                        <span class="ref-badge bg-G">G</span>
-                    {% else %}
-                        <span class="ref-badge bg-X">{{ n|slice:":1" }}</span>
-                    {% endif %}
-                    <span style="margin-left:6px; color:#555;">{{ n }}</span>
-                {% endwith %}
+                <span class="ref-badge bg-{{ forloop.counter0 }}">{{ turno.abreviatura|default:turno.nombre|slice:":1" }}</span>
+                <span style="margin-left:6px; color:#555;">{{ turno.nombre }}</span>
             </div>
         {% endfor %}
         </div>

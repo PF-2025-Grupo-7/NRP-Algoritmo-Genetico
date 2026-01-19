@@ -1,41 +1,35 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container py-2" style="max-width: 1400px;">
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print border-bottom pb-3">
         <div>
-            <div class="d-flex align-items-center gap-2">
-                <h2 class="fw-bold mb-0"><i class="bi bi-graph-up-arrow"></i> Análisis de Solución</h2>
-                
-                {% if cronograma.estado == 'FALLIDO' %}
-                    <span class="badge bg-danger fs-6 animate__animated animate__flash">
-                        <i class="bi bi-x-octagon-fill"></i> NO VIABLE
-                    </span>
-                {% elif cronograma.estado == 'BORRADOR' %}
-                    <span class="badge bg-secondary fs-6">Borrador</span>
-                {% endif %}
-            </div>
-            
-            <p class="text-muted mb-0 mt-1">
-                Detalle técnico de la planificación: {{ cronograma.get_especialidad_display }} 
-                ({{ cronograma.fecha_inicio|date:"M Y" }})
-            </p>
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Análisis de Cronograma - {{ cronograma.get_especialidad_display }}</h1>
+            <p class="text-muted fs-5 mb-0">{{ cronograma.fecha_inicio|date:"d/m/Y" }} al {{ cronograma.fecha_fin|date:"d/m/Y" }}</p>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{% url 'cronograma_list' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Volver
-            </a>
-            
+
+        <div class="d-flex gap-2 align-items-center">
             {% if cronograma.estado != 'FALLIDO' %}
-                <a href="{% url 'exportar_pdf' cronograma.id %}" target="_blank" class="btn btn-danger shadow-sm">
-                    <i class="bi bi-file-earmark-pdf-fill me-2"></i> PDF
+                <a href="{% url 'exportar_pdf' cronograma.id %}" class="btn btn-outline-secondary fw-bold px-3 me-2">
+                    <i class="bi bi-file-earmark-pdf-fill me-1"></i>PDF
                 </a>
-                <a href="{% url 'exportar_excel' cronograma.id %}" class="btn btn-success shadow-sm">
-                    <i class="bi bi-file-excel me-2"></i> Excel
+                <a href="{% url 'exportar_excel' cronograma.id %}" class="btn btn-outline-secondary fw-bold px-3 me-3">
+                    <i class="bi bi-file-earmark-excel-fill me-1"></i>Excel
                 </a>
+
+                <div>
+                    <form id="form-toggle-publicado" method="post" style="display:inline-block;">
+                        {% csrf_token %}
+                        <input type="hidden" name="silent" id="silent_toggle" value="1">
+                        <div class="form-check form-switch d-inline-flex align-items-center gap-2 switch-custom">
+                            <input class="form-check-input" type="checkbox" id="togglePublicado" name="publicado" {% if cronograma.estado == 'PUBLICADO' %}checked{% endif %}>
+                            <label class="form-check-label mb-0 fw-semibold" for="togglePublicado" style="color: #2f3e4c;">Publicado</label>
+                        </div>
+                    </form>
+                </div>
             {% else %}
                 <button disabled class="btn btn-secondary" title="No se puede exportar un cronograma fallido">
-                    <i class="bi bi-file-earmark-pdf-fill me-2"></i> PDF
+                    <i class="bi bi-file-earmark-pdf-fill me-1"></i>PDF
                 </button>
             {% endif %}
         </div>
@@ -57,39 +51,37 @@
 
     <div class="row g-4 mb-4">
         <div class="col-md-4">
-            <div class="card shadow-sm border-0 h-100">
+            <div class="card mb-2 h-100 card-soft kpi-card">
+                <div class="card-header bg-white border-bottom-0">Profesionales en Rango</div>
                 <div class="card-body text-center">
-                    <h6 class="text-muted text-uppercase mb-3">Calidad (Fitness)</h6>
-                    <div class="display-4 fw-bold text-primary">
-                        {{ metricas.fitness_total|floatformat:2 }}
-                    </div>
-                    <small class="text-muted">Puntaje global del algoritmo</small>
+                    <div id="kpi-inrange" class="kpi-metric">-</div>
+                    <div class="kpi-divider"></div>
+                    <p class="card-text mb-0 small text-muted">Porcentaje de profesionales dentro del rango contractual</p>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm border-0 h-100">
+            <div class="card mb-2 h-100 card-soft kpi-card">
+                <div class="card-header bg-white border-bottom-0">Cobertura de Demanda</div>
                 <div class="card-body text-center">
-                    <h6 class="text-muted text-uppercase mb-3">Cobertura de Demanda</h6>
-                    
                     {% if violaciones_duras.deficit_critico_senior %}
                         <div class="text-danger mb-2 animate__animated animate__tada animate__infinite">
-                            <i class="bi bi-radioactive" style="font-size: 3rem;"></i>
+                            <i class="bi bi-radioactive" style="font-size: 2.25rem;"></i>
                         </div>
-                        <h5 class="text-danger fw-bold">Falta Supervisión</h5>
-                        <small class="text-danger fw-bold">Turnos sin Senior a cargo</small>
+                        <div class="fw-bold text-danger">Falta Supervisión</div>
+                        <small class="text-danger">Turnos sin Senior a cargo</small>
                     {% elif violaciones_duras.deficit_cobertura %}
                         <div class="text-warning mb-2">
-                            <i class="bi bi-exclamation-triangle-fill" style="font-size: 3rem;"></i>
+                            <i class="bi bi-exclamation-triangle-fill" style="font-size: 2.25rem;"></i>
                         </div>
-                        <h5 class="text-warning fw-bold text-dark">Déficit Detectado</h5>
-                        <small class="text-muted">Hay huecos en la cobertura</small>
+                        <div class="fw-bold text-warning">Déficit Detectado</div>
+                        <small class="text-muted">Cobertura insuficiente en algunos turnos.</small>
                     {% else %}
                         <div class="text-success mb-2">
-                            <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
+                            <i class="bi bi-check-circle-fill" style="font-size: 2.25rem;"></i>
                         </div>
-                        <h5 class="text-success fw-bold">Completa</h5>
+                        <div class="fw-bold text-success">Completa</div>
                         <small class="text-muted">Se cumplieron todas las reglas</small>
                     {% endif %}
                 </div>
@@ -97,13 +89,12 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm border-0 h-100">
+            <div class="card mb-2 h-100 card-soft kpi-card">
+                <div class="card-header bg-white border-bottom-0">Promedio de Horas</div>
                 <div class="card-body text-center">
-                    <h6 class="text-muted text-uppercase mb-3">Promedio de Horas</h6>
-                    <div class="display-4 fw-bold text-dark">
-                        {{ equidad.promedio_objetivo|default:"-"|floatformat:1 }}
-                    </div>
-                    <small class="text-muted">Horas promedio por profesional</small>
+                    <div class="kpi-metric">{{ equidad.promedio_objetivo|default:"-"|floatformat:1 }}</div>
+                    <div class="kpi-divider"></div>
+                    <p class="card-text mb-0 small text-muted">Horas promedio por profesional</p>
                 </div>
             </div>
         </div>
@@ -113,19 +104,15 @@
     {% if cronograma.reporte_analisis.insights %}
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card border-info bg-info bg-opacity-10 shadow-sm">
-                <div class="card-body d-flex align-items-start">
-                    <i class="bi bi-lightbulb-fill text-info fs-3 me-3 mt-1"></i>
-                    <div>
-                        <h5 class="card-title fw-bold text-info-emphasis mb-2">Diagnóstico Inteligente</h5>
-                        {% for insight in cronograma.reporte_analisis.insights %}
-                            <div class="mb-1">
-                                <span class="fw-bold text-dark"><i class="bi bi-caret-right-fill"></i> {{ insight.titulo }}:</span>
-                                <span class="text-dark">{{ insight.mensaje }}</span>
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
+            <div class="alert alert-info mb-4 border-0" role="alert" style="background-color: #e7f3ff; border-left: 4px solid #0d6efd !important;">
+                {% for insight in cronograma.reporte_analisis.insights %}
+                    {% if insight.tipo == 'PATRON_DIA' %}
+                        {% with day=insight.titulo|cut:"Cuello de Botella: " %}
+                            <div class="fw-bold" style="color: #2f3e4c; font-size: 1.03rem;">Cuello de Botella</div>
+                            <div id="cuello-mensaje" class="text-muted" data-day="{{ day }}" style="font-size: 0.98rem;">{{ insight.mensaje }}</div>
+                        {% endwith %}
+                    {% endif %}
+                {% endfor %}
             </div>
         </div>
     </div>
@@ -134,9 +121,7 @@
     <div class="row">
         <div class="col-lg-8 mb-4">
             <div class="card shadow border-0 h-100">
-                <div class="card-header bg-white fw-bold">
-                    <i class="bi bi-bar-chart-fill"></i> Distribución de Horas por Profesional
-                </div>
+                <div class="card-header bg-white fw-bold">Distribución de Horas por Profesional</div>
                 <div class="card-body">
                     <div style="height: 400px; position: relative;">
                         <canvas id="equityChart"></canvas>
@@ -150,13 +135,11 @@
                 <div class="card-header bg-white fw-bold d-flex align-items-center justify-content-between">
                     <span><i class="bi bi-list-check me-2 text-primary"></i> Reporte de Incidentes</span>
                     {% if violaciones_duras.deficit_critico_senior or violaciones_duras.deficit_cobertura %}
-                        <span class="badge bg-danger">Atención Requerida</span>
+                        <span class="badge badge-attention-blue">Atención Requerida</span>
                     {% endif %}
                 </div>
                 <div class="card-body p-0 overflow-auto" style="max-height: 500px;">
                     <ul class="list-group list-group-flush">
-                        
-                        {# --- 1. DÉFICIT CRÍTICO SENIOR --- #}
                         {% if violaciones_duras.deficit_critico_senior %}
                             <li class="list-group-item bg-danger text-white fw-bold small text-uppercase border-bottom-0">
                                 <i class="bi bi-shield-x me-1"></i> Faltan Seniors (Crítico)
@@ -168,43 +151,29 @@
                                             <div class="fw-bold text-danger mb-0">
                                                 <i class="bi bi-person-x-fill me-1"></i> {{ v.turno }}
                                             </div>
-                                            <small class="text-danger lh-1" style="font-size: 0.85rem;">
-                                                {{ v.detalle }}
-                                            </small>
+                                            <small class="text-danger lh-1" style="font-size: 0.85rem;">{{ v.detalle }}</small>
                                         </div>
-                                        <span class="badge bg-danger text-white border border-danger">
-                                            {{ v.fecha|slice:"5:" }}
-                                        </span>
+                                        <span class="badge bg-danger text-white border border-danger">{{ v.fecha|slice:"5:" }}</span>
                                     </div>
                                 </li>
                             {% endfor %}
                         {% endif %}
 
-                        {# --- 2. Déficit General --- #}
                         {% if violaciones_duras.deficit_cobertura %}
-                            <li class="list-group-item bg-warning bg-opacity-25 fw-bold small text-uppercase text-dark border-bottom-0 mt-2">
-                                <i class="bi bi-cone-striped me-1"></i> Huecos Generales
-                            </li>
+                            {# Header 'Huecos Generales' removed to keep list compact #}
                             {% for v in violaciones_duras.deficit_cobertura %}
                                 <li class="list-group-item">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="me-2">
-                                            <div class="fw-bold text-dark mb-0">
-                                                {{ v.turno }}
-                                            </div>
-                                            <small class="text-muted lh-1" style="font-size: 0.85rem;">
-                                                {{ v.detalle }}
-                                            </small>
+                                            <div class="fw-bold text-dark mb-0">{{ v.turno }}</div>
+                                            <small class="text-muted lh-1" style="font-size: 0.85rem;">{{ v.detalle }}</small>
                                         </div>
-                                        <span class="badge bg-light text-dark border">
-                                            {{ v.fecha|slice:"5:" }}
-                                        </span>
+                                        <span class="badge bg-light text-dark border">{{ v.fecha|slice:"5:" }}</span>
                                     </div>
                                 </li>
                             {% endfor %}
                         {% endif %}
 
-                        {# --- 3. Francos --- #}
                         {% if violaciones_blandas.preferencia_libre_incumplida %}
                             <li class="list-group-item bg-light fw-bold small text-uppercase text-muted border-bottom-0 mt-2">
                                 <i class="bi bi-calendar-x me-1"></i> Francos No Respetados
@@ -213,22 +182,15 @@
                                 <li class="list-group-item">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="me-2">
-                                            <div class="fw-bold text-dark mb-0">
-                                                <i class="bi bi-person-exclamation text-warning me-1"></i> {{ v.nombre }}
-                                            </div>
-                                            <small class="text-muted lh-1" style="font-size: 0.85rem;">
-                                                {{ v.detalle }}
-                                            </small>
+                                            <div class="fw-bold text-dark mb-0"><i class="bi bi-person-exclamation text-warning me-1"></i> {{ v.nombre }}</div>
+                                            <small class="text-muted lh-1" style="font-size: 0.85rem;">{{ v.detalle }}</small>
                                         </div>
-                                        <span class="badge bg-white text-muted border">
-                                            {{ v.fecha|slice:"5:" }}
-                                        </span>
+                                        <span class="badge bg-white text-muted border">{{ v.fecha|slice:"5:" }}</span>
                                     </div>
                                 </li>
                             {% endfor %}
                         {% endif %}
 
-                        {# --- 4. Turnos Ignorados --- #}
                         {% if violaciones_blandas.preferencia_turno_incumplida %}
                             <li class="list-group-item bg-light fw-bold small text-uppercase text-muted border-bottom-0 mt-2">
                                 <i class="bi bi-clock-history me-1"></i> Preferencias Ignoradas
@@ -238,24 +200,23 @@
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div class="me-2">
                                             <div class="fw-bold text-dark mb-0">{{ v.nombre }}</div>
-                                            <small class="text-muted lh-1" style="font-size: 0.85rem;">
-                                                {{ v.detalle }}
-                                            </small>
+                                            <small class="text-muted lh-1" style="font-size: 0.85rem;">{{ v.detalle }}</small>
                                         </div>
-                                        <span class="badge bg-light text-muted border">
-                                            {{ v.fecha|slice:"5:" }}
-                                        </span>
+                                        <span class="badge bg-light text-muted border">{{ v.fecha|slice:"5:" }}</span>
                                     </div>
                                 </li>
                             {% endfor %}
                         {% endif %}
 
-                        {# --- Estado Perfecto --- #}
                         {% if not violaciones_duras.deficit_critico_senior and not violaciones_duras.deficit_cobertura and not violaciones_blandas.preferencia_libre_incumplida and not violaciones_blandas.preferencia_turno_incumplida %}
-                             <li class="list-group-item text-center py-4 text-muted">
-                                <i class="bi bi-check-circle text-success fs-1 d-block mb-2"></i>
-                                <div class="fw-bold">Sin incidentes</div>
-                                <div class="small">El cronograma es óptimo.</div>
+                            <li class="list-group-item incidents-empty border-0">
+                                <div class="incidents-empty-body d-flex flex-column align-items-center text-center text-muted w-100 py-4">
+                                    <div class="incidents-empty-icon rounded-circle d-flex align-items-center justify-content-center mb-4" style="width:64px; height:64px;">
+                                        <i class="bi bi-check-lg fs-3"></i>
+                                    </div>
+                                    <div class="fw-bold">Sin incidentes</div>
+                                    <div class="small">El cronograma es óptimo.</div>
+                                </div>
                             </li>
                         {% endif %}
 
@@ -364,8 +325,8 @@
                                 const val = horasReales[idx];
                                 const lim = limites[idx];
                                 return [
-                                    `✅ Real: ${val} hs`,
-                                    lim ? `📄 Contrato: ${lim[0]}-${lim[1]} hs` : ''
+                                    `Planificado: ${val} hs`,
+                                    lim ? `Contrato: ${lim[0]}-${lim[1]} hs` : ''
                                 ];
                             }
                         }
@@ -373,6 +334,101 @@
                 }
             }
         });
+
+            // Calculate percentage of professionals within contractual range and display in KPI
+            try {
+                const limitesArr = limites || [];
+                const horasArr = horasReales || [];
+                let within = 0;
+                let total = horasArr.length;
+                for (let i = 0; i < total; i++) {
+                    const val = horasArr[i];
+                    const lim = limitesArr[i];
+                    if (!lim || lim.length < 2) continue;
+                    if (val >= lim[0] && val <= lim[1]) within += 1;
+                }
+                const pct = total > 0 ? Math.round((within / total) * 100) : 0;
+                const el = document.getElementById('kpi-inrange');
+                if (el) el.textContent = pct + '%';
+            } catch (e) {
+                console.error('Error computing in-range KPI', e);
+            }
     });
 </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    var el = document.getElementById('cuello-mensaje');
+    if(!el) return;
+    var day = el.getAttribute('data-day');
+    if(!day) return;
+    var html = el.innerHTML;
+    var idx = html.indexOf(day);
+    if(idx === -1) {
+        var regex = new RegExp(day, 'i');
+        var match = html.match(regex);
+        if(!match) return;
+        idx = match.index;
+        day = match[0];
+    }
+    el.innerHTML = html.slice(0, idx) + '<strong class="cuello-day">' + day + '</strong>' + html.slice(idx + day.length);
+    var extra = ' Considere reprogramar recursos o activar personal de reserva.';
+    if(!el.innerText.includes('reprogramar recursos') && !el.innerText.includes('activar personal')) {
+        el.innerHTML = el.innerHTML + extra;
+    }
+});
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function(){
+        var toggle = document.getElementById('togglePublicado');
+        var form = document.getElementById('form-toggle-publicado');
+        if(!toggle || !form) return;
+        toggle.addEventListener('change', function(){
+            if(this.checked){
+                form.action = "{% url 'cronograma_publish' cronograma.id %}";
+            } else {
+                form.action = "{% url 'cronograma_unpublish' cronograma.id %}";
+            }
+            form.submit();
+        });
+    });
+</script>
+
+<style>
+    /* Harmonized styles copied from dashboard for consistent look */
+    body { background-color: #edf1f7e2; }
+    .card { box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important; border-radius: 12px; }
+    .card-soft { border: none !important; background-color: #ffffff !important; }
+    .kpi-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 0.75rem 1.25rem rgba(0,0,0,0.1) !important; }
+    .kpi-card .card-header { font-weight: 700; text-transform: uppercase; font-size: 1rem; color: #5a5c69; padding: 0.6rem 1.25rem; }
+    .kpi-metric { font-size: 2.2rem; font-weight: 800; color: #212529; }
+    .kpi-divider { height: 2px; background: #e9ecef; margin: 0.6rem auto; border-radius: 2px; width: 60%; }
+    .badge-status { display:inline-block; padding: 0.35rem 0.6rem; border-radius: 6px; font-weight:700; }
+    .card-header.bg-white { background: #fff; }
+    .list-group-item-danger.bg-opacity-10 { background-color: rgba(220,53,69,0.06); }
+    .bg-warning.bg-opacity-25 { background-color: rgba(255,193,7,0.1) !important; }
+    /* Switch sizing (same as other cronograma views) */
+    .switch-custom .form-check-input {
+        width: 3.5em;
+        height: 1.75em;
+        cursor: pointer;
+        border: 2px solid #dee2e6;
+    }
+    .switch-custom .form-check-input:checked { background-color: var(--bs-primary); border-color: var(--bs-primary); }
+    .switch-custom .form-check-label { cursor: pointer; user-select: none; font-size: 1.05rem; color: #2f3e4c; font-weight: 700; }
+    /* Callout / policy-style card replaced by alert markup from preferencia_list.html */
+    /* Incidents list - empty state and tip-style tweaks */
+    .incidents-empty { background: transparent; }
+    .incidents-empty .incidents-empty-icon { box-shadow: 0 0.5rem 0.75rem rgba(0,0,0,0.06); background-color: rgba(13,110,253,0.10); color: var(--bs-primary); }
+    .list-group .incidents-empty { min-height: 320px; display: flex; align-items: center; justify-content: center; }
+    .incidents-empty .incidents-empty-body { padding-top: 0; display: flex; flex-direction: column; align-items: center; }
+    .incidents-empty .fw-bold { margin-top: 12px; font-size: 1rem; }
+    .incidents-empty .small { margin-top: 4px; color: #6c757d; }
+    /* Styled blue attention badge for incidents header */
+    .badge-attention-blue { background: linear-gradient(180deg,#2b8cff,#0d6efd); color: #fff; padding: 0.35rem 0.75rem; border-radius: 999px; font-weight:700; box-shadow: 0 6px 18px rgba(13,110,253,0.12); }
+    /* Emphasis for the 'day' inside the Cuello de Botella message */
+    .cuello-day { color: #495057; font-weight:700; }
+</style>
 {% endblock %}

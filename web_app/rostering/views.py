@@ -1090,6 +1090,49 @@ def exportar_cronograma_excel(request, cronograma_id):
     for a in asignaciones:
         mapa_turnos[(a.empleado.id, a.fecha)] = a.tipo_turno
 
+    # --- MAPEO DE COLORES POR ÍNDICE DE TIPOS DE TURNO ---
+    # Obtenemos los tipos de turno realmente usados en las asignaciones,
+    # ordenados para establecer una asignación visual consistente.
+    ids_turnos_usados = asignaciones.values_list('tipo_turno', flat=True).distinct()
+    tipos_turno_usados = list(TipoTurno.objects.filter(id__in=ids_turnos_usados).order_by('nombre'))
+
+    # Construir mapa tipo_turno.id -> (fill, font_color, sigla)
+    fills_by_tipo = {}
+    if len(tipos_turno_usados) == 3:
+        # 3 turnos: amarillo, verde, rojo (índices 0,1,2)
+        palette = [
+            (fill_manana, '7A5B00'),
+            (fill_tarde, '0F6B46'),
+            (fill_noche, '8B1E29'),
+        ]
+        for idx, t in enumerate(tipos_turno_usados):
+            sigla = (t.abreviatura or t.nombre[:1]).upper()
+            fills_by_tipo[t.id] = {'fill': palette[idx][0], 'font': palette[idx][1], 'sigla': sigla}
+    elif len(tipos_turno_usados) == 2:
+        # 2 turnos: verde, rojo (índices 0,1)
+        palette = [
+            (fill_tarde, '0F6B46'),
+            (fill_noche, '8B1E29'),
+        ]
+        for idx, t in enumerate(tipos_turno_usados):
+            sigla = (t.abreviatura or t.nombre[:1]).upper()
+            fills_by_tipo[t.id] = {'fill': palette[idx][0], 'font': palette[idx][1], 'sigla': sigla}
+    else:
+        # Fallback: intentar mapear por nombre como antes (Mañana/Tarde/Noche/Enfermeria/Guardia)
+        for t in tipos_turno_usados:
+            nombre_t = (t.nombre or '')
+            sigla = (t.abreviatura or nombre_t[:1]).upper()
+            if 'Mañana' in nombre_t:
+                fills_by_tipo[t.id] = {'fill': fill_manana, 'font': '7A5B00', 'sigla': sigla}
+            elif 'Tarde' in nombre_t:
+                fills_by_tipo[t.id] = {'fill': fill_tarde, 'font': '0F6B46', 'sigla': sigla}
+            elif 'Noche' in nombre_t:
+                fills_by_tipo[t.id] = {'fill': fill_noche, 'font': '8B1E29', 'sigla': sigla}
+            elif 'Enferme' in nombre_t:
+                fills_by_tipo[t.id] = {'fill': fill_enfermeria, 'font': '4B2E83', 'sigla': sigla}
+            else:
+                fills_by_tipo[t.id] = {'fill': fill_guardia, 'font': '495057', 'sigla': sigla}
+
     empleados = Empleado.objects.filter(especialidad=cronograma.especialidad, activo=True).order_by('id')
 
     # 5. Escribir Filas
@@ -1108,32 +1151,39 @@ def exportar_cronograma_excel(request, cronograma_id):
             cell.alignment = align_center
             
             if turno:
-                nombre_t = turno.nombre
-                # Lógica visual de colores (Igual que en PDF)
-                sigla = nombre_t[0] 
-                fill_to_use = fill_guardia 
-                font_color = "495057" 
-                
-                if "Mañana" in nombre_t:
-                    sigla = "M"
-                    fill_to_use = fill_manana
-                    font_color = "7A5B00"
-                elif "Tarde" in nombre_t:
-                    sigla = "T"
-                    fill_to_use = fill_tarde
-                    font_color = "0F6B46"
-                elif "Noche" in nombre_t:
-                    sigla = "N"
-                    fill_to_use = fill_noche
-                    font_color = "8B1E29"
-                elif "Enferme" in nombre_t:
-                    sigla = "E"
-                    fill_to_use = fill_enfermeria
-                    font_color = "4B2E83"
+                # Prefer mapping by tipo id (index-based palette) cuando está disponible
+                mapped = fills_by_tipo.get(turno.id)
+                if mapped:
+                    cell.value = mapped.get('sigla', (turno.abreviatura or turno.nombre[:1]).upper())
+                    cell.fill = mapped.get('fill')
+                    cell.font = Font(color=mapped.get('font', '495057'), bold=True)
+                else:
+                    # Fallback: Lógica visual por nombre (compatibilidad con nombres existentes)
+                    nombre_t = turno.nombre or ''
+                    sigla = (turno.abreviatura or nombre_t[:1]).upper()
+                    fill_to_use = fill_guardia
+                    font_color = "495057"
 
-                cell.value = sigla
-                cell.fill = fill_to_use
-                cell.font = Font(color=font_color, bold=True)
+                    if "Mañana" in nombre_t:
+                        sigla = "M"
+                        fill_to_use = fill_manana
+                        font_color = "7A5B00"
+                    elif "Tarde" in nombre_t:
+                        sigla = "T"
+                        fill_to_use = fill_tarde
+                        font_color = "0F6B46"
+                    elif "Noche" in nombre_t:
+                        sigla = "N"
+                        fill_to_use = fill_noche
+                        font_color = "8B1E29"
+                    elif "Enferme" in nombre_t:
+                        sigla = "E"
+                        fill_to_use = fill_enfermeria
+                        font_color = "4B2E83"
+
+                    cell.value = sigla
+                    cell.fill = fill_to_use
+                    cell.font = Font(color=font_color, bold=True)
             else:
                 # dejar celda en blanco para mimetizar la vista web/PDF
                 cell.value = ""
