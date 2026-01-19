@@ -143,8 +143,16 @@
         <!-- Columna lateral: Excepciones -->
         <div class="col-12 col-lg-4">
             <div class="card shadow-sm border-0 h-100">
-                <div class="card-header bg-light border-0 py-3">
-                    <h6 class="mb-0 fw-bold text-muted text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">Excepciones</h6>
+                <div class="card-header p-0 border-0">
+                    <div class="table-responsive mb-0">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light text-muted">
+                                <tr>
+                                    <th class="text-center">Excepciones</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                     {% if excepciones %}
@@ -159,7 +167,7 @@
                                         <span class="text-muted" style="font-size: 0.8rem;">Sr: <strong>{{ ex.cantidad_senior }}</strong></span>
                                         <span class="text-muted" style="font-size: 0.8rem;">Jr: <strong>{{ ex.cantidad_junior }}</strong></span>
                                         {% if ex.es_turno_dificil %}
-                                        <span class="badge bg-warning bg-opacity-15 text-warning border border-warning border-opacity-25" style="font-size: 0.65rem; padding: 0.2rem 0.4rem;"><i class="bi bi-lightning-fill"></i></span>
+                                        <span class="badge-dificil">Difícil</span>
                                         {% endif %}
                                     </div>
                                     {% if ex.motivo %}
@@ -1039,6 +1047,27 @@
     .bg-danger-subtle-custom { 
         background-color: #f8d7da !important; 
         color: #915c61 !important; 
+    }
+
+    /* Etiqueta para marcar turnos difíciles (sin amarillo) */
+    .badge-dificil {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.78rem;
+        padding: 0.28rem 0.6rem;
+        color: #b02a37; /* rojo oscuro para legibilidad */
+        background-color: rgba(176,42,55,0.06); /* sutil tintado sin amarillo */
+        border: 1px solid rgba(176,42,55,0.12);
+        border-radius: 999px; /* pill */
+        font-weight: 600;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        line-height: 1;
+    }
+
+    .badge-dificil:hover {
+        background-color: rgba(176,42,55,0.09);
+        transform: translateY(-1px);
     }
 
     /* Dots de días seleccionados: usar azul en lugar de verde */

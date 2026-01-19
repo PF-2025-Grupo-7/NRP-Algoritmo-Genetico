@@ -226,8 +226,9 @@
                     "senior": 1
                 },
                 "28": {
-                    "junior": 3,
-                    "senior": 2
+                    "junior": 4,
+                    "senior": 3,
+                    "es_dificil": true
                 },
                 "29": {
                     "junior": 2,
@@ -409,6 +410,7 @@
             7,
             13,
             14,
+            15,
             20,
             21,
             27
