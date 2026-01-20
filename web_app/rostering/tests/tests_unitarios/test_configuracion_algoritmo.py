@@ -73,9 +73,10 @@ class TestConfiguracionAlgoritmo(TestCase):
         with self.assertRaises(ValidationError):
             self.crear_configuracion(tamano_poblacion=5)
 
-    def test_cuando_generaciones_es_menor_a_10_deberia_fallar(self):
+    def test_cuando_generaciones_es_menor_a_1_deberia_fallar(self):
+        """El mínimo ahora es 1, así que probamos con 0 para forzar el error."""
         with self.assertRaises(ValidationError):
-            self.crear_configuracion(generaciones=5)
+            self.crear_configuracion(generaciones=0)
 
     def test_cuando_prob_cruce_esta_fuera_de_rango_deberia_fallar(self):
         with self.assertRaises(ValidationError):
@@ -235,9 +236,7 @@ class TestConfiguracionAlgoritmo(TestCase):
 
     def test_cuando_se_edita_generacion_a_valor_invalido_deberia_fallar(self):
         config = self.crear_configuracion()
-
-        config.generaciones = 5
-
+        config.generaciones = 0  # Antes probábamos con 5, ahora 0 es el inválido
         with self.assertRaises(ValidationError):
             config.full_clean()
 

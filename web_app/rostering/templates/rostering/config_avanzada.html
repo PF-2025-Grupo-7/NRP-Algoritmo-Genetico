@@ -18,8 +18,15 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
 
-            <form method="post">
+            <form method="post" id="form-config-avanzada" novalidate>
                 {% csrf_token %}
+                <div class="card-body p-4">
+                    {% if form.non_field_errors %}
+                        <div id="server-errors" class="field-error mb-4">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <span>{{ form.non_field_errors|join:", " }}</span>
+                        </div>
+                    {% endif %}
                 
                 <div class="card shadow-sm border-0">
                     <div class="card-header bg-white border-bottom-0">
@@ -38,12 +45,18 @@
                     </div>
                                 
                     <div class="card-body p-4">
+                        <div class="col-12">
+                            <div id="form-warning" class="field-error d-none">
+                                <i class="bi bi-exclamation-circle"></i>
+                                <span id="form-warning-text"></span>
+                            </div>
+                        </div>
                         <div class="tab-content" id="myTabContent">
                             
                             <div class="tab-pane fade show active" id="tech">
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label fw-bold">Nombre Configuración</label>
+                                        <label class="form-label fw-bold">Nombre Configuración<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         {{ form.nombre }}
                                     </div>
                                     <div class="col-md-6 mb-3">
@@ -55,34 +68,100 @@
                                 <h6 class="text-primary mb-3">Algoritmo Genético</h6>
                                 <div class="row">
                                     <div class="col-md-3 mb-3">
-                                        <label class="form-label">Población</label>
+                                        <label class="form-label">Población<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         {{ form.tamano_poblacion }}
                                     </div>
                                     <div class="col-md-3 mb-3">
-                                        <label class="form-label">Generaciones</label>
+                                        <label class="form-label">Generaciones<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         {{ form.generaciones }}
                                     </div>
                                     <div class="col-md-3 mb-3">
-                                        <label class="form-label">Prob. Cruce</label>
+                                        <label class="form-label">Prob. Cruce<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         {{ form.prob_cruce }}
                                     </div>
                                     <div class="col-md-3 mb-3">
-                                        <label class="form-label">Prob. Mutación</label>
+                                        <label class="form-label">Prob. Mutación<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         {{ form.prob_mutacion }}
                                     </div>
                                 </div>
                                 <div class="row">
                                     <div class="col-md-4 mb-3">
-                                        <label class="form-label">Selección</label>
-                                        {{ form.estrategia_seleccion }}
+                                        <label class="form-label">Selección<span class="required-asterisk" aria-hidden="true">*</span></label>
+                                        <div class="custom-select-wrapper">
+                                            <select class="form-select d-none" id="{{ form.estrategia_seleccion.id_for_label }}" name="{{ form.estrategia_seleccion.html_name }}">
+                                                {% for value,label in form.estrategia_seleccion.field.choices %}
+                                                    <option value="{{ value }}" {% if form.estrategia_seleccion.value == value %}selected{% endif %}>{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <div class="custom-dropdown">
+                                                <div class="custom-dropdown-header" tabindex="0">
+                                                    {% if form.estrategia_seleccion.value %}
+                                                        {% for v,l in form.estrategia_seleccion.field.choices %}
+                                                            {% if v == form.estrategia_seleccion.value %}{{ l }}{% endif %}
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        Seleccioná una opción
+                                                    {% endif %}
+                                                </div>
+                                                <div class="custom-dropdown-menu">
+                                                    {% for v,l in form.estrategia_seleccion.field.choices %}
+                                                        <div class="custom-option" data-value="{{ v }}">{{ l }}</div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-md-4 mb-3">
-                                        <label class="form-label">Cruce</label>
-                                        {{ form.estrategia_cruce }}
+                                        <label class="form-label">Cruce<span class="required-asterisk" aria-hidden="true">*</span></label>
+                                        <div class="custom-select-wrapper">
+                                            <select class="form-select d-none" id="{{ form.estrategia_cruce.id_for_label }}" name="{{ form.estrategia_cruce.html_name }}">
+                                                {% for value,label in form.estrategia_cruce.field.choices %}
+                                                    <option value="{{ value }}" {% if form.estrategia_cruce.value == value %}selected{% endif %}>{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <div class="custom-dropdown">
+                                                <div class="custom-dropdown-header" tabindex="0">
+                                                    {% if form.estrategia_cruce.value %}
+                                                        {% for v,l in form.estrategia_cruce.field.choices %}
+                                                            {% if v == form.estrategia_cruce.value %}{{ l }}{% endif %}
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        Seleccioná una opción
+                                                    {% endif %}
+                                                </div>
+                                                <div class="custom-dropdown-menu">
+                                                    {% for v,l in form.estrategia_cruce.field.choices %}
+                                                        <div class="custom-option" data-value="{{ v }}">{{ l }}</div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="col-md-4 mb-3">
-                                        <label class="form-label">Mutación</label>
-                                        {{ form.estrategia_mutacion }}
+                                        <label class="form-label">Mutación<span class="required-asterisk" aria-hidden="true">*</span></label>
+                                        <div class="custom-select-wrapper">
+                                            <select class="form-select d-none" id="{{ form.estrategia_mutacion.id_for_label }}" name="{{ form.estrategia_mutacion.html_name }}">
+                                                {% for value,label in form.estrategia_mutacion.field.choices %}
+                                                    <option value="{{ value }}" {% if form.estrategia_mutacion.value == value %}selected{% endif %}>{{ label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <div class="custom-dropdown">
+                                                <div class="custom-dropdown-header" tabindex="0">
+                                                    {% if form.estrategia_mutacion.value %}
+                                                        {% for v,l in form.estrategia_mutacion.field.choices %}
+                                                            {% if v == form.estrategia_mutacion.value %}{{ l }}{% endif %}
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        Seleccioná una opción
+                                                    {% endif %}
+                                                </div>
+                                                <div class="custom-dropdown-menu">
+                                                    {% for v,l in form.estrategia_mutacion.field.choices %}
+                                                        <div class="custom-option" data-value="{{ v }}">{{ l }}</div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="form-check mt-2">
@@ -117,15 +196,15 @@
                                 <h6 class="text-primary mb-3">Tolerancias y Factores</h6>
                                 <div class="row">
                                     <div class="col-md-4 mb-3">
-                                        <label class="form-label">Tolerancia Gral (Horas)</label>
+                                        <label class="form-label">Tolerancia Gral (Horas)<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         {{ form.tolerancia_general }}
                                     </div>
                                     <div class="col-md-4 mb-3">
-                                        <label class="form-label">Tolerancia Difícil (Turnos)</label>
+                                        <label class="form-label">Tolerancia Difícil (Turnos)<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         {{ form.tolerancia_dificil }}
                                     </div>
                                     <div class="col-md-4 mb-3">
-                                        <label class="form-label">Factor Alpha (PTE)</label>
+                                        <label class="form-label">Factor Alpha (PTE)<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         {{ form.factor_alpha_pte }}
                                     </div>
                                 </div>
@@ -166,57 +245,253 @@
         background-color: transparent;
         border-bottom: 2px solid #0d6efd;
     }
+    /* Custom select styles (match other forms) */
+    .form-control, .form-select {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+        background-color: #ffffff;
+        color: #2f3e4c;
+    }
+
+    .required-asterisk {
+        color: #dc3545;
+        margin-left: 0.25rem;
+        font-weight: 700;
+    }
+    .form-select.d-none { display: none !important; }
+    .form-control:focus, .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        background-color: #f8fbff;
+        outline: none;
+    }
+    .custom-select-wrapper { position: relative; display: inline-block; width: 100%; }
+    .custom-dropdown { position: relative; pointer-events: auto; }
+    .custom-dropdown-header {
+        height: 46px; box-sizing: border-box; border-radius: 8px; border: 1px solid #e0e5ec; background-color: #ffffff;
+        padding: 0.75rem 1rem; font-size: 0.95rem; line-height: 1; color: #495057; display: inline-flex; align-items: center; width: 100%;
+        transition: all 0.2s ease; cursor: pointer;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat; background-position: right 12px center; background-size: 16px; padding-right: 40px; pointer-events: auto;
+    }
+    .custom-dropdown-header.disabled{ opacity:0.6; cursor:not-allowed; pointer-events:none; }
+    .custom-dropdown-menu {
+        position: absolute; top: 100%; left: 0; right: 0; background-color: #ffffff; border: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); border-radius: 10px; max-height: 0; overflow: hidden;
+        transition: max-height 0.3s ease; pointer-events: none; z-index: 100; margin-top: 0; padding: 0;
+    }
+    .custom-dropdown.open .custom-dropdown-menu { max-height: 300px; pointer-events: auto; opacity: 1; margin-top: 0.5rem; padding: 0.5rem 0; }
+    .custom-option { padding: 0.5rem 1.2rem; color: #495057; cursor: pointer; transition: all 0.2s ease; font-size: 0.95rem; border-bottom: none; font-weight: 500; }
+    .custom-option:hover { background-color: rgba(13, 110, 253, 0.1); color: #0d6efd; padding-left: 1.4rem; }
+    /* Warning / error banner inside card */
+    .field-error {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-bottom: 1rem;
+        color: #c41c3b;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    .field-error i {
+        font-size: 1rem;
+    }
 </style>
 
 <script>
+// Custom dropdown helper (shared behavior with other forms)
+function setupCustomDropdown(wrapper){
+    const nativeSelect = wrapper.querySelector('.form-select');
+    const header = wrapper.querySelector('.custom-dropdown-header');
+    const dropdown = wrapper.querySelector('.custom-dropdown');
+    const menu = wrapper.querySelector('.custom-dropdown-menu');
+    if (!header || !dropdown || !menu || !nativeSelect) return;
+
+    try {
+        const sel = nativeSelect.options[nativeSelect.selectedIndex];
+        if (sel && sel.textContent && nativeSelect.value) header.textContent = sel.textContent;
+    } catch(e){}
+
+    header.onclick = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (nativeSelect.disabled) return;
+        document.querySelectorAll('.custom-dropdown.open').forEach(d => { if(d !== dropdown) d.classList.remove('open'); });
+        dropdown.classList.toggle('open');
+    };
+
+    menu.querySelectorAll('.custom-option').forEach((option) => {
+        option.onclick = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (nativeSelect.disabled) return;
+            if (option.style.display === 'none') return;
+            const value = option.getAttribute('data-value');
+            const text = option.textContent;
+            nativeSelect.value = value;
+            header.textContent = text;
+            dropdown.classList.remove('open');
+            nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+    });
+
+    document.addEventListener('click', (e) => { if (!wrapper.contains(e.target)) dropdown.classList.remove('open'); });
+}
+
     document.addEventListener('DOMContentLoaded', function() {
-        const form = document.querySelector('form');
-        let hasUnsavedChanges = false;
-        
-        // Detectar cambios en cualquier campo del formulario
-        const inputs = form.querySelectorAll('input, select, textarea');
-        inputs.forEach(input => {
-            input.addEventListener('change', function() {
-                hasUnsavedChanges = true;
+        const form = document.getElementById('form-config-avanzada');
+        const serverErrors = document.getElementById('server-errors');
+
+        // Inicializar custom dropdowns
+        document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
+
+        // Prevenir números inválidos en inputs numéricos relevantes
+        const numericInputs = form.querySelectorAll('input[type="number"]');
+        numericInputs.forEach(input => {
+            if (!input.hasAttribute('min')) input.setAttribute('min', '0');
+            if (!input.hasAttribute('step')) input.setAttribute('step', '1');
+
+            input.addEventListener('keydown', function(e) {
+                if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault();
             });
+
+            input.addEventListener('input', function() {
+                const min = input.hasAttribute('min') ? parseFloat(input.getAttribute('min')) : null;
+                const max = input.hasAttribute('max') ? parseFloat(input.getAttribute('max')) : null;
+                let v = input.value;
+                if (v === '') return;
+                v = String(v).replace(',', '.');
+                let num = Number(v);
+                if (isNaN(num)) { input.value = ''; return; }
+                if (min !== null && num < min) input.value = min;
+                if (max !== null && num > max) input.value = max;
+            });
+
+            input.addEventListener('wheel', function(e){ e.preventDefault(); });
         });
 
-        // Warning cuando intenta salir sin guardar
-        window.addEventListener('beforeunload', function(e) {
-            if (hasUnsavedChanges) {
+        form.addEventListener('submit', function(e) {
+            const warningDiv = document.getElementById('form-warning');
+            const warningText = document.getElementById('form-warning-text');
+            if (warningDiv) warningDiv.classList.add('d-none');
+            if (serverErrors) serverErrors.classList.add('d-none');
+
+            const requiredFields = [
+                { field: form.querySelector('[name="nombre"]'), name: 'Nombre configuración' },
+                { field: form.querySelector('[name="tamano_poblacion"]'), name: 'Población' },
+                { field: form.querySelector('[name="generaciones"]'), name: 'Generaciones' },
+                { field: form.querySelector('[name="prob_cruce"]'), name: 'Prob. Cruce' },
+                { field: form.querySelector('[name="prob_mutacion"]'), name: 'Prob. Mutación' },
+                { field: form.querySelector('[name="estrategia_seleccion"]'), name: 'Selección' },
+                { field: form.querySelector('[name="estrategia_cruce"]'), name: 'Cruce' },
+                { field: form.querySelector('[name="estrategia_mutacion"]'), name: 'Mutación' },
+                { field: form.querySelector('[name="tolerancia_general"]'), name: 'Tolerancia Gral' },
+                { field: form.querySelector('[name="tolerancia_dificil"]'), name: 'Tolerancia Difícil' },
+                { field: form.querySelector('[name="factor_alpha_pte"]'), name: 'Factor Alpha' }
+            ];
+
+            const emptyFields = requiredFields.filter(item => !item.field || !item.field.value || String(item.field.value).trim() === '');
+
+            if (emptyFields.length > 0) {
                 e.preventDefault();
-                e.returnValue = 'Tienes cambios sin guardar. ¿Estás seguro de que deseas salir?';
-                return e.returnValue;
-            }
-        });
-
-        // Cuando se envía el formulario
-        form.addEventListener('submit', function() {
-            hasUnsavedChanges = false;
-            
-            // Mostrar mensaje de éxito
-            const successAlert = document.getElementById('success-alert');
-            if (successAlert) {
-                successAlert.style.display = 'block';
-                // Auto-cerrar después de 5 segundos
-                setTimeout(() => {
-                    successAlert.style.display = 'none';
-                }, 5000);
-            }
-        });
-
-        // Botón Cancelar: verificar si hay cambios sin guardar
-        const cancelBtn = form.querySelector('a.btn-outline-secondary');
-        if (cancelBtn) {
-            cancelBtn.addEventListener('click', function(e) {
-                if (hasUnsavedChanges) {
-                    e.preventDefault();
-                    if (confirm('Tienes cambios sin guardar. ¿Deseas descartar los cambios y volver a la configuración?')) {
-                        window.location.href = this.href;
+                warningText.textContent = 'Por favor, completá todos los campos obligatorios (*)';
+                warningDiv.classList.remove('d-none');
+                warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Marcar los campos vacíos como inválidos visualmente
+                emptyFields.forEach(function(item) {
+                    item.field.classList.add('is-invalid');
+                    item.field.addEventListener('input', function handler() {
+                        item.field.classList.remove('is-invalid');
+                        item.field.removeEventListener('input', handler);
+                    });
+                    // Si el campo es un select personalizado, marcar el header también
+                    if (item.field.classList.contains('form-select')) {
+                        var wrapper = item.field.closest('.custom-select-wrapper');
+                        if (wrapper) {
+                            var header = wrapper.querySelector('.custom-dropdown-header');
+                            if (header) {
+                                header.classList.add('is-invalid');
+                                item.field.addEventListener('change', function handler2() {
+                                    header.classList.remove('is-invalid');
+                                    item.field.removeEventListener('change', handler2);
+                                });
+                            }
+                        }
                     }
+                });
+                return;
+            }
+
+            let invalidRange = false;
+            numericInputs.forEach(input => {
+                const min = input.hasAttribute('min') ? parseFloat(input.getAttribute('min')) : null;
+                const max = input.hasAttribute('max') ? parseFloat(input.getAttribute('max')) : null;
+                if (!input.value) return;
+                const v = Number(String(input.value).replace(',', '.'));
+                if ((min !== null && v < min) || (max !== null && v > max)) {
+                    invalidRange = true;
+                    input.classList.add('is-invalid');
                 }
             });
-        }
+            if (invalidRange) {
+                e.preventDefault();
+                if (warningText) warningText.textContent = 'Hay valores numéricos fuera de los rangos permitidos.';
+                if (warningDiv) { warningDiv.classList.remove('d-none'); warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                return;
+            }
+
+            // Si llegamos acá, la validación cliente pasó. Enviamos por AJAX y redirigimos al dashboard al guardar correctamente.
+            e.preventDefault();
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.dataset.origHtml = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Guardando...';
+            }
+
+            const action = form.getAttribute('action') || window.location.href;
+            const formData = new FormData(form);
+
+            fetch(action, {
+                method: 'POST',
+                body: formData,
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(response => {
+                // Si el servidor redirige, seguimos la redirección
+                if (response.redirected) {
+                    window.location.href = response.url;
+                    return;
+                }
+                if (response.ok) {
+                    // Asumimos guardado correcto -> ir al dashboard
+                    window.location.href = "{% url 'config_dashboard' %}";
+                    return;
+                }
+                return response.text().then(text => {
+                    // Mostrar errores del servidor (render HTML parcial o mensaje)
+                    if (serverErrors) {
+                        serverErrors.innerHTML = text;
+                        serverErrors.classList.remove('d-none');
+                        serverErrors.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = submitBtn.dataset.origHtml || 'Guardar Configuración';
+                    }
+                });
+            }).catch(err => {
+                if (warningText) {
+                    warningText.textContent = 'Error guardando la configuración. Intentá nuevamente.';
+                    warningDiv.classList.remove('d-none');
+                }
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = submitBtn.dataset.origHtml || 'Guardar Configuración';
+                }
+            });
+        });
     });
 </script>
 {% endblock %}

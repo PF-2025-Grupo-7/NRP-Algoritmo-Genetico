@@ -37,6 +37,7 @@ urlpatterns = [
     # Acciones y Análisis (usan pk estándar de CBVs)
     path('cronograma/<int:pk>/analisis/', views.CronogramaAnalisisView.as_view(), name='cronograma_analisis'),
     path('cronograma/<int:pk>/publicar/', views.publicar_cronograma, name='cronograma_publish'),
+    path('cronograma/<int:pk>/despublicar/', views.despublicar_cronograma, name='cronograma_unpublish'),
     path('cronogramas/<int:pk>/eliminar/', views.CronogramaDeleteView.as_view(), name='cronograma_delete'),
 
     # Exportar como PDF

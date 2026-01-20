@@ -145,6 +145,14 @@
 
                             <td class="text-center">
                                 <div class="action-buttons">
+                                    {% if c.estado == 'FALLIDO' %}
+                                    <button type="button" class="btn btn-sm btn-action btn-action-view" disabled aria-disabled="true" data-bs-toggle="tooltip" data-bs-title="Vista de Matriz (no disponible)">
+                                        <i class="bi bi-grid-3x3-gap-fill"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-action btn-action-calendar" disabled aria-disabled="true" data-bs-toggle="tooltip" data-bs-title="Vista Diaria (no disponible)">
+                                        <i class="bi bi-calendar-week-fill"></i>
+                                    </button>
+                                    {% else %}
                                     <a href="{% url 'ver_cronograma' c.id %}" 
                                        class="btn btn-sm btn-action btn-action-view" 
                                        data-bs-toggle="tooltip" 
@@ -157,6 +165,7 @@
                                        data-bs-title="Vista Diaria">
                                         <i class="bi bi-calendar-week-fill"></i>
                                     </a>
+                                    {% endif %}
                                     {% if c.fitness %}
                                     <a href="{% url 'cronograma_analisis' c.id %}" 
                                        class="btn btn-sm btn-action btn-action-chart" 
@@ -338,6 +347,11 @@
     .bg-warning-subtle-custom { 
         background-color: #fff3cd !important; 
         color: #928560 !important; 
+    }
+
+    .bg-danger-subtle-custom { 
+        background-color: #f8d7da !important; 
+        color: #915c61 !important; 
     }
 
     .bg-info-subtle-custom { 

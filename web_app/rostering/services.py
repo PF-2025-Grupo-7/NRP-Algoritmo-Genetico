@@ -278,7 +278,8 @@ def construir_matriz_cronograma(cronograma):
         
     return {
         'rango_fechas': rango_fechas,
-        'filas_tabla': filas_tabla
+        'filas_tabla': filas_tabla,
+        'tipos_turno': TipoTurno.objects.filter(especialidad=cronograma.especialidad).order_by('hora_inicio', 'nombre')
     }
 
 
