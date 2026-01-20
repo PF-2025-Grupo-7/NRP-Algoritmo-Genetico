@@ -286,12 +286,34 @@ def publicar_cronograma(request, pk):
         return redirect('cronograma_analisis', pk=cronograma.id)
     # ---------------
 
+    silent = request.POST.get('silent')
     if cronograma.estado == Cronograma.Estado.PUBLICADO:
-        messages.warning(request, "Este cronograma ya está publicado.")
+        if not silent:
+            messages.warning(request, "Este cronograma ya está publicado.")
     else:
         cronograma.estado = Cronograma.Estado.PUBLICADO
         cronograma.save()
-        messages.success(request, f"¡Planificación {cronograma.fecha_inicio} PUBLICADA!")
+        if not silent:
+            messages.success(request, f"¡Planificación {cronograma.fecha_inicio} PUBLICADA!")
+    return redirect('ver_cronograma', cronograma_id=pk)
+
+
+@login_required
+@require_POST
+def despublicar_cronograma(request, pk):
+    cronograma = get_object_or_404(Cronograma, pk=pk)
+    if cronograma.estado == Cronograma.Estado.FALLIDO:
+        messages.error(request, "Error: no se puede cambiar el estado de un cronograma NO VIABLE.")
+        return redirect('cronograma_analisis', pk=cronograma.id)
+    silent = request.POST.get('silent')
+    if cronograma.estado != Cronograma.Estado.PUBLICADO:
+        if not silent:
+            messages.warning(request, "Este cronograma no está publicado.")
+    else:
+        cronograma.estado = Cronograma.Estado.BORRADOR
+        cronograma.save()
+        if not silent:
+            messages.success(request, f"Planificación {cronograma.fecha_inicio} marcada como Borrador.")
     return redirect('ver_cronograma', cronograma_id=pk)
 
 # ==============================================================================
@@ -305,7 +327,7 @@ class EmpleadoListView(LoginRequiredMixin, ListView):
     paginate_by = 15 
 
     def get_queryset(self):
-        qs = super().get_queryset().order_by('id')
+        qs = super().get_queryset().order_by('-activo', '-id')
         self.filterset = EmpleadoFilter(self.request.GET, queryset=qs)
         qs = self.filterset.qs
         return qs
@@ -321,6 +343,11 @@ class EmpleadoCreateView(LoginRequiredMixin, CreateView):
     template_name = 'rostering/empleado_form.html'
     success_url = reverse_lazy('empleado_list')
     extra_context = {'titulo': 'Nuevo Empleado'}
+    
+    def get_initial(self):
+        initial = super().get_initial()
+        initial['activo'] = True
+        return initial
 
 class EmpleadoUpdateView(LoginRequiredMixin, UpdateView):
     model = Empleado
@@ -401,18 +428,11 @@ class ConfiguracionTurnosListView(SuperUserRequiredMixin, ListView):
 
 @login_required
 def config_turnos_edit(request, especialidad):
-    """
-    Vista Lógica Principal (Refactorizada - Smart Update + Auto Secuencias):
-    1. Si cambia el Esquema (2x12 <-> 3x8) -> Opción Nuclear (Borra todo).
-    2. Si el Esquema se mantiene -> Actualiza los objetos existentes.
-    3. AUTOMÁTICO: Regenera las secuencias prohibidas según la topología.
-    """
-    # --- NUEVO BLOQUEO MANUAL ---
     if not request.user.is_superuser:
         raise PermissionDenied("Solo los administradores pueden modificar la estructura de turnos.")
-    # ----------------------------
+    
     instance = ConfiguracionTurnos.objects.filter(especialidad=especialidad).first()
-    esquema_anterior = instance.esquema if instance else None
+    es_edicion = (instance is not None)
     
     if request.method == 'POST':
         form = ConfiguracionTurnosForm(request.POST, instance=instance)
@@ -432,7 +452,7 @@ def config_turnos_edit(request, especialidad):
                 config.nombres_turnos = nombres
                 config.save()
 
-                # --- LÓGICA SMART UPDATE DE TURNOS ---
+                # --- CÁLCULO DE HORARIOS ---
                 hora_base = config.hora_inicio_base
                 d = datetime(2000, 1, 1, hora_base.hour, hora_base.minute)
                 
@@ -450,77 +470,53 @@ def config_turnos_edit(request, especialidad):
                             'fin': (d + timedelta(hours=(i+1)*8)).time()
                         })
 
-                turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
-                mismo_esquema = (esquema_anterior == config.esquema)
-                consistencia_db = (len(turnos_existentes) == len(nuevos_datos))
-
-                if mismo_esquema and consistencia_db:
-                    print(f"🔄 SMART UPDATE: Actualizando turnos existentes para {especialidad} (IDs conservados)")
-                    for idx, turno_obj in enumerate(turnos_existentes):
-                        datos = nuevos_datos[idx]
-                        meta = nombres[datos['key']]
-                        turno_obj.nombre = meta['n']
-                        turno_obj.abreviatura = meta['a']
-                        turno_obj.es_nocturno = meta['noc']
-                        turno_obj.hora_inicio = datos['inicio']
-                        turno_obj.hora_fin = datos['fin']
-                        turno_obj.save()
-                else:
-                    print(f"☢️ NUCLEAR RESET: Esquema cambió o DB inconsistente. Regenerando para {especialidad}.")
-                    TipoTurno.objects.filter(especialidad=especialidad).delete()
-                    
-                    # Creación con .save() individual para calcular duración
+                # --- CREACIÓN O ACTUALIZACIÓN ---
+                if not es_edicion:
+                    # CASO 1: PRIMERA VEZ (Crear objetos TipoTurno)
+                    print(f"✨ CREACIÓN INICIAL: Generando turnos para {especialidad}")
                     for datos in nuevos_datos:
                         meta = nombres[datos['key']]
-                        t = TipoTurno(
+                        es_noc_calc = datos['fin'] < datos['inicio']
+                        es_noc_final = True if es_noc_calc else meta['noc']
+
+                        # CORRECCIÓN: Eliminamos activo=True
+                        TipoTurno.objects.create(
                             nombre=meta['n'], abreviatura=meta['a'], especialidad=especialidad,
-                            hora_inicio=datos['inicio'], hora_fin=datos['fin'], es_nocturno=meta['noc']
+                            hora_inicio=datos['inicio'], hora_fin=datos['fin'], 
+                            es_nocturno=es_noc_final
                         )
-                        t.save()
-
-                # --- LÓGICA AUTOMÁTICA DE SECUENCIAS PROHIBIDAS ---
-                # 1. Borrar reglas viejas para esta especialidad (limpieza total)
-                SecuenciaProhibida.objects.filter(especialidad=especialidad).delete()
-                
-                # 2. Obtener los turnos frescos y ordenados
-                turnos_ordenados = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
-                secuencias_nuevas = []
-
-                if len(turnos_ordenados) == 2: 
-                    # CASO A: ESQUEMA 2x12 (Día, Noche)
-                    # Regla: Prohibido Noche -> Día (T2 -> T1 del día siguiente)
-                    # Asumimos T1=Mañana/Día, T2=Noche (ordenados por hora)
-                    secuencias_nuevas.append(SecuenciaProhibida(
-                        especialidad=especialidad,
-                        turno_previo=turnos_ordenados[1], # 2do turno (Noche)
-                        turno_siguiente=turnos_ordenados[0] # 1er turno (Día)
-                    ))
-                
-                elif len(turnos_ordenados) == 3:
-                    # CASO B: ESQUEMA 3x8 (Mañana, Tarde, Noche)
-                    # T1=M, T2=T, T3=N
                     
-                    # 1. Noche -> Mañana (Crítico)
-                    secuencias_nuevas.append(SecuenciaProhibida(
-                        especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[0]
-                    ))
-                    # 2. Noche -> Tarde (Descanso insuficiente)
-                    secuencias_nuevas.append(SecuenciaProhibida(
-                        especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[1]
-                    ))
-                    # 3. Tarde -> Mañana (Quick Return < 12hs)
-                    secuencias_nuevas.append(SecuenciaProhibida(
-                        especialidad=especialidad, turno_previo=turnos_ordenados[1], turno_siguiente=turnos_ordenados[0]
-                    ))
+                    regenerar_secuencias(especialidad)
 
-                if secuencias_nuevas:
-                    SecuenciaProhibida.objects.bulk_create(secuencias_nuevas)
-                    print(f"🔒 Se generaron automáticamente {len(secuencias_nuevas)} reglas de descanso para {especialidad}")
+                else:
+                    # CASO 2: EDICIÓN (Actualizar existentes)
+                    print(f"🔄 ACTUALIZACIÓN: Modificando detalles para {especialidad}")
+                    
+                    # CORRECCIÓN: Eliminamos activo=True del filtro
+                    turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
+                    
+                    if len(turnos_existentes) == len(nuevos_datos):
+                        for idx, turno_obj in enumerate(turnos_existentes):
+                            datos = nuevos_datos[idx]
+                            meta = nombres[datos['key']]
+                            
+                            turno_obj.nombre = meta['n']
+                            turno_obj.abreviatura = meta['a']
+                            
+                            es_noc_calc = datos['fin'] < datos['inicio']
+                            turno_obj.es_nocturno = True if es_noc_calc else meta['noc']
+                            
+                            turno_obj.hora_inicio = datos['inicio']
+                            turno_obj.hora_fin = datos['fin']
+                            turno_obj.save()
+                        
+                        regenerar_secuencias(especialidad)
+                    else:
+                        print("⚠️ ERROR DE INTEGRIDAD: Cantidad de turnos en BD no coincide con esquema.")
 
             return redirect('tipoturno_list')
             
     else:
-        # GET (Carga del formulario)
         initial_data = {}
         if instance and instance.nombres_turnos:
             nt = instance.nombres_turnos
@@ -530,13 +526,36 @@ def config_turnos_edit(request, especialidad):
         
         form = ConfiguracionTurnosForm(instance=instance, initial=initial_data)
 
+    # CORRECCIÓN: Definimos la lista de horas aquí
+    horas = [f"{h:02d}:{m:02d}" for h in range(0,24) for m in (0,30)]
+
     context = {
         'form': form,
         'especialidad_label': dict(Empleado.TipoEspecialidad.choices).get(especialidad),
-        'especialidad_code': especialidad,
-        'esquema_actual': esquema_anterior 
+        'es_edicion': es_edicion,
+        'horas': horas 
     }
     return render(request, 'rostering/config_turnos_form.html', context)
+
+def regenerar_secuencias(especialidad):
+    """Helper para regenerar secuencias prohibidas."""
+    SecuenciaProhibida.objects.filter(especialidad=especialidad).delete()
+    
+    # CORRECCIÓN: Eliminamos activo=True
+    turnos_ordenados = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
+    
+    secuencias = []
+
+    if len(turnos_ordenados) == 2: # 2x12
+        secuencias.append(SecuenciaProhibida(especialidad=especialidad, turno_previo=turnos_ordenados[1], turno_siguiente=turnos_ordenados[0]))
+    elif len(turnos_ordenados) == 3: # 3x8
+        secuencias.append(SecuenciaProhibida(especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[0]))
+        secuencias.append(SecuenciaProhibida(especialidad=especialidad, turno_previo=turnos_ordenados[2], turno_siguiente=turnos_ordenados[1]))
+        secuencias.append(SecuenciaProhibida(especialidad=especialidad, turno_previo=turnos_ordenados[1], turno_siguiente=turnos_ordenados[0]))
+
+    if secuencias:
+        SecuenciaProhibida.objects.bulk_create(secuencias)
+    
 
 # --- Ausencias ---
 class NoDisponibilidadListView(LoginRequiredMixin, ListView):
@@ -625,6 +644,9 @@ class PlantillaCreateView(LoginRequiredMixin, CreateView):
     template_name = 'rostering/plantilla_form.html'
     success_url = reverse_lazy('plantilla_list')
     extra_context = {'titulo': 'Nueva Plantilla'}
+    
+    def form_valid(self, form):
+        return super().form_valid(form)
 
 class PlantillaDetailView(LoginRequiredMixin, DetailView):
     model = PlantillaDemanda
@@ -648,12 +670,12 @@ class PlantillaUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'rostering/plantilla_form.html' # Reutilizamos el template de form
     
     def get_success_url(self):
-        # Al guardar, volvemos al detalle de la plantilla
-        return reverse_lazy('plantilla_detail', kwargs={'pk': self.object.pk})
+        # Al guardar, volvemos a la lista de plantillas
+        return reverse_lazy('plantilla_list')
         
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['titulo'] = f"Editar: {self.object.nombre}"
+        ctx['titulo'] = f"{self.object.nombre}"
         return ctx
 
 class PlantillaDeleteView(LoginRequiredMixin, DeleteView):
@@ -1005,29 +1027,21 @@ def exportar_cronograma_excel(request, cronograma_id):
     border_thin = Border(left=Side(style='thin'), right=Side(style='thin'), 
                          top=Side(style='thin'), bottom=Side(style='thin'))
     
-    # Colores de fondo (Fills)
-    fill_manana = PatternFill(start_color="FFC107", end_color="FFC107", fill_type="solid") # Amarillo
-    fill_tarde = PatternFill(start_color="FD7E14", end_color="FD7E14", fill_type="solid")  # Naranja
-    fill_noche = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")  # Azul
-    fill_guardia = PatternFill(start_color="198754", end_color="198754", fill_type="solid") # Verde
-    fill_enfermeria = PatternFill(start_color="6F42C1", end_color="6F42C1", fill_type="solid") # Violeta
-    fill_franco = PatternFill(start_color="E9ECEF", end_color="E9ECEF", fill_type="solid") # Gris claro
+    # Colores de fondo (Fills) - tonos ligeramente más oscuros para mejor contraste
+    fill_manana = PatternFill(start_color="FFE082", end_color="FFE082", fill_type="solid") # Amarillo
+    fill_tarde = PatternFill(start_color="AEEACB", end_color="AEEACB", fill_type="solid")  # Verde/menta
+    fill_noche = PatternFill(start_color="FFD6D9", end_color="FFD6D9", fill_type="solid")  # Rosado claro
+    fill_guardia = PatternFill(start_color="CFE4FF", end_color="CFE4FF", fill_type="solid") # Celeste claro
+    fill_enfermeria = PatternFill(start_color="EADCFF", end_color="EADCFF", fill_type="solid") # Violeta claro
+    fill_franco = PatternFill(start_color="EEEEEE", end_color="EEEEEE", fill_type="solid") # Gris claro
     
-    # 2. Encabezado Principal
-    # CORRECCIÓN: Generamos el nombre dinámicamente con los datos que SÍ existen
-    titulo_plan = f"Plan {cronograma.get_especialidad_display()}"
-    periodo_str = f"Período: {cronograma.fecha_inicio.strftime('%d/%m/%Y')} al {cronograma.fecha_fin.strftime('%d/%m/%Y')}"
-    
-    ws.merge_cells('A1:E1')
-    ws['A1'] = titulo_plan
-    ws['A1'].font = Font(size=14, bold=True, color="0D6EFD")
-    
-    ws.merge_cells('A2:E2')
-    ws['A2'] = periodo_str
+    # 2. Encabezado Principal: usar mismo título y subtítulo que el PDF
+    titulo_plan = "Planificación de Guardias"
+    periodo_sub = f"{cronograma.get_especialidad_display()} | {cronograma.fecha_inicio.strftime('%d/%m/%Y')} al {cronograma.fecha_fin.strftime('%d/%m/%Y')}"
     
     # 3. Fila de Días (Encabezados de Tabla)
     ws.cell(row=4, column=1, value="Profesional").font = font_bold
-    ws.column_dimensions['A'].width = 25 
+    ws.column_dimensions['A'].width = 20 
 
     dias = []
     fecha_iter = cronograma.fecha_inicio
@@ -1055,6 +1069,18 @@ def exportar_cronograma_excel(request, cronograma_id):
         fecha_iter += timedelta(days=1) # Ahora sí funciona timedelta
         col_idx += 1
 
+    # Merge title across all used columns so it spans the whole schedule
+    last_col = col_idx - 1
+    last_col_letter = get_column_letter(last_col)
+    ws.merge_cells(f'A1:{last_col_letter}1')
+    ws['A1'] = titulo_plan
+    ws['A1'].font = Font(size=14, bold=True, color='333333')
+    ws['A1'].alignment = Alignment(horizontal='left', vertical='center')
+
+    ws.merge_cells(f'A2:{last_col_letter}2')
+    ws['A2'] = periodo_sub
+    ws['A2'].alignment = Alignment(horizontal='left', vertical='center')
+
     # 4. Cargar Datos
     asignaciones = Asignacion.objects.filter(
         cronograma=cronograma
@@ -1063,6 +1089,49 @@ def exportar_cronograma_excel(request, cronograma_id):
     mapa_turnos = {}
     for a in asignaciones:
         mapa_turnos[(a.empleado.id, a.fecha)] = a.tipo_turno
+
+    # --- MAPEO DE COLORES POR ÍNDICE DE TIPOS DE TURNO ---
+    # Obtenemos los tipos de turno realmente usados en las asignaciones,
+    # ordenados para establecer una asignación visual consistente.
+    ids_turnos_usados = asignaciones.values_list('tipo_turno', flat=True).distinct()
+    tipos_turno_usados = list(TipoTurno.objects.filter(id__in=ids_turnos_usados).order_by('nombre'))
+
+    # Construir mapa tipo_turno.id -> (fill, font_color, sigla)
+    fills_by_tipo = {}
+    if len(tipos_turno_usados) == 3:
+        # 3 turnos: amarillo, verde, rojo (índices 0,1,2)
+        palette = [
+            (fill_manana, '7A5B00'),
+            (fill_tarde, '0F6B46'),
+            (fill_noche, '8B1E29'),
+        ]
+        for idx, t in enumerate(tipos_turno_usados):
+            sigla = (t.abreviatura or t.nombre[:1]).upper()
+            fills_by_tipo[t.id] = {'fill': palette[idx][0], 'font': palette[idx][1], 'sigla': sigla}
+    elif len(tipos_turno_usados) == 2:
+        # 2 turnos: verde, rojo (índices 0,1)
+        palette = [
+            (fill_tarde, '0F6B46'),
+            (fill_noche, '8B1E29'),
+        ]
+        for idx, t in enumerate(tipos_turno_usados):
+            sigla = (t.abreviatura or t.nombre[:1]).upper()
+            fills_by_tipo[t.id] = {'fill': palette[idx][0], 'font': palette[idx][1], 'sigla': sigla}
+    else:
+        # Fallback: intentar mapear por nombre como antes (Mañana/Tarde/Noche/Enfermeria/Guardia)
+        for t in tipos_turno_usados:
+            nombre_t = (t.nombre or '')
+            sigla = (t.abreviatura or nombre_t[:1]).upper()
+            if 'Mañana' in nombre_t:
+                fills_by_tipo[t.id] = {'fill': fill_manana, 'font': '7A5B00', 'sigla': sigla}
+            elif 'Tarde' in nombre_t:
+                fills_by_tipo[t.id] = {'fill': fill_tarde, 'font': '0F6B46', 'sigla': sigla}
+            elif 'Noche' in nombre_t:
+                fills_by_tipo[t.id] = {'fill': fill_noche, 'font': '8B1E29', 'sigla': sigla}
+            elif 'Enferme' in nombre_t:
+                fills_by_tipo[t.id] = {'fill': fill_enfermeria, 'font': '4B2E83', 'sigla': sigla}
+            else:
+                fills_by_tipo[t.id] = {'fill': fill_guardia, 'font': '495057', 'sigla': sigla}
 
     empleados = Empleado.objects.filter(especialidad=cronograma.especialidad, activo=True).order_by('id')
 
@@ -1082,32 +1151,42 @@ def exportar_cronograma_excel(request, cronograma_id):
             cell.alignment = align_center
             
             if turno:
-                nombre_t = turno.nombre
-                # Lógica visual de colores (Igual que en PDF)
-                sigla = nombre_t[0] 
-                fill_to_use = fill_guardia 
-                font_color = "FFFFFF" 
-                
-                if "Mañana" in nombre_t:
-                    sigla = "M"
-                    fill_to_use = fill_manana
-                    font_color = "000000"
-                elif "Tarde" in nombre_t:
-                    sigla = "T"
-                    fill_to_use = fill_tarde
-                elif "Noche" in nombre_t:
-                    sigla = "N"
-                    fill_to_use = fill_noche
-                elif "Enferme" in nombre_t:
-                    sigla = "E"
-                    fill_to_use = fill_enfermeria
-                
-                cell.value = sigla
-                cell.fill = fill_to_use
-                cell.font = Font(color=font_color, bold=True)
+                # Prefer mapping by tipo id (index-based palette) cuando está disponible
+                mapped = fills_by_tipo.get(turno.id)
+                if mapped:
+                    cell.value = mapped.get('sigla', (turno.abreviatura or turno.nombre[:1]).upper())
+                    cell.fill = mapped.get('fill')
+                    cell.font = Font(color=mapped.get('font', '495057'), bold=True)
+                else:
+                    # Fallback: Lógica visual por nombre (compatibilidad con nombres existentes)
+                    nombre_t = turno.nombre or ''
+                    sigla = (turno.abreviatura or nombre_t[:1]).upper()
+                    fill_to_use = fill_guardia
+                    font_color = "495057"
+
+                    if "Mañana" in nombre_t:
+                        sigla = "M"
+                        fill_to_use = fill_manana
+                        font_color = "7A5B00"
+                    elif "Tarde" in nombre_t:
+                        sigla = "T"
+                        fill_to_use = fill_tarde
+                        font_color = "0F6B46"
+                    elif "Noche" in nombre_t:
+                        sigla = "N"
+                        fill_to_use = fill_noche
+                        font_color = "8B1E29"
+                    elif "Enferme" in nombre_t:
+                        sigla = "E"
+                        fill_to_use = fill_enfermeria
+                        font_color = "4B2E83"
+
+                    cell.value = sigla
+                    cell.fill = fill_to_use
+                    cell.font = Font(color=font_color, bold=True)
             else:
-                cell.value = "-"
-                cell.font = Font(color="CCCCCC")
+                # dejar celda en blanco para mimetizar la vista web/PDF
+                cell.value = ""
 
             current_col += 1
         
@@ -1181,7 +1260,7 @@ def duplicar_plantilla(request, pk):
                 ))
             ExcepcionDemanda.objects.bulk_create(excepciones_a_crear)
 
-        messages.success(request, f"Plantilla duplicada exitosamente como '{nuevo_nombre}'.")
+        # No mostramos mensaje de éxito para duplicación; redirigimos directamente a la edición
         
         # 6. Redirigimos directamente a EDITAR la nueva copia, por si quiere cambiarle el nombre
         return redirect('plantilla_update', pk=nueva_plantilla.pk)

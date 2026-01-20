@@ -1,104 +1,760 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <div class="card shadow">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">{{ titulo }}</h4>
+<div class="container py-4" style="max-width: 900px;">
+    
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">{{ titulo }}</h1>
+            <p class="text-muted fs-5 mb-0">Gestión de datos del personal hospitalario</p>
+        </div>
+        {% if not form.activo.is_hidden %}
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <div class="form-check form-switch d-inline-flex align-items-center gap-2 switch-custom">
+                <input type="checkbox" class="form-check-input" id="{{ form.activo.id_for_label }}" name="activo" {% if form.activo.value %}checked{% endif %} form="form-empleado">
+                <label class="form-check-label mb-0 fw-semibold" for="{{ form.activo.id_for_label }}" style="color: #2f3e4c;">
+                    Activo en planificaciones
+                </label>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card border-0" style="border-radius: 14px;">
+        <div class="card-body p-4 p-lg-5">
+            
+            <form method="post" id="form-empleado" novalidate autocomplete="off">
+                {% csrf_token %}
+                
+                <div class="col-12">
+                    <div id="form-warning" class="field-error d-none">
+                        <i class="bi bi-exclamation-circle"></i>
+                        <span id="form-warning-text"></span>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <form method="post" id="form-empleado">
-                        {% csrf_token %}
-                        
-                        {% for field in form %}
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">{{ field.label }}</label>
-                            
-                            {{ field }}
-                            
-                            {% if field.help_text %}
-                                <div class="form-text">{{ field.help_text }}</div>
+                
+                {% if form.non_field_errors or form.legajo.errors %}
+                    <div id="server-errors" class="field-error mb-4">
+                        <i class="bi bi-exclamation-circle"></i>
+                        <span>
+                            {% if form.legajo.errors %}
+                                {{ form.legajo.errors|join:", " }}
                             {% endif %}
-                            {% for error in field.errors %}
-                                <div class="text-danger small">{{ error }}</div>
-                            {% endfor %}
-                        </div>
-                        {% endfor %}
+                            {% if form.non_field_errors %}
+                                {{ form.non_field_errors|join:", " }}
+                            {% endif %}
+                        </span>
+                    </div>
+                {% endif %}
 
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                            <a href="{% url 'empleado_list' %}" class="btn btn-secondary me-md-2">Cancelar</a>
-                            <button type="submit" class="btn btn-success">Guardar</button>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="{{ form.legajo.id_for_label }}">{{ form.legajo.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            {% if form.instance.pk %}
+                                <input type="text" class="form-control" value="{{ form.legajo.value }}" disabled readonly style="background-color: #f5f5f5; cursor: not-allowed; opacity: 0.6;">
+                                <input type="hidden" name="legajo" value="{{ form.legajo.value }}">
+                            {% else %}
+                                {{ form.legajo }}
+                            {% endif %}
+                            {% if form.legajo.help_text %}
+                                <div class="form-text text-muted small fst-italic">
+                                    {{ form.legajo.help_text|safe }}
+                                </div>
+                            {% endif %}
                         </div>
-                    </form>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="{{ form.nombre_completo.id_for_label }}">{{ form.nombre_completo.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            {{ form.nombre_completo }}
+                            {% if form.nombre_completo.help_text %}
+                                <div class="form-text text-muted small fst-italic">
+                                    {{ form.nombre_completo.help_text|safe }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
-            </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="{{ form.especialidad.id_for_label }}">{{ form.especialidad.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            {% if form.instance.pk %}
+                                <div class="custom-select-wrapper">
+                                    <div class="custom-dropdown">
+                                        <div class="custom-dropdown-header" style="cursor: not-allowed; opacity: 0.6; background-color: #f5f5f5;">{{ form.instance.get_especialidad_display }}</div>
+                                    </div>
+                                </div>
+                                <input type="hidden" name="especialidad" value="{{ form.especialidad.value }}">
+                            {% else %}
+                                <div class="custom-select-wrapper">
+                                    <select class="form-select d-none" id="{{ form.especialidad.id_for_label }}" name="especialidad">
+                                        <option value=""></option>
+                                        {% for value, label in form.especialidad.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if form.especialidad.value == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                    <div class="custom-dropdown">
+                                        <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná una especialidad">Seleccioná una especialidad</div>
+                                        <div class="custom-dropdown-menu">
+                                            {% for value, label in form.especialidad.field.choices %}
+                                                {% if value %}
+                                                    <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            {% if form.especialidad.help_text %}
+                                <div class="form-text text-muted small fst-italic">
+                                    {{ form.especialidad.help_text|safe }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="{{ form.experiencia.id_for_label }}">{{ form.experiencia.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            {% if form.instance.pk %}
+                                <div class="custom-select-wrapper">
+                                    <div class="custom-dropdown">
+                                        <div class="custom-dropdown-header" style="cursor: not-allowed; opacity: 0.6; background-color: #f5f5f5;">{{ form.instance.get_experiencia_display }}</div>
+                                    </div>
+                                </div>
+                                <input type="hidden" name="experiencia" value="{{ form.experiencia.value }}">
+                            {% else %}
+                                <div class="custom-select-wrapper">
+                                    <select class="form-select d-none" id="{{ form.experiencia.id_for_label }}" name="experiencia">
+                                        <option value=""></option>
+                                        {% for value, label in form.experiencia.field.choices %}
+                                            {% if value %}
+                                                <option value="{{ value }}" {% if form.experiencia.value == value %}selected{% endif %}>{{ label }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </select>
+                                    <div class="custom-dropdown">
+                                        <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná una experiencia">Seleccioná una experiencia</div>
+                                        <div class="custom-dropdown-menu">
+                                            {% for value, label in form.experiencia.field.choices %}
+                                                {% if value %}
+                                                    <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                            {% if form.experiencia.help_text %}
+                                <div class="form-text text-muted small fst-italic">
+                                    {{ form.experiencia.help_text|safe }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Estado activo (hidden en creación) -->
+                {% if form.activo.is_hidden %}
+                    {{ form.activo }}
+                {% endif %}
+                
+                <!-- Rango de turnos -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="{{ form.min_turnos_mensuales.id_for_label }}">{{ form.min_turnos_mensuales.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            {{ form.min_turnos_mensuales }}
+                            {% if form.min_turnos_mensuales.help_text %}
+                                <div class="form-text text-muted small fst-italic">
+                                    {{ form.min_turnos_mensuales.help_text|safe }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="{{ form.max_turnos_mensuales.id_for_label }}">{{ form.max_turnos_mensuales.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            {{ form.max_turnos_mensuales }}
+                            {% if form.max_turnos_mensuales.help_text %}
+                                <div class="form-text text-muted small fst-italic">
+                                    {{ form.max_turnos_mensuales.help_text|safe }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones de acción -->
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="{% url 'empleado_list' %}" class="btn btn-outline-secondary me-md-2 fw-bold px-4">
+                        Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                        Guardar Cambios
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="modalAdvertenciaEspecialidad" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-warning bg-opacity-10">
-                <h5 class="modal-title text-warning fw-bold">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i> Cambio de Especialidad
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p class="fw-bold">Estás a punto de cambiar la especialidad de este empleado.</p>
-                <div class="alert alert-warning border-warning small">
-                    <i class="bi bi-info-circle me-1"></i>
-                    <strong>Consecuencia:</strong> Al guardar, el sistema <u>eliminará automáticamente</u> todas las Preferencias y Ausencias futuras asociadas a turnos de la especialidad anterior, para evitar inconsistencias en la planificación.
-                </div>
-                <p class="mb-0">¿Deseas continuar y aplicar estos cambios?</p>
-            </div>
-            <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-warning fw-bold" id="btn-confirmar-cambio">
-                    Sí, cambiar y limpiar datos
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+<style>
+    /* === ESTILOS DEL FORMULARIO === */
+    .form-control, .form-select {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+        background-color: #ffffff;
+        color: #2f3e4c;
+    }
+
+    .form-select.d-none {
+        display: none !important;
+    }
+
+    .form-control::placeholder {
+        color: #adb5bd;
+        font-style: italic;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        background-color: #f8fbff;
+        outline: none;
+    }
+
+    .form-control:hover {
+        background-color: #f5f7fb;
+    }
+
+    .form-control:disabled, .form-select:disabled {
+        background-color: #f8f9fa;
+        color: #6c757d;
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+
+    /* Estilos para select personalizado */
+    .form-select:not(.d-none) {
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        background-size: 16px 12px;
+        padding-right: 2.5rem;
+    }
+
+    .form-label {
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+        color: #2f3e4c;
+        letter-spacing: 0.3px;
+    }
+
+    .form-text {
+        display: block;
+        margin-top: 0.35rem;
+        color: #6c757d;
+        font-size: 0.85rem;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* === CUSTOM SELECT STYLES === */
+    .custom-select-wrapper {
+        position: relative;
+        display: inline-block;
+        width: 100%;
+    }
+
+    .custom-dropdown {
+        position: relative;
+        pointer-events: auto;
+    }
+
+    .custom-dropdown-header {
+        height: 46px;
+        border-radius: 10px;
+        border: 1px solid #e0e5ec;
+        background-color: #ffffff;
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        transition: all 0.2s ease;
+    }
+    .custom-dropdown-header.is-invalid {
+        border-color: #c41c3b !important;
+        color: #c41c3b !important;
+        box-shadow: 0 0 0 0.15rem rgba(196,28,59,0.15);
+    }
+        cursor: pointer;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 16px;
+        padding-right: 40px;
+        pointer-events: auto;
+        min-width: 100%;
+    }
+
+    .custom-dropdown-header:hover {
+        background-color: #f5f7fb;
+    }
+
+    .custom-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background-color: #ffffff;
+        border: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        border-radius: 10px;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+        pointer-events: none;
+        z-index: 100;
+        margin-top: 0;
+        padding: 0;
+    }
+
+    .custom-dropdown.open .custom-dropdown-menu {
+        max-height: 300px;
+        pointer-events: auto;
+        opacity: 1;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0;
+    }
+
+    .custom-option {
+        padding: 0.5rem 1.2rem;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.95rem;
+        border-bottom: none;
+        font-weight: 500;
+    }
+
+    .custom-option:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.4rem;
+    }
+
+    .custom-option:first-child {
+        background-color: transparent;
+        color: #495057;
+        font-weight: 500;
+        cursor: pointer;
+    }
+
+    .custom-option:first-child:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+        color: #0d6efd;
+        padding-left: 1.4rem;
+    }
+
+    .form-select:disabled ~ .custom-dropdown .custom-dropdown-header {
+        background-color: #f5f5f5;
+        border-color: #e0e5ec;
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* === WARNING ESTILO === */
+    .field-error {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-bottom: 1rem;
+        color: #c41c3b;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    
+    .field-error i { 
+        font-size: 1rem; 
+    }
+
+    /* === ESTILOS DE VALIDACIÓN === */
+    .text-danger {
+        color: #dc3545 !important;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .required-asterisk {
+        color: #dc3545;
+        margin-left: 0.25rem;
+        font-weight: 700;
+    }
+
+    .text-danger i {
+        font-size: 0.85rem;
+        flex-shrink: 0;
+    }
+
+    /* Input inválido */
+    .form-control.is-invalid, 
+    .form-select.is-invalid {
+        border-color: #dc3545;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.15);
+    }
+
+    /* === SWITCHES === */
+    .switch-custom .form-check-input {
+        width: 3.5em;
+        height: 1.75em;
+        cursor: pointer;
+    }
+
+    .form-check-label {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    /* === BOTONES === */
+    .btn {
+        border-radius: 8px;
+        font-size: 0.95rem;
+        padding: 0.625rem 1.25rem;
+        transition: all 0.3s ease;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+    }
+
+    .btn i {
+        margin-right: 0.3rem;
+    }
+
+    .btn-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+
+    .btn-primary:hover {
+        background-color: #0b5ed7;
+        border-color: #0b5ed7;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+    }
+
+    .btn-primary:active {
+        transform: translateY(0);
+    }
+
+    .btn-outline-secondary {
+        color: #6c757d;
+        border-color: #6c757d;
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: #6c757d;
+        border-color: #6c757d;
+        color: white;
+        transform: translateY(-2px);
+    }
+
+    .btn-warning {
+        background-color: #ffc107;
+        border-color: #ffc107;
+        color: #000;
+    }
+
+    .btn-warning:hover {
+        background-color: #e0a800;
+        border-color: #d39e00;
+        color: #000;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+    }
+
+    /* === MODAL === */
+    .modal-content {
+        border-radius: 12px;
+        border: 1px solid #dee2e6;
+    }
+
+    .modal-header {
+        border-radius: 12px 12px 0 0;
+        padding: 1.5rem;
+        background-color: #fff5e1;
+    }
+
+    .modal-body {
+        color: #2f3e4c;
+        line-height: 1.6;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+    }
+
+    /* === ESTILOS DE RESPONSIVE === */
+    @media (max-width: 768px) {
+        .card-body {
+            padding: 1.5rem !important;
+        }
+
+        h1 {
+            font-size: 1.5rem !important;
+        }
+
+        h5 {
+            font-size: 1rem !important;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .alert {
+            font-size: 0.9rem;
+        }
+
+        .form-control, .form-select {
+            padding: 0.625rem 0.875rem;
+            font-size: 0.9rem;
+        }
+
+        .custom-dropdown-header {
+            height: 42px;
+            font-size: 0.9rem;
+            padding: 10px 14px;
+            padding-right: 36px;
+        }
+    }
+
+    /* === ANIMACIONES === */
+    @keyframes slideInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .card {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+        animation: slideInDown 0.3s ease;
+    }
+
+    /* === ACCESIBILIDAD === */
+    .form-control:focus, 
+    .form-select:focus {
+        outline: 2px solid transparent;
+        outline-offset: 2px;
+    }
+
+    @media (prefers-contrast: more) {
+        .form-label {
+            font-weight: 700;
+        }
+
+        .text-danger {
+            font-weight: 600;
+        }
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const form = document.getElementById('form-empleado');
-        // Buscamos el select por el atributo 'name' que Django genera automáticamente
-        const selectEspecialidad = form.querySelector('[name="especialidad"]');
-        
-        // Si no encuentra el campo (ej: es readonly o no está en el form), no hacemos nada
-        if (!selectEspecialidad) return;
+    // Funcionalidad de custom dropdowns
+    function setupCustomDropdown(wrapper) {
+        const nativeSelect = wrapper.querySelector('.form-select');
+        const header = wrapper.querySelector('.custom-dropdown-header');
+        const dropdown = wrapper.querySelector('.custom-dropdown');
+        const menu = wrapper.querySelector('.custom-dropdown-menu');
 
-        // 1. Guardar el valor inicial al cargar la página
-        const especialidadInicial = selectEspecialidad.value;
+        if (!header || !dropdown || !menu || !nativeSelect) return;
 
-        // 2. Interceptar el envío del formulario
-        form.addEventListener('submit', function(e) {
-            const especialidadActual = selectEspecialidad.value;
+        // Obtener el placeholder del header
+        const placeholder = header.getAttribute('data-placeholder');
 
-            // Si cambió la especialidad...
-            if (especialidadInicial !== especialidadActual) {
-                e.preventDefault(); // Frenamos el envío real
+        // Inicializar el header con el texto de la opción seleccionada
+        const selectedOption = nativeSelect.options[nativeSelect.selectedIndex];
+        if (selectedOption && selectedOption.value !== '') {
+            header.textContent = selectedOption.textContent;
+        } else {
+            header.textContent = placeholder;
+        }
+
+        // Si el select está disabled, bloquear interacción
+        if (nativeSelect.disabled) {
+            header.style.cursor = 'not-allowed';
+            header.style.opacity = '0.6';
+            header.style.backgroundColor = '#f5f5f5';
+            return; // No agregar event listeners
+        }
+
+        // Abrir/cerrar
+        header.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropdown.classList.toggle('open');
+        };
+
+        // Selección
+        menu.querySelectorAll('.custom-option').forEach((option) => {
+            option.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 
-                // Mostramos el modal
-                const modalEl = document.getElementById('modalAdvertenciaEspecialidad');
-                const modal = new bootstrap.Modal(modalEl);
-                modal.show();
-            }
-            // Si NO cambió, dejamos que el formulario se envíe normalmente
+                const value = option.getAttribute('data-value');
+                const text = option.textContent;
+                
+                nativeSelect.value = value;
+                header.textContent = text;
+                dropdown.classList.remove('open');
+                nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            };
         });
 
-        // 3. Manejar el click en "Confirmar" del modal
-        document.getElementById('btn-confirmar-cambio').addEventListener('click', function() {
-            // Forzamos el envío del formulario ignorando el listener (submit programático)
-            form.submit();
+        // Cerrar al click fuera
+        document.addEventListener('click', (e) => {
+            if (!wrapper.contains(e.target)) {
+                dropdown.classList.remove('open');
+            }
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const form = document.getElementById('form-empleado');
+        const serverErrors = document.getElementById('server-errors');
+        
+        // Limpiar formulario al recargar la página (solo si no hay errores de validación)
+        {% if not form.errors and not form.non_field_errors %}
+        if (window.performance && performance.navigation.type === 1) {
+            // La página fue recargada, limpiar el formulario
+            form.reset();
+            // Limpiar también los custom dropdowns
+            document.querySelectorAll('.custom-dropdown-header').forEach(header => {
+                const placeholder = header.getAttribute('data-placeholder');
+                header.textContent = placeholder;
+            });
+        }
+        {% endif %}
+        
+        // Inicializar custom dropdowns
+        document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
+        
+        // Prevenir números negativos en campos numéricos
+        const numericInputs = form.querySelectorAll('input[type="number"]');
+        numericInputs.forEach(input => {
+            // Agregar atributo min="0"
+            input.setAttribute('min', '0');
+            // Agregar atributo max="31" (máximo de días del mes)
+            input.setAttribute('max', '31');
+            
+            // Prevenir entrada de números negativos
+            input.addEventListener('keydown', function(e) {
+                if (e.key === '-' || e.key === 'e' || e.key === 'E') {
+                    e.preventDefault();
+                }
+            });
+            
+            // Validar al cambiar el valor
+            input.addEventListener('input', function() {
+                if (this.value < 0) {
+                    this.value = 0;
+                }
+                if (this.value > 31) {
+                    this.value = 31;
+                }
+            });
+        });
+        
+        form.addEventListener('submit', function(e) {
+            // Ocultar warning previo
+            const warningDiv = document.getElementById('form-warning');
+            const warningText = document.getElementById('form-warning-text');
+            warningDiv.classList.add('d-none');
+            if (serverErrors) serverErrors.classList.add('d-none');
+
+            // Validar campos obligatorios
+            const requiredFields = [
+                { field: form.querySelector('[name="legajo"]'), name: 'Legajo' },
+                { field: form.querySelector('[name="nombre_completo"]'), name: 'Nombre completo' },
+                { field: form.querySelector('[name="especialidad"]'), name: 'Especialidad' },
+                { field: form.querySelector('[name="experiencia"]'), name: 'Experiencia' },
+                { field: form.querySelector('[name="min_turnos_mensuales"]'), name: 'Mínimo de turnos' },
+                { field: form.querySelector('[name="max_turnos_mensuales"]'), name: 'Máximo de turnos' }
+            ];
+
+            const emptyFields = requiredFields.filter(item => !item.field.value || item.field.value.trim() === '');
+
+            if (emptyFields.length > 0) {
+                e.preventDefault();
+                warningText.textContent = 'Por favor, completá todos los campos obligatorios (*)';
+                warningDiv.classList.remove('d-none');
+                warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Marcar los campos vacíos como inválidos visualmente
+                emptyFields.forEach(function(item) {
+                    item.field.classList.add('is-invalid');
+                    item.field.addEventListener('input', function handler() {
+                        item.field.classList.remove('is-invalid');
+                        item.field.removeEventListener('input', handler);
+                    });
+                    // Si el campo es un select personalizado, marcar el header también
+                    if (item.field.classList.contains('form-select')) {
+                        var wrapper = item.field.closest('.custom-select-wrapper');
+                        if (wrapper) {
+                            var header = wrapper.querySelector('.custom-dropdown-header');
+                            if (header) {
+                                header.classList.add('is-invalid');
+                                item.field.addEventListener('change', function handler2() {
+                                    header.classList.remove('is-invalid');
+                                    item.field.removeEventListener('change', handler2);
+                                });
+                            }
+                        }
+                    }
+                });
+                return;
+            }
+
+            // Validar que el máximo no sea menor que el mínimo
+            const minTurnos = form.querySelector('[name="min_turnos_mensuales"]');
+            const maxTurnos = form.querySelector('[name="max_turnos_mensuales"]');
+
+            if (minTurnos && maxTurnos) {
+                const minValue = parseInt(minTurnos.value) || 0;
+                const maxValue = parseInt(maxTurnos.value) || 0;
+
+                if (maxValue < minValue) {
+                    e.preventDefault();
+                    warningText.textContent = 'El máximo de turnos no puede ser menor que el mínimo de turnos.';
+                    warningDiv.classList.remove('d-none');
+                    maxTurnos.focus();
+                    warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return;
+                }
+            }
         });
     });
 </script>

@@ -17,52 +17,64 @@
         
         /* Header */
         .header { 
-            border-bottom: 2px solid #0d6efd; 
-            padding-bottom: 10px; margin-bottom: 15px; 
+            border-bottom: 2px solid #000; 
+            padding-bottom: 8px; margin-bottom: 12px; 
             display: flex; justify-content: space-between; align-items: flex-end;
         }
-        .titulo-principal { font-size: 18px; font-weight: bold; color: #0d6efd; margin: 0; }
+        .titulo-principal { font-size: 18px; font-weight: 800; color: #333; margin: 0; }
         .subtitulo { font-size: 11px; color: #555; margin-top: 2px; }
         .meta-info { font-size: 9px; color: #777; text-align: right; margin-top: 5px; }
 
         /* Tablas */
         table { 
             width: 100%; border-collapse: collapse; 
-            font-size: 9px; table-layout: fixed; 
+               font-size: 8px; table-layout: fixed; 
         }
         th, td { 
-            border: 1px solid #ccc; padding: 3px 1px; 
-            text-align: center; vertical-align: middle; height: 18px;
+               border: 1px solid #ccc; padding: 2px 3px; 
+               text-align: center; vertical-align: middle; height: 18px;
         }
-        th { background-color: #f1f3f5; color: #333; font-weight: bold; }
+        th { background-color: #f8f9fb; color: #333; font-weight: 700; }
         
         th.col-nombre, td.col-nombre { 
-            width: 140px; text-align: left; padding-left: 5px; 
+            width: 120px; text-align: left; padding-left: 5px; 
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         th.finde, td.finde { background-color: #fafafa; }
 
-        /* BADGES */
-        .turno-badge { 
-            display: block; margin: 0 auto;
-            width: 16px; height: 16px; line-height: 16px; 
-            border-radius: 50%; 
-            color: white; font-weight: bold; font-size: 8px;
-            text-transform: uppercase;
-        }
+        /* (no circular badges) full-cell coloring is used for schedule */
 
-        /* Colores basados en clases auxiliares */
-        .bg-M { background-color: #ffc107; color: #000; border: 1px solid #e0a800; }
-        .bg-T { background-color: #fd7e14; border: 1px solid #e86b02; }
-        .bg-N { background-color: #0d6efd; border: 1px solid #0a58ca; }
-        .bg-G { background-color: #198754; border: 1px solid #146c43; } /* Verde para Guardia */
-        .bg-X { background-color: #6c757d; border: 1px solid #555; } /* Default */
+            /* Cells colored to fill entire TD for PDF: avoid border-radius/padding that overflow in WeasyPrint */
+            td.shift-cell { font-weight: 700; padding: 0; overflow: hidden; vertical-align: middle; text-align: center; }
+
+            /* Darkened background tones for better contrast (PDF) - apply directly to TD */
+            td.bg-0.shift-cell { background-color: #fff3cd; color: #7a5b00; } /* amarillo */
+            td.bg-1.shift-cell { background-color: #b4ebd2; color: #0f6b46; } /* verde */
+            td.bg-2.shift-cell { background-color: #ffdce0; color: #8b1e29; } /* rojo (noche) */
+            td.bg-G.shift-cell { background-color: #d2e4ff; color: #0d6efd; }
+            td.bg-X.shift-cell { background-color: #ebebeb; color: #495057; }
+
+        /* Subtle background tones and text colors to match on-screen (fallback classes) */
+        .bg-M { background-color: #fff8e1; color: #997404; }
+        .bg-T { background-color: #e6f7ee; color: #1f7a53; }
+        .bg-N { background-color: #fff0f2; color: #dc3545; }
+        .bg-G { background-color: #e9f0ff; color: #0d6efd; }
+        .bg-X { background-color: #f1f1f1; color: #6c757d; }
 
         .page-break { page-break-before: always; }
         
         /* Referencias */
-        .ref-item { display: inline-block; margin-right: 15px; font-size: 9px; color: #555; }
-        .ref-badge { display: inline-block; width: 10px; height: 10px; line-height: 10px; margin-right: 4px; }
+        .ref-item { display: inline-flex; align-items: center; margin-right: 14px; font-size: 10px; color: #555; margin-top:6px; }
+        .ref-badge { display: inline-block; padding: 2px 6px; min-width:14px; height:18px; line-height:14px; border-radius:8px; font-weight:700; font-size:9px; margin-right:6px; }
+        .references { margin-top: 12px; padding-top: 6px; border-top: 1px dotted #ccc; }
+        .refs { display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; align-items:center; }
+
+        /* Legend badge colors mapped to index-based classes (same palette as table cells) */
+        .ref-badge.bg-0 { background-color: #fff3cd; color: #7a5b00; }
+        .ref-badge.bg-1 { background-color: #b4ebd2; color: #0f6b46; }
+        .ref-badge.bg-2 { background-color: #ffdce0; color: #8b1e29; }
+        .ref-badge.bg-G { background-color: #d2e4ff; color: #0d6efd; }
+        .ref-badge.bg-X { background-color: #ebebeb; color: #495057; }
     </style>
 </head>
 <body>
@@ -98,48 +110,33 @@
                 <td class="col-nombre"><strong>{{ fila.empleado.nombre_corto }}</strong></td>
                 
                 {% for celda in fila.celdas %}
-                    <td>
-                        {% if celda %}
-                            {% with nombre=celda.tipo_turno.nombre %}
-                                {% if "Mañana" in nombre %}
-                                    <span class="turno-badge bg-M">M</span>
-                                {% elif "Tarde" in nombre %}
-                                    <span class="turno-badge bg-T">T</span>
-                                {% elif "Noche" in nombre %}
-                                    <span class="turno-badge bg-N">N</span>
-                                {% elif "Guardia" in nombre %}
-                                    <span class="turno-badge bg-G">G</span>
-                                {% else %}
-                                    <span class="turno-badge bg-X">{{ nombre|slice:":1" }}</span>
-                                {% endif %}
-                            {% endwith %}
-                        {% endif %}
-                    </td>
+                    {% if celda %}
+                                {% with ct=celda.tipo_turno %}
+                                    {% for turno_def in tipos_turno %}
+                                        {% if turno_def.id == ct.id %}
+                                            <td class="bg-{{ forloop.counter0 }} shift-cell">{{ turno_def.abreviatura|default:turno_def.nombre|slice:":1" }}</td>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endwith %}
+                    {% else %}
+                        <td></td>
+                    {% endif %}
                 {% endfor %}
             </tr>
             {% endfor %}
         </tbody>
     </table>
 
-    <div style="margin-top: 15px; padding-top: 5px; border-top: 1px dotted #ccc;">
-        <strong>Referencias:</strong><br>
+    <div class="references">
+        <strong>Referencias:</strong>
+        <div class="refs">
         {% for turno in tipos_turno %}
-            <span class="ref-item">
-                {% with n=turno.nombre %}
-                    {% if "Mañana" in n %}
-                        <span class="turno-badge ref-badge bg-M">M</span>
-                    {% elif "Tarde" in n %}
-                        <span class="turno-badge ref-badge bg-T">T</span>
-                    {% elif "Noche" in n %}
-                        <span class="turno-badge ref-badge bg-N">N</span>
-                    {% elif "Guardia" in n %}
-                        <span class="turno-badge ref-badge bg-G">G</span>
-                    {% else %}
-                        <span class="turno-badge ref-badge bg-X">{{ n|slice:":1" }}</span>
-                    {% endif %}
-                    {{ n }} {% endwith %}
-            </span>
+            <div class="ref-item">
+                <span class="ref-badge bg-{{ forloop.counter0 }}">{{ turno.abreviatura|default:turno.nombre|slice:":1" }}</span>
+                <span style="margin-left:6px; color:#555;">{{ turno.nombre }}</span>
+            </div>
         {% endfor %}
+        </div>
     </div>
 
     <div class="page-break"></div>

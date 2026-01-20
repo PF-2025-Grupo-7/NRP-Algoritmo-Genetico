@@ -41,6 +41,35 @@ class EmpleadoForm(BootstrapFormMixin, forms.ModelForm):
         model = Empleado
         fields = '__all__'
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # En creación, el campo activo se oculta y se fuerza a True
+        if not self.instance.pk:
+            self.fields['activo'].initial = True
+            self.fields['activo'].widget = forms.HiddenInput()
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        # En edición, restaurar valores originales de campos bloqueados para evitar modificaciones
+        if self.instance.pk:
+            cleaned_data['legajo'] = self.instance.legajo
+            cleaned_data['especialidad'] = self.instance.especialidad
+            cleaned_data['experiencia'] = self.instance.experiencia
+        # NO tocar el campo 'activo', Django lo maneja automáticamente
+        return cleaned_data
+    
+    def clean_legajo(self):
+        legajo = self.cleaned_data.get('legajo')
+        # Si estamos editando, excluir el empleado actual de la búsqueda
+        if self.instance.pk:
+            if Empleado.objects.filter(legajo=legajo).exclude(pk=self.instance.pk).exists():
+                raise ValidationError('Ya existe un empleado con este legajo.')
+        else:
+            # Si estamos creando, verificar que no exista
+            if Empleado.objects.filter(legajo=legajo).exists():
+                raise ValidationError('Ya existe un empleado con este legajo.')
+        return legajo
+
 # Borrá o comentá la clase TipoTurnoForm vieja
 
 class ConfiguracionTurnosForm(BootstrapFormMixin, forms.ModelForm):
@@ -66,18 +95,42 @@ class ConfiguracionTurnosForm(BootstrapFormMixin, forms.ModelForm):
             'hora_inicio_base': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # --- LÓGICA DE BLOQUEO DE ESQUEMA ---
+        if self.instance and self.instance.pk:
+            # Si ya existe, el esquema es inmutable
+            self.fields['esquema'].disabled = True
+            self.fields['esquema'].help_text = "El tipo de esquema no se puede modificar una vez creado."
+            
+            # Ajustamos los campos requeridos visualmente según el esquema guardado
+            es_3x8 = (self.instance.esquema == ConfiguracionTurnos.TipoEsquema.TURNO_08_HS)
+            self.fields['nombre_t3'].required = es_3x8
+            self.fields['abrev_t3'].required = es_3x8
+
+    def clean_esquema(self):
+        """Validación de seguridad: Evitar cambio de esquema por HTML injection."""
+        dato_nuevo = self.cleaned_data.get('esquema')
+        
+        if self.instance and self.instance.pk:
+            # Si estamos editando, devolvemos SIEMPRE el valor original de la BD
+            return self.instance.esquema
+            
+        return dato_nuevo
+
     def clean(self):
         cleaned_data = super().clean()
         esquema = cleaned_data.get('esquema')
 
-        # Validación condicional
+        # Validación condicional (Igual que antes)
         if esquema == ConfiguracionTurnos.TipoEsquema.TURNO_08_HS:
             if not cleaned_data.get('nombre_t3') or not cleaned_data.get('abrev_t3'):
                 self.add_error('nombre_t3', 'Requerido para esquema de 3 turnos.')
                 self.add_error('abrev_t3', 'Requerido.')
         
         return cleaned_data
-
+    
 class NoDisponibilidadForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = NoDisponibilidad
@@ -129,6 +182,27 @@ class PlantillaDemandaForm(BootstrapFormMixin, forms.ModelForm):
             'especialidad': SELECT_WIDGET,
             'descripcion': forms.Textarea(attrs={'rows': 3}),
         }
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Si estamos creando una nueva plantilla, no pre-seleccionar especialidad
+        if not self.instance or not getattr(self.instance, 'pk', None):
+            if 'especialidad' in self.fields:
+                self.fields['especialidad'].initial = ''
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        nombre = cleaned_data.get('nombre')
+
+        if nombre:
+            qs = PlantillaDemanda.objects.filter(nombre=nombre)
+            if self.instance and getattr(self.instance, 'pk', None):
+                qs = qs.exclude(pk=self.instance.pk)
+
+            if qs.exists():
+                self.add_error('nombre', 'Ya existe otra plantilla con este nombre.')
+
+        return cleaned_data
 
 class PlantillaDemandaUpdateForm(forms.ModelForm):
     class Meta:
@@ -164,25 +238,28 @@ class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        """Filtra los turnos disponibles según la especialidad de la plantilla padre."""
         plantilla_id = kwargs.pop('plantilla_id', None)
         super().__init__(*args, **kwargs)
         
-        self.plantilla_obj = None # Variable para guardar la instancia de la plantilla
+        self.plantilla_obj = None 
+
+        # CORRECCIÓN: Quitamos el filtro de activo=True
+        qs = TipoTurno.objects.all()
 
         if plantilla_id:
             try:
                 self.plantilla_obj = PlantillaDemanda.objects.get(id=plantilla_id)
-                self.fields['turno'].queryset = TipoTurno.objects.filter(especialidad=self.plantilla_obj.especialidad)
+                qs = qs.filter(especialidad=self.plantilla_obj.especialidad)
             except PlantillaDemanda.DoesNotExist:
                 pass
-        
-        # Si estamos editando, marcar los días seleccionados
-        if self.instance and self.instance.pk:
-            # Si estamos editando, la plantilla ya está en la instancia
-            if not self.plantilla_obj:
-                self.plantilla_obj = self.instance.plantilla
+        elif self.instance.pk and self.instance.plantilla:
+            self.plantilla_obj = self.instance.plantilla
+            qs = qs.filter(especialidad=self.plantilla_obj.especialidad)
 
+        self.fields['turno'].queryset = qs.order_by('hora_inicio')
+
+        # Lógica de checkboxes (Igual que antes)
+        if self.instance and self.instance.pk:
             dias_seleccionados = self.instance.dias or []
             if 0 in dias_seleccionados: self.fields['dia_lunes'].initial = True
             if 1 in dias_seleccionados: self.fields['dia_martes'].initial = True
@@ -191,7 +268,7 @@ class ReglaDemandaSemanalForm(BootstrapFormMixin, forms.ModelForm):
             if 4 in dias_seleccionados: self.fields['dia_viernes'].initial = True
             if 5 in dias_seleccionados: self.fields['dia_sabado'].initial = True
             if 6 in dias_seleccionados: self.fields['dia_domingo'].initial = True
-    
+            
     def clean(self):
         cleaned_data = super().clean()
         
@@ -252,6 +329,8 @@ class ExcepcionDemandaForm(BootstrapFormMixin, forms.ModelForm):
             'turno': SELECT_WIDGET,
             # Checkbox estilizado (opcional, el mixin ya le pone form-check-input)
             'es_turno_dificil': forms.CheckboxInput(attrs={'class': 'form-check-input ms-2'}),
+            'cantidad_senior': forms.NumberInput(attrs={'min': '0', 'required': 'required', 'class': 'form-control'}),
+            'cantidad_junior': forms.NumberInput(attrs={'min': '0', 'required': 'required', 'class': 'form-control'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -315,4 +394,17 @@ class ConfiguracionAvanzadaForm(BootstrapFormMixin, forms.ModelForm):
             'estrategia_seleccion': SELECT_WIDGET,
             'estrategia_cruce': SELECT_WIDGET,
             'estrategia_mutacion': SELECT_WIDGET,
+            # Atributos numéricos con límites para validación cliente
+            'tamano_poblacion': forms.NumberInput(attrs={'type': 'number', 'min': '10', 'max': '10000', 'step': '1', 'class': 'form-control'}),
+            'generaciones': forms.NumberInput(attrs={'type': 'number', 'min': '1', 'max': '10000', 'step': '1', 'class': 'form-control'}),
+            'prob_cruce': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'max': '1', 'step': '0.01', 'class': 'form-control'}),
+            'prob_mutacion': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'max': '1', 'step': '0.01', 'class': 'form-control'}),
+            'semilla': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'step': '1', 'class': 'form-control'}),
+            'tolerancia_general': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'max': '168', 'step': '1', 'class': 'form-control'}),
+            'tolerancia_dificil': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'max': '168', 'step': '1', 'class': 'form-control'}),
+            'peso_equidad_general': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'step': '0.1', 'class': 'form-control'}),
+            'peso_equidad_dificil': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'step': '0.1', 'class': 'form-control'}),
+            'peso_preferencia_dias_libres': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'step': '0.1', 'class': 'form-control'}),
+            'peso_preferencia_turno': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'step': '0.1', 'class': 'form-control'}),
+            'factor_alpha_pte': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'max': '1', 'step': '0.01', 'class': 'form-control'}),
         }

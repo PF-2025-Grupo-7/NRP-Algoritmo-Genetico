@@ -2,6 +2,7 @@ import json
 import traceback
 import requests
 import os
+import copy
 from datetime import timedelta, datetime, date
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -74,18 +75,6 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
         # r.dias es una lista de días (ej: [0, 1, 2, 3, 4] para lunes-viernes)
         for dia in r.dias:
             mapa_reglas[dia].append(r)
-        
-    # --- CORRECCIÓN: REPLICACIÓN DE REGLAS (Lunes->Viernes, Sábado->Domingo) ---
-    # Esto alinea la validación con lo que realmente hace el algoritmo después.
-    if mapa_reglas[0]: # Si hay reglas el Lunes
-        for d in range(1, 5): # Martes(1) a Viernes(4)
-            if not mapa_reglas[d]:
-                mapa_reglas[d] = mapa_reglas[0] # Copiamos la referencia
-    
-    if mapa_reglas[5]: # Si hay reglas el Sábado
-        if not mapa_reglas[6]: # Y Domingo vacío
-            mapa_reglas[6] = mapa_reglas[5]
-    # --------------------------------------------------------------------------
 
     excepciones = ExcepcionDemanda.objects.filter(
         plantilla=plantilla, 
@@ -289,7 +278,8 @@ def construir_matriz_cronograma(cronograma):
         
     return {
         'rango_fechas': rango_fechas,
-        'filas_tabla': filas_tabla
+        'filas_tabla': filas_tabla,
+        'tipos_turno': TipoTurno.objects.filter(especialidad=cronograma.especialidad).order_by('hora_inicio', 'nombre')
     }
 
 
@@ -392,22 +382,7 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
                 "senior": regla.cantidad_senior
             }
 
-    # B. Aplicar lógica de replicación (Si no hay datos explícitos)
-    # NOTA: Al pasar a Reglas con lista de días explícita, la replicación automática
-    # Lunes->Viernes pierde un poco de sentido si el usuario ya eligió los días,
-    # pero la dejamos por seguridad si la lista viene vacía en días clave.
-    demanda_lunes = plantilla_semanal.get(0)
-    if demanda_lunes: 
-        for d in range(1, 5): # 1, 2, 3, 4
-            if not plantilla_semanal[d]:
-                plantilla_semanal[d] = copy.deepcopy(demanda_lunes)
-    
-    demanda_sabado = plantilla_semanal.get(5)
-    if demanda_sabado: 
-        if not plantilla_semanal[6]: 
-            plantilla_semanal[6] = copy.deepcopy(demanda_sabado)
-
-    # C. Construir la LISTA MAESTRA día por día
+    # B. Construir la LISTA MAESTRA día por día
     requerimientos_cobertura_explicita = []
     dias_no_habiles_indices = []
     
@@ -778,10 +753,7 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
                 fecha_str = fecha_actual.strftime("%Y-%m-%d")
                 dia_semana_real = fecha_actual.weekday() 
                 
-                dia_referencia = 0 if dia_semana_real < 5 else 5
-                
-                reglas_del_dia = mapa_reglas.get(dia_semana_real)
-                if not reglas_del_dia: reglas_del_dia = mapa_reglas.get(dia_referencia, {})
+                reglas_del_dia = mapa_reglas.get(dia_semana_real, {})
                 
                 ids_reglas = set(reglas_del_dia.keys())
                 ids_excepciones = set(mapa_excepciones.get(fecha_str, {}).keys())

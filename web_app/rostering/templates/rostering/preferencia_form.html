@@ -1,74 +1,381 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <div class="card shadow border-0">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">{{ titulo }}</h4>
-                </div>
-                <div class="card-body p-4">
-
-                    {# --- INICIO AVISO DE EQUIDAD (VERSIÓN SIMPLE) --- #}
-                    <div class="alert alert-info border-0 shadow-sm d-flex align-items-center mb-4" role="alert" style="background-color: #e3f2fd; color: #084298;">
-                        <div class="me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; background-color: white; border-radius: 50%;">
-                            <i class="bi bi-people-fill fs-5 text-primary"></i>
-                        </div>
-                        <div>
-                            <h6 class="fw-bold mb-1">Política de Equidad</h6>
-                            <p class="mb-0 small">
-                                Recordá que solo se procesarán tus <strong>3 últimas solicitudes</strong> para esta planificación. 
-                                Si cargás más de 3, las más viejas quedarán sin efecto.
-                            </p>
-                        </div>
-                    </div>
-                    {# --- FIN AVISO DE EQUIDAD --- #}
-
-                    <form method="post">
-                        {% csrf_token %}
-                        
-                        {% if form.non_field_errors %}
-                            <div class="alert alert-danger mb-3">
-                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                                {{ form.non_field_errors|join:", " }}
-                            </div>
-                        {% endif %}
-
-                        {% for field in form %}
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">{{ field.label }}</label>
-                            
-                            {{ field }}
-                            
-                            {% if field.help_text %}
-                                <div class="form-text text-muted small fst-italic">
-                                    {{ field.help_text }}
-                                </div>
-                            {% endif %}
-                            
-                            {% for error in field.errors %}
-                                <div class="text-danger small mt-1">
-                                    <i class="bi bi-x-circle"></i> {{ error }}
-                                </div>
-                            {% endfor %}
-                        </div>
-                        {% endfor %}
-
-                        <hr class="my-4">
-
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary me-md-2">
-                                Cancelar
-                            </a>
-                            <button type="submit" class="btn btn-success px-4">
-                                <i class="bi bi-save me-2"></i> Guardar Cambios
-                            </button>
-                        </div>
-                    </form>
+<div class="container py-4" style="max-width: 900px;">
+    <div class="row mb-4 align-items-center">
+        <div class="col-12">
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">{{ titulo }}</h1>
+            <p class="text-muted fs-5 mb-0">Gestión de preferencias de turnos del personal</p>
+        </div>
+    </div>
+    <div class="card border-0" style="border-radius: 14px;">
+        <div class="card-body p-4 p-lg-5">
+            <!-- Aviso de equidad (estilo igual a config_turnos_form) -->
+            <div class="alert alert-info mb-4 border-0" role="alert" style="background-color: #e7f3ff; border-left: 4px solid #0d6efd !important;">
+                <div class="fw-bold" style="color: #2f3e4c;">Política de Equidad</div>
+                <div class="small text-muted">
+                    Se considerarán únicamente las <strong>3 solicitudes más recientes</strong> por empleado para cada planificación. Las solicitudes anteriores a esas serán ignoradas al generar el horario.
                 </div>
             </div>
+
+            <form method="post" id="form-preferencia" novalidate autocomplete="off">
+                {% csrf_token %}
+                <div class="col-12">
+                    <div id="form-warning" class="field-error d-none" style="color: #c41c3b; font-size: 0.97rem; font-weight: 500; margin-bottom: 1.2rem;">
+                        <i class="bi bi-exclamation-circle" style="font-size: 1.1rem;"></i>
+                        <span id="form-warning-text">Por favor, completá todos los campos obligatorios (*) antes de guardar.</span>
+                    </div>
+                </div>
+                {% if form.non_field_errors %}
+                    <div id="server-errors" class="field-error mb-4">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <span>{{ form.non_field_errors|join:", " }}</span>
+                    </div>
+                {% endif %}
+
+                <div class="row g-3 mb-4">
+                    <div class="col-12">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="input_legajo">Datos Personales<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            <input type="text" id="input_legajo" name="legajo" class="form-control" placeholder="Ingresá legajo, nombre o especialidad del empleado" autocomplete="off" required
+                                value="{% if form.instance.empleado %}{{ form.instance.empleado.legajo }} - {{ form.instance.empleado.nombre_completo }}{% else %}{{ form.initial.legajo|default:'' }}{% endif %}"
+                                {% if form.instance.pk %}readonly disabled aria-disabled="true"{% endif %}>
+                            {% if form.instance.pk %}
+                                <div class="small text-muted mt-1">Los datos personales están bloqueados durante la edición.</div>
+                            {% endif %}
+                            <input type="hidden" id="id_empleado" name="empleado" required value="{% if form.instance.empleado %}{{ form.instance.empleado.pk }}{% else %}{{ form.initial.empleado|default:'' }}{% endif %}" data-especialidad="{% if form.instance.empleado %}{{ form.instance.empleado.especialidad }}{% else %}{{ form.initial.especialidad|default:'' }}{% endif %}">
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="id_fecha">Fecha<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            <input type="date" id="id_fecha" name="fecha" class="form-control" required value="{% if form.instance.fecha %}{{ form.instance.fecha|date:'Y-m-d' }}{% else %}{{ form.initial.fecha|default:'' }}{% endif %}">
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="id_tipo_turno">Turno</label>
+                            <div class="custom-select-wrapper">
+                                <select class="form-select d-none" id="id_tipo_turno" name="tipo_turno" required>
+                                    <option value="" {% if not form.instance.tipo_turno and not form.initial.tipo_turno %}selected{% endif %}></option>
+                                    {% for turno in form.fields.tipo_turno.queryset.all %}
+                                        <option value="{{ turno.pk }}" data-especialidad="{{ turno.especialidad }}" {% if form.instance.tipo_turno and form.instance.tipo_turno.pk == turno.pk %}selected{% endif %}>{{ turno.nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="custom-dropdown">
+                                    <div class="custom-dropdown-header" tabindex="0">{% if form.instance.tipo_turno %}{{ form.instance.tipo_turno.nombre }}{% elif form.initial.tipo_turno %}{{ form.initial.tipo_turno }}{% else %}Seleccioná un turno{% endif %}</div>
+                                    <div class="custom-dropdown-menu">
+                                        <div class="custom-option" data-value=""></div>
+                                            <div class="custom-option" data-value="">&nbsp;</div>
+                                        {% for turno in form.fields.tipo_turno.queryset.all %}
+                                            <div class="custom-option" data-value="{{ turno.pk }}" data-especialidad="{{ turno.especialidad }}">{{ turno.nombre }}</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="{{ form.deseo.id_for_label }}">Deseo<span class="required-asterisk" aria-hidden="true">*</span></label>
+                            <div class="custom-select-wrapper">
+                                <select class="form-select d-none" id="{{ form.deseo.id_for_label }}" name="{{ form.deseo.html_name }}" {% if form.deseo.field.required %}required{% endif %}>
+                                    <option value="" disabled {% if not form.deseo.value %}selected{% endif %}>Seleccioná un deseo</option>
+                                    {% for value,label in form.deseo.field.choices %}
+                                        {% if value %}
+                                            <option value="{{ value }}" {% if form.deseo.value == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                                <div class="custom-dropdown">
+                                    <div class="custom-dropdown-header" tabindex="0">
+                                        {% if form.deseo.value %}
+                                            {% for value,label in form.deseo.field.choices %}
+                                                {% if value == form.deseo.value %}{{ label }}{% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            Seleccioná un deseo
+                                        {% endif %}
+                                    </div>
+                                    <div class="custom-dropdown-menu">
+                                        {% for value,label in form.deseo.field.choices %}
+                                            {% if value %}
+                                                <div class="custom-option" data-value="{{ value }}">{{ label }}</div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label fw-bold" for="id_comentario">Comentario</label>
+                            <input type="text" id="id_comentario" name="comentario" class="form-control" value="{% if form.instance.comentario %}{{ form.instance.comentario }}{% else %}{{ form.initial.comentario|default:'' }}{% endif %}">
+                        </div>
+                    </div>
+                </div>
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary me-md-2 fw-bold px-4">
+                        Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                        Guardar Cambios
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+<style>
+    .required-asterisk { color: #dc3545; margin-left: 0.25rem; font-weight: 700; }
+    .form-control, .form-select {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+        background-color: #ffffff;
+        color: #2f3e4c;
+    }
+    .form-select.d-none { display: none !important; }
+    .form-control::placeholder {
+        color: #6c757d;
+        font-style: normal;
+        font-weight: 400;
+        opacity: 1;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        background-color: #f8fbff;
+        outline: none;
+    }
+    .form-control:hover { background-color: #f5f7fb; }
+    .form-control:disabled, .form-select:disabled {
+        background-color: #f8f9fa;
+        color: #6c757d;
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+    .card {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08);
+        animation: slideInDown 0.3s ease;
+    }
+    /* === BOTONES: igual que empleado_form.html === */
+    .btn {
+        border-radius: 8px;
+        font-size: 0.95rem;
+        padding: 0.625rem 1.25rem;
+        transition: all 0.3s ease;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+    }
+
+    .btn i { margin-right: 0.3rem; }
+
+    .btn-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+    }
+
+    .btn-primary:hover {
+        background-color: #0b5ed7;
+        border-color: #0b5ed7;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+    }
+
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-outline-secondary { color: #6c757d; border-color: #6c757d; }
+
+    .btn-outline-secondary:hover {
+        background-color: #6c757d;
+        border-color: #6c757d;
+        color: white;
+        transform: translateY(-2px);
+    }
+    .field-error { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 1rem; color: #c41c3b; font-size: 0.9rem; font-weight: 500; }
+    .field-error i { font-size: 1rem; }
+    .is-invalid {
+        border-color: #c41c3b !important;
+        box-shadow: 0 0 0 0.15rem rgba(196,28,59,0.12) !important;
+        color: #c41c3b !important;
+    }
+    .custom-dropdown-header.is-invalid {
+        border-color: #c41c3b !important;
+        color: #c41c3b !important;
+        box-shadow: 0 0 0 0.15rem rgba(196,28,59,0.15);
+    }
+    /* Custom dropdown styles (same as nodisponibilidad_form) */
+    .form-select.d-none { display: none !important; }
+    .custom-select-wrapper { position: relative; display: inline-block; width: 100%; }
+    .custom-dropdown { position: relative; pointer-events: auto; }
+    .custom-dropdown-header {
+        /* Match .form-control exact box model */
+        height: 46px; box-sizing: border-box; border-radius: 8px; border: 1px solid #e0e5ec; background-color: #ffffff;
+        padding: 0.75rem 1rem; font-size: 0.95rem; line-height: 1; color: #495057; display: inline-flex; align-items: center; width: 100%;
+        transition: all 0.2s ease; cursor: pointer;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat; background-position: right 12px center; background-size: 16px; padding-right: 40px; pointer-events: auto;
+    }
+    .custom-dropdown-header.disabled{ opacity:0.6; cursor:not-allowed; pointer-events:none; }
+    .custom-dropdown-menu {
+        position: absolute; top: 100%; left: 0; right: 0; background-color: #ffffff; border: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); border-radius: 10px; max-height: 0; overflow: hidden;
+        transition: max-height 0.3s ease; pointer-events: none; z-index: 100; margin-top: 0; padding: 0;
+    }
+    .custom-dropdown.open .custom-dropdown-menu { max-height: 300px; pointer-events: auto; opacity: 1; margin-top: 0.5rem; padding: 0.5rem 0; }
+    .custom-option { padding: 0.5rem 1.2rem; color: #495057; cursor: pointer; transition: all 0.2s ease; font-size: 0.95rem; border-bottom: none; font-weight: 500; }
+    .custom-option:hover { background-color: rgba(13, 110, 253, 0.1); color: #0d6efd; padding-left: 1.4rem; }
+</style>
+{% block extra_js %}
+<script>
+// Setup simple custom dropdowns and autocomplete similar to nodisponibilidad
+function setupCustomDropdown(wrapper){
+    const nativeSelect = wrapper.querySelector('.form-select');
+    const header = wrapper.querySelector('.custom-dropdown-header');
+    const dropdown = wrapper.querySelector('.custom-dropdown');
+    const menu = wrapper.querySelector('.custom-dropdown-menu');
+    if (!header || !dropdown || !menu || !nativeSelect) return;
+
+    try {
+        const sel = nativeSelect.options[nativeSelect.selectedIndex];
+        if (sel && sel.textContent && nativeSelect.value) header.textContent = sel.textContent;
+    } catch(e){}
+
+    header.onclick = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (nativeSelect.disabled) return;
+        document.querySelectorAll('.custom-dropdown.open').forEach(d => { if(d !== dropdown) d.classList.remove('open'); });
+        dropdown.classList.toggle('open');
+    };
+
+    menu.querySelectorAll('.custom-option').forEach((option, index) => {
+        option.onclick = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (nativeSelect.disabled) return;
+            if (option.style.display === 'none') return;
+            const value = option.getAttribute('data-value');
+            // ignore placeholder / empty values
+                // ignore only if the corresponding native option is disabled (true placeholder)
+                const nativeOpt = nativeSelect.querySelector('option[value=""]') || nativeSelect.querySelector('option[value=""]');
+                if (value === '' && nativeOpt && nativeOpt.disabled) return;
+            const text = option.textContent;
+            nativeSelect.value = value;
+            header.textContent = text;
+            dropdown.classList.remove('open');
+            nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+    });
+
+    document.addEventListener('click', (e) => { if (!wrapper.contains(e.target)) dropdown.classList.remove('open'); });
+}
+
+function setupLegajoAutocomplete(inputId, onSelected) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    if (input.readOnly || input.disabled) return;
+    let timeout = null; let dropdown = null; let empleados = [];
+    function closeDropdown(){ if (dropdown) { dropdown.remove(); dropdown = null; } }
+    function renderDropdown(items, filterText){
+        closeDropdown(); if (!items.length) return;
+        dropdown = document.createElement('div'); dropdown.className = 'autocomplete-dropdown';
+        dropdown.style.position = 'absolute'; dropdown.style.zIndex = 1000; dropdown.style.background = '#fff';
+        dropdown.style.border = '1px solid #e0e5ec'; dropdown.style.width = input.offsetWidth + 'px';
+        dropdown.style.maxHeight = '220px'; dropdown.style.overflowY = 'auto'; dropdown.style.borderRadius = '8px';
+        dropdown.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)'; dropdown.style.top = (input.offsetTop + input.offsetHeight) + 'px';
+        dropdown.style.left = input.offsetLeft + 'px';
+        let filtered = items;
+        if (filterText && filterText.length > 0) {
+            const q = filterText.toLowerCase();
+            filtered = items.filter(emp => (`${emp.legajo}`.toLowerCase().includes(q) || (emp.nombre && emp.nombre.toLowerCase().includes(q)) || (emp.especialidad && emp.especialidad.toLowerCase().includes(q))));
+        }
+        if (!filtered.length) return;
+        filtered.forEach(emp => {
+            const option = document.createElement('div'); option.className = 'autocomplete-option';
+            option.textContent = `#${emp.legajo} - ${emp.nombre} (${emp.especialidad})`;
+            option.style.padding = '0.5rem 1rem'; option.style.cursor='pointer';
+            option.onmousedown = e => { e.preventDefault(); onSelected(emp); closeDropdown(); };
+            dropdown.appendChild(option);
+        });
+        input.parentNode.appendChild(dropdown);
+    }
+
+    input.addEventListener('input', function(){
+        let q = input.value.trim(); if (timeout) clearTimeout(timeout); let backendQ = '';
+        if (q === '' || q === '#') backendQ = ''; else if (q.startsWith('#')) backendQ = q.slice(1); else backendQ = q;
+        timeout = setTimeout(()=>{
+            fetch(`/api/empleados/legajos/?q=${encodeURIComponent(backendQ)}`)
+                .then(r => r.json()).then(data => { empleados = data.empleados || []; renderDropdown(empleados, q); })
+                .catch(e => console.error('[autocomplete] fetch error', e));
+        }, 200);
+    });
+    input.addEventListener('blur', function(){ setTimeout(closeDropdown, 150); });
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+    // init custom dropdowns
+    document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
+
+    // autocomplete for Datos Personales
+    const $empleado = document.getElementById('id_empleado');
+    setupLegajoAutocomplete('input_legajo', function(emp){
+        document.getElementById('input_legajo').value = `#${emp.legajo} - ${emp.nombre} (${emp.especialidad})`;
+        const $empleado = document.getElementById('id_empleado'); $empleado.value = emp.id;
+        const esp = emp.especialidad_codigo || emp.especialidad;
+        filtrarTurnosPorEspecialidad(esp);
+    });
+
+    const $turno = document.getElementById('id_tipo_turno');
+    function filtrarTurnosPorEspecialidad(esp){
+        if (!$turno) return; const turnoWrapper = $turno.closest('.custom-select-wrapper'); const turnoHeader = turnoWrapper ? turnoWrapper.querySelector('.custom-dropdown-header') : null; const turnoMenu = turnoWrapper ? turnoWrapper.querySelector('.custom-dropdown-menu') : null;
+        for (let i=0;i<$turno.options.length;i++){ const opt = $turno.options[i]; if(!opt.value) opt.style.display=''; else if (esp && opt.getAttribute('data-especialidad')===esp) opt.style.display=''; else opt.style.display='none'; }
+        if (turnoMenu){ turnoMenu.querySelectorAll('.custom-option').forEach(opt=>{ const val = opt.getAttribute('data-value'); const optEsp = opt.getAttribute('data-especialidad')||''; if(!val){ opt.style.display=''; return;} if(esp && optEsp===esp) opt.style.display=''; else opt.style.display='none'; }); }
+        const selectedOpt = $turno.options[$turno.selectedIndex]; if ($turno.value && $turno.value !== '' && selectedOpt && selectedOpt.getAttribute('data-especialidad') !== esp) { $turno.value = ''; }
+        setTurnoEnabled(!!esp);
+    }
+
+    function setTurnoEnabled(enabled){ if (!$turno) return; $turno.disabled = !enabled; const turnoWrapper = $turno.closest('.custom-select-wrapper'); const turnoHeader = turnoWrapper ? turnoWrapper.querySelector('.custom-dropdown-header') : null; const turnoMenu = turnoWrapper ? turnoWrapper.querySelector('.custom-dropdown-menu') : null; if (turnoHeader){ if(!enabled){ turnoHeader.classList.add('disabled'); turnoHeader.textContent = 'Seleccioná un empleado primero'; } else { turnoHeader.classList.remove('disabled'); const sel = $turno.options[$turno.selectedIndex]; if (sel && $turno.value) turnoHeader.textContent = sel.textContent; else turnoHeader.textContent = 'Seleccioná un turno'; } } if (turnoMenu && !enabled){ turnoMenu.querySelectorAll('.custom-option').forEach(opt=>{ if (opt.getAttribute('data-value') === '') opt.style.display=''; else opt.style.display='none'; }); } }
+
+    // initialize turno enabled state based on empleado
+    const empleadoEspecialidadInicial = $empleado ? $empleado.getAttribute('data-especialidad') : null;
+    if ($empleado && $empleado.value) {
+        const esp = empleadoEspecialidadInicial || null;
+        if (esp) filtrarTurnosPorEspecialidad(esp); else setTurnoEnabled(true);
+    } else setTurnoEnabled(false);
+
+    // ensure header shows selected option
+    try{
+        const turnoWrapperInit = $turno ? $turno.closest('.custom-select-wrapper') : null;
+        const turnoHeaderInit = turnoWrapperInit ? turnoWrapperInit.querySelector('.custom-dropdown-header') : null;
+        const selectedOption = $turno ? $turno.options[$turno.selectedIndex] : null;
+        if (turnoHeaderInit){
+            if ($turno && $turno.value && selectedOption && selectedOption.style.display !== 'none'){
+                turnoHeaderInit.textContent = selectedOption.textContent;
+            } else {
+                // when enabled and no selection, show empty header; when disabled, set handled elsewhere
+                turnoHeaderInit.textContent = '';
+            }
+        }
+    }catch(e){console.error('init turno header error', e)}
+
+    // Form submission validation
+    const form = document.getElementById('form-preferencia'); const serverErrors = document.getElementById('server-errors');
+    if (form){ form.addEventListener('submit', function(e){ if (serverErrors) serverErrors.classList.add('d-none'); const warningDiv = document.getElementById('form-warning'); const warningText = document.getElementById('form-warning-text'); if (warningDiv) warningDiv.classList.add('d-none');
+            const requiredFields = [ { field: document.getElementById('input_legajo'), name: 'Empleado' }, { field: document.getElementById('id_empleado'), name: 'EmpleadoID' }, { field: document.getElementById('id_fecha'), name: 'Fecha' }, { field: document.getElementById('id_deseo'), name: 'Deseo' } ];
+            let emptyFields = requiredFields.filter(item => !item.field || !item.field.value || item.field.value.trim() === '');
+            if (emptyFields.length > 0){ e.preventDefault(); if (warningText) warningText.textContent = 'Por favor, completá todos los campos obligatorios (*)'; if (warningDiv) { warningDiv.classList.remove('d-none'); warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                    emptyFields.forEach(function(item){ try{ item.field.classList.add('is-invalid'); item.field.addEventListener('input', function handler(){ item.field.classList.remove('is-invalid'); item.field.removeEventListener('input', handler); }); if (item.field.classList.contains && item.field.classList.contains('form-select')){ var wrapper = item.field.closest('.custom-select-wrapper'); if (wrapper){ var header = wrapper.querySelector('.custom-dropdown-header'); if (header) header.classList.add('is-invalid'); item.field.addEventListener('change', function handler2(){ header.classList.remove('is-invalid'); item.field.classList.remove('is-invalid'); item.field.removeEventListener('change', handler2); }); } } }catch(ex){} }); return; }
+            // Fecha valid
+            var fecha = document.getElementById('id_fecha').value; if (!fecha){ e.preventDefault(); if (warningText) warningText.textContent = 'Fecha inválida.'; if (warningDiv) { warningDiv.classList.remove('d-none'); warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' }); } return; }
+    }); }
+});
+</script>
+{% endblock %}
 {% endblock %}

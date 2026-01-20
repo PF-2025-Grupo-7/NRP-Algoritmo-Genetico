@@ -13,20 +13,10 @@
             {
                 "23": {
                     "junior": 1,
-                    "senior": 2
+                    "senior": 3
                 },
                 "24": {
                     "junior": 0,
-                    "senior": 1
-                }
-            },
-            {
-                "23": {
-                    "junior": 2,
-                    "senior": 3
-                },
-                "24": {
-                    "junior": 1,
                     "senior": 2
                 }
             },
@@ -72,31 +62,31 @@
             },
             {
                 "23": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "24": {
                     "junior": 1,
                     "senior": 2
+                }
+            },
+            {
+                "23": {
+                    "junior": 1,
+                    "senior": 3
                 },
                 "24": {
                     "junior": 0,
-                    "senior": 1
+                    "senior": 2
                 }
             },
             {
                 "23": {
                     "junior": 1,
-                    "senior": 2
+                    "senior": 3
                 },
                 "24": {
                     "junior": 0,
-                    "senior": 1
-                }
-            },
-            {
-                "23": {
-                    "junior": 2,
-                    "senior": 3
-                },
-                "24": {
-                    "junior": 1,
                     "senior": 2
                 }
             },
@@ -142,31 +132,31 @@
             },
             {
                 "23": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "24": {
                     "junior": 1,
                     "senior": 2
+                }
+            },
+            {
+                "23": {
+                    "junior": 1,
+                    "senior": 3
                 },
                 "24": {
                     "junior": 0,
-                    "senior": 1
+                    "senior": 2
                 }
             },
             {
                 "23": {
                     "junior": 1,
-                    "senior": 2
+                    "senior": 3
                 },
                 "24": {
                     "junior": 0,
-                    "senior": 1
-                }
-            },
-            {
-                "23": {
-                    "junior": 2,
-                    "senior": 3
-                },
-                "24": {
-                    "junior": 1,
                     "senior": 2
                 }
             },
@@ -212,31 +202,31 @@
             },
             {
                 "23": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "24": {
                     "junior": 1,
                     "senior": 2
+                }
+            },
+            {
+                "23": {
+                    "junior": 1,
+                    "senior": 3
                 },
                 "24": {
                     "junior": 0,
-                    "senior": 1
+                    "senior": 2
                 }
             },
             {
                 "23": {
                     "junior": 1,
-                    "senior": 2
+                    "senior": 3
                 },
                 "24": {
                     "junior": 0,
-                    "senior": 1
-                }
-            },
-            {
-                "23": {
-                    "junior": 2,
-                    "senior": 3
-                },
-                "24": {
-                    "junior": 1,
                     "senior": 2
                 }
             },
@@ -282,12 +272,22 @@
             },
             {
                 "23": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "24": {
                     "junior": 1,
                     "senior": 2
+                }
+            },
+            {
+                "23": {
+                    "junior": 1,
+                    "senior": 3
                 },
                 "24": {
                     "junior": 0,
-                    "senior": 1
+                    "senior": 2
                 }
             }
         ],
@@ -480,29 +480,7 @@
             ]
         ],
         "excepciones_disponibilidad": [],
-        "excepciones_preferencias": [
-            {
-                "prof_indices": [
-                    2
-                ],
-                "dia": 14,
-                "valor": 0.5
-            },
-            {
-                "prof_indices": [
-                    2
-                ],
-                "dia": 19,
-                "valor": -0.5
-            },
-            {
-                "prof_indices": [
-                    2
-                ],
-                "dia": 12,
-                "valor": 2.0
-            }
-        ]
+        "excepciones_preferencias": []
     },
     "estrategias": {
         "sel": "torneo_deterministico",

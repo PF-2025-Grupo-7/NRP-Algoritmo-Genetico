@@ -51,13 +51,13 @@ class Empleado(models.Model):
 
     min_turnos_mensuales = models.IntegerField(
         default=10,
-        validators=[MinValueValidator(0)],
+        validators=[MinValueValidator(0), MaxValueValidator(31)],
         verbose_name="Mínimo de turnos/mes",
         help_text="Cantidad mínima de turnos a asignar en el periodo."
     )
     max_turnos_mensuales = models.IntegerField(
         default=20,
-        validators=[MinValueValidator(0)],
+        validators=[MinValueValidator(0), MaxValueValidator(31)],
         verbose_name="Máximo de turnos/mes",
         help_text="Límite máximo de turnos a asignar en el periodo."
     )
@@ -206,11 +206,11 @@ class SecuenciaProhibida(models.Model):
 class PlantillaDemanda(models.Model):
     nombre = models.CharField(max_length=50, unique=True, help_text="Ej: Demanda Estándar 2025")
     especialidad = models.CharField(
-        max_length=20, 
+        max_length=20,
         choices=Empleado.TipoEspecialidad.choices,
         default=Empleado.TipoEspecialidad.MEDICO
     )
-    descripcion = models.TextField(blank=True)
+    descripcion = models.TextField(blank=True, verbose_name="Descripción")
 
     def __str__(self):
         return f"{self.nombre} ({self.get_especialidad_display()})"
@@ -449,12 +449,27 @@ class ConfiguracionAlgoritmo(models.Model):
     activa = models.BooleanField(default=True, help_text="Solo debe haber una activa por defecto")
 
     # Parámetros Técnicos
-    tamano_poblacion = models.IntegerField(default=100, verbose_name="Población", validators=[MinValueValidator(10)])
-    generaciones = models.IntegerField(default=15, verbose_name="Generaciones", validators=[MinValueValidator(10)])
+    tamano_poblacion = models.IntegerField(
+        default=100,
+        verbose_name="Población",
+        validators=[MinValueValidator(10), MaxValueValidator(10000)],
+        help_text="Tamaño de la población (entre 10 y 10000)."
+    )
+    generaciones = models.IntegerField(
+        default=15,
+        verbose_name="Generaciones",
+        validators=[MinValueValidator(1), MaxValueValidator(10000)],
+        help_text="Cantidad de generaciones (entre 1 y 10000)."
+    )
     prob_cruce = models.FloatField(default=0.85, validators=[MinValueValidator(0.0), MaxValueValidator(1.0)])
     prob_mutacion = models.FloatField(default=0.20, validators=[MinValueValidator(0.0), MaxValueValidator(1.0)])
     elitismo = models.BooleanField(default=True)
-    semilla = models.IntegerField(null=True, blank=True, help_text="Fijar para reproducibilidad.")
+    semilla = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text="Fijar para reproducibilidad (entero no negativo)."
+    )
 
     # Estrategias
     class EstrategiaSeleccion(models.TextChoices):
@@ -482,14 +497,26 @@ class ConfiguracionAlgoritmo(models.Model):
     peso_preferencia_turno = models.FloatField(default=0.5, validators=[MinValueValidator(0.0)])
     factor_alpha_pte = models.FloatField(default=0.5, validators=[MinValueValidator(0.0), MaxValueValidator(1.0)])
     
-    tolerancia_general = models.IntegerField(default=8, verbose_name="Tolerancia Horas General")
-    tolerancia_dificil = models.IntegerField(default=4, verbose_name="Tolerancia Turnos Difíciles")
+    tolerancia_general = models.IntegerField(
+        default=8,
+        verbose_name="Tolerancia Horas General",
+        validators=[MinValueValidator(0), MaxValueValidator(168)],
+        help_text="Horas de tolerancia general (0-168)."
+    )
+    tolerancia_dificil = models.IntegerField(
+        default=4,
+        verbose_name="Tolerancia Turnos Difíciles",
+        validators=[MinValueValidator(0), MaxValueValidator(168)],
+        help_text="Tolerancia para turnos difíciles (0-168)."
+    )
 
     class Meta:
         verbose_name = "Configuración del Algoritmo"
         verbose_name_plural = "Configuraciones"
 
     def save(self, *args, **kwargs):
+        # Forzamos validación de campo/modelo antes de persistir
+        self.full_clean()
         if self.activa:
             ConfiguracionAlgoritmo.objects.filter(activa=True).exclude(pk=self.pk).update(activa=False)
         super().save(*args, **kwargs)

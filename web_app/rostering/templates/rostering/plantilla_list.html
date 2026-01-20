@@ -1,39 +1,63 @@
 {% extends 'base.html' %}
 
+{% block title %}Plantillas de Demanda - Hospital Planner{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2><i class="bi bi-list-check"></i> Plantillas de Demanda</h2>
-        <a href="{% url 'plantilla_create' %}" class="btn btn-primary">
-            <i class="bi bi-plus-lg"></i> Nueva Plantilla
-        </a>
+<div class="container py-2" style="max-width: 1400px;">
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Plantillas de Demanda</h1>
+            <p class="text-muted fs-5 mb-0">Gestión de plantillas y reglas de demanda semanal</p>
+        </div>
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <a href="{% url 'plantilla_create' %}" class="btn btn-primary px-4 shadow-sm fw-bold">
+                <i class="bi bi-plus-lg me-2"></i>Nueva Plantilla
+            </a>
+        </div>
     </div>
 
-    <div class="row">
+    <div class="row g-4">
         {% for p in plantillas %}
-        <div class="col-md-6 mb-4">
-            <div class="card shadow-sm h-100 border-0">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h5 class="card-title text-primary fw-bold">{{ p.nombre }}</h5>
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 bg-white card-esquema">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="icon-esquema bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center">
+                            <i class="bi bi-list-check text-primary"></i>
+                        </div>
+                        {# Mostrar la especialidad real y usar colores por tipo en lugar de asumir solo Médico/Enfermero #}
+                        {# Badges más compactas; ER en rojo para destacar #}
                         {% if p.especialidad == 'MEDICO' %}
-                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary">Médico</span>
+                            <span class="badge shadow-sm bg-primary bg-opacity-10 text-primary" style="min-width:48px; font-size:0.9rem; padding:6px 8px;">{{ p.get_especialidad_display }}</span>
+                        {% elif p.especialidad == 'ENFERMERO' %}
+                            <span class="badge shadow-sm bg-success bg-opacity-10 text-success" style="min-width:48px; font-size:0.9rem; padding:6px 8px;">{{ p.get_especialidad_display }}</span>
+                        {% elif p.especialidad == 'UCI' %}
+                            <span class="badge shadow-sm bg-warning bg-opacity-10 text-warning" style="min-width:48px; font-size:0.9rem; padding:6px 8px;">{{ p.get_especialidad_display }}</span>
+                        {% elif p.especialidad == 'ER' %}
+                            <span class="badge shadow-sm bg-danger bg-opacity-10 text-danger" style="min-width:48px; font-size:0.9rem; padding:6px 8px;">{{ p.get_especialidad_display }}</span>
                         {% else %}
-                            <span class="badge bg-success bg-opacity-10 text-success border border-success">Enfermero</span>
+                            <span class="badge shadow-sm bg-secondary bg-opacity-10 text-secondary" style="min-width:48px; font-size:0.9rem; padding:6px 8px;">{{ p.get_especialidad_display }}</span>
                         {% endif %}
                     </div>
-                    <p class="card-text text-muted small">{{ p.descripcion|default:"Sin descripción" }}</p>
-                    
-                    <div class="d-flex justify-content-between align-items-center mt-4">
-                        <div class="small text-muted">
-                            <i class="bi bi-calendar-week"></i> {{ p.reglas.count }} Reglas
+
+                    <h4 class="card-title fw-bold mb-2" style="color: #2f3e4c;">{{ p.nombre }}</h4>
+                    <div class="divider-esquema"></div>
+
+                    <div class="info-section mt-3 mb-4">
+                        <p class="text-muted mb-2 descripcion-text">{{ p.descripcion|default:"Sin descripción" }}</p>
+                        <div class="info-item">
+                            <i class="bi bi-calendar-week me-2 text-muted"></i>
+                            <span class="text-muted">Reglas:</span>
+                            <strong class="ms-1">{{ p.reglas.count }}</strong>
                         </div>
-                        
-                        <div class="btn-group">
-                            <a href="{% url 'plantilla_detail' p.pk %}" class="btn btn-outline-primary btn-sm">
-                                <i class="bi bi-gear"></i> Configurar
+                    </div>
+
+                    <div class="d-flex justify-content-end mt-auto">
+                        <div class="card-actions d-flex gap-2">
+                            <a href="{% url 'plantilla_detail' p.pk %}" class="btn btn-action-icon" title="Editar">
+                                <i class="bi bi-pencil-fill"></i>
                             </a>
-                            
+
                             <button type="button" 
                                     class="btn btn-outline-secondary btn-sm" 
                                     data-bs-toggle="modal" 
@@ -44,40 +68,47 @@
                                 <i class="bi bi-files"></i>
                             </button>
 
-                            <a href="{% url 'plantilla_delete' p.pk %}" class="btn btn-outline-danger btn-sm" title="Eliminar">
+                            <button type="button"
+                                    class="btn btn-outline-danger btn-sm"
+                                    data-bs-toggle="tooltip"
+                                    data-bs-title="Eliminar"
+                                    onclick="openPlantillaDeleteModal('{{ p.nombre }}', '{% url 'plantilla_delete' p.pk %}')"
+                                    title="Eliminar">
                                 <i class="bi bi-trash"></i>
-                            </a>
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        {% empty %}
-        <div class="col-12 text-center py-5 text-muted">
-            <i class="bi bi-inbox fs-1 d-block"></i> No hay plantillas creadas.
-        </div>
         {% endfor %}
     </div>
 </div>
 
+<!-- Modal duplicar (reutilizado) -->
 <div class="modal fade" id="modalDuplicar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold">Duplicar Plantilla</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header border-0 pb-0 pt-3 px-4" style="background: white;">
+                <button type="button" class="btn-close position-absolute" style="top: 12px; right: 12px; opacity: 0.6;" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <p class="text-muted">¿Deseas crear una copia exacta de la plantilla <strong id="nombrePlantillaModal" class="text-dark">...</strong>?</p>
-                <div class="alert alert-info py-2 small border-0 bg-info bg-opacity-10 text-info-emphasis">
-                    <i class="bi bi-info-circle me-1"></i> Se copiarán todas las reglas semanales y excepciones.
+            <div class="modal-body text-center px-5 pb-2 pt-2">
+                <div class="mb-2">
+                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 64px; height: 64px; border-radius: 50%; border: 3px solid #0d6efd;">
+                        <i class="bi bi-exclamation-lg" style="font-size: 1.6rem; color: #0d6efd; font-weight: bold;"></i>
+                    </div>
                 </div>
+                <h4 class="fw-bold mb-2" style="color: #2f3e4c;">Duplicar Plantilla</h4>
+
+                <div class="mb-3 p-3" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+                    <p class="mb-0 small text-muted">¿Deseas crear una copia exacta de la plantilla <strong id="nombrePlantillaModal" class="text-dark"></strong> para usarla como base?</p>
+                </div>
+
+                <p class="text-muted small mb-3" style="line-height: 1.6;"><i class="bi bi-info-circle me-1"></i>Se copiarán todas las reglas semanales y excepciones.</p>
             </div>
-            <div class="modal-footer border-0 pt-0">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-                <a href="#" id="btnConfirmarDuplicar" class="btn btn-primary fw-bold">
-                    <i class="bi bi-files me-1"></i> Sí, duplicar
-                </a>
+            <div class="modal-footer border-0 bg-white justify-content-center gap-2 pb-4">
+                <button type="button" class="btn btn-light px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 600; border: 1px solid #dee2e6; min-width: 120px;">Cancelar</button>
+                <a href="#" id="btnConfirmarDuplicar" class="btn btn-primary px-4 py-2 fw-bold" style="border-radius: 10px; min-width: 140px;">Duplicar</a>
             </div>
         </div>
     </div>
@@ -86,22 +117,168 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         var modalDuplicar = document.getElementById('modalDuplicar');
-        
+        if (!modalDuplicar) return;
         modalDuplicar.addEventListener('show.bs.modal', function (event) {
-            // Botón que disparó el modal
             var button = event.relatedTarget;
-            
-            // Extraer info de los atributos data-*
             var url = button.getAttribute('data-url');
             var nombre = button.getAttribute('data-nombre');
-            
-            // Actualizar el contenido del modal
             var modalTitle = modalDuplicar.querySelector('#nombrePlantillaModal');
             var confirmBtn = modalDuplicar.querySelector('#btnConfirmarDuplicar');
-            
             modalTitle.textContent = '"' + nombre + '"';
             confirmBtn.href = url;
         });
     });
 </script>
+
+    <!-- Modal Confirmación Eliminación Plantilla -->
+    <div class="modal fade" id="deletePlantillaModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+                <div class="modal-header border-0 pb-0 pt-4 px-4" style="background: white;">
+                    <button type="button" class="btn-close position-absolute" style="top: 16px; right: 16px; opacity: 0.5;" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center px-5 pb-4 pt-2">
+                    <div class="mb-4">
+                        <div class="d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #dc3545;">
+                            <i class="bi bi-x-lg" style="font-size: 2.5rem; color: #dc3545; font-weight: bold;"></i>
+                        </div>
+                    </div>
+                    <h4 class="fw-bold mb-3" style="color: #2f3e4c;">¿Estás seguro?</h4>
+
+                    <div class="mb-3 p-4" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+                        <p class="mb-2 small text-muted">Estás a punto de eliminar la plantilla:</p>
+                        <p class="mb-1 fw-bold" style="color: #2f3e4c; font-size: 1.1rem;"><span id="deletePlantillaNombre"></span></p>
+                    </div>
+
+                    <p class="text-muted small mb-0" style="line-height: 1.6;">
+                        <i class="bi bi-info-circle me-1"></i>Esta acción es irreversible. Se eliminará el registro de esta plantilla.
+                    </p>
+                </div>
+                <div class="modal-footer border-0 bg-white justify-content-center gap-2 pb-4">
+                    <button type="button" class="btn btn-light px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 600; border: 1px solid #dee2e6; min-width: 120px;">
+                        Cancelar
+                    </button>
+                    <form id="deletePlantillaForm" method="post" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger px-4 py-2" style="border-radius: 10px; font-weight: 600; min-width: 120px;">Eliminar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openPlantillaDeleteModal(nombre, url) {
+            var modalEl = document.getElementById('deletePlantillaModal');
+            var nombreSpan = document.getElementById('deletePlantillaNombre');
+            var form = document.getElementById('deletePlantillaForm');
+            if (nombreSpan) nombreSpan.textContent = '"' + nombre + '"';
+            if (form) form.action = url;
+            var modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+    </script>
+
+<style>
+    /* Card Esquema Styles (copiado de config_turnos_list) */
+    .card-esquema { border-radius: 12px; transition: transform 0.22s ease, box-shadow 0.22s ease; min-height: 170px; }
+    .card-esquema:hover { transform: translateY(-4px); box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.10) !important; }
+    .icon-esquema { width: 52px; height: 52px; flex-shrink: 0; }
+    .icon-esquema i { font-size: 1.6rem; }
+    .badge-custom { display: inline-block; padding: 0.4rem 0.9rem; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-radius: 20px; }
+    .badge-success { background-color: #d1e7dd; color: #0f5132; }
+    .badge-warning { background-color: #fff3cd; color: #997404; }
+    .divider-esquema { height: 2px; background: #e9ecef; margin: 0.75rem 0; border-radius: 2px; transform-origin: center; transform: scaleX(0.98); transition: background-color 0.2s ease, transform 0.2s ease; }
+    .card-esquema:hover .divider-esquema { background-color: #0d6efd; transform: scaleX(1); }
+    .info-section { font-size: 0.95rem; line-height: 1.6; }
+    .descripcion-text { font-size: 1.03rem; color: #6c757d; margin-bottom: 0.25rem; }
+    .info-item { color: #495057; }
+    .info-item i { font-size: 0.9rem; }
+    .btn-action { background-color: #f8f9fa; color: #0d6efd; border: 2px solid #e9ecef; padding: 0.65rem 1.2rem; border-radius: 8px; transition: all 0.3s ease; font-size: 0.95rem; }
+    .btn-action:hover { background-color: #0d6efd; color: white; border-color: #0d6efd; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(13,110,253,0.3); }
+    .btn-action i { transition: transform 0.3s ease; }
+    .btn-action:hover i { transform: scale(1.1); }
+    .card-esquema .card-body { display: flex; flex-direction: column; padding: 1rem; }
+
+    /* Mejora visual de badges y botones dentro de las tarjetas */
+    /* Badges estilo pill (Médico / Enfermero / etc) */
+    /* Match typography & sizing from config_turnos_list (.badge-custom) */
+    .card-esquema .badge {
+        display: inline-block;
+        padding: 0.35rem 0.8rem;
+        font-size: 1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        border-radius: 16px;
+    }
+
+    /* Variantes por color, manteniendo el pill look */
+    .card-esquema .badge.bg-primary {
+        background-color: rgba(13,110,253,0.08) !important;
+        color: #0d6efd !important;
+        border: none !important;
+    }
+
+    .card-esquema .badge.bg-success {
+        background-color: rgba(31,122,83,0.12) !important;
+        color: #1f7a53 !important;
+        border: none !important;
+    }
+
+    /* Compact action button (Configurar) - estilo inspirado en config_turnos pero más pequeño */
+    .btn-action-sm {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background-color: #f8f9fa;
+        color: #0d6efd;
+        border: 1px solid #e9ecef;
+        padding: 0.45rem 0.9rem;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 0.92rem;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+    }
+
+    .btn-action-sm i { font-size: 1.05rem; }
+
+    .btn-action-sm:hover {
+        background-color: #0d6efd;
+        color: #fff !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(13,110,253,0.12);
+    }
+
+    /* Styles for secondary/delete buttons kept subtle and consistent */
+    .card-esquema .btn-sm { border-radius: 8px; padding: 0.45rem 0.8rem; }
+    .card-esquema .btn-outline-secondary { color: #6c757d; border-color: rgba(108,117,125,0.14); background-color: rgba(108,117,125,0.02); }
+    .card-esquema .btn-outline-secondary:hover { background-color: #6c757d; color: white !important; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(108,117,125,0.12); }
+    .card-esquema .btn-outline-danger { color: #dc3545; border-color: rgba(220,53,69,0.14); background-color: rgba(220,53,69,0.02); }
+    .card-esquema .btn-outline-danger:hover { background-color: #dc3545; color: white !important; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(220,53,69,0.12); }
+
+    /* Icon-only action button used for edit (matches list style) */
+    .btn-action-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background-color: rgba(13,110,253,0.04);
+        border: 1px solid rgba(13,110,253,0.12);
+        color: #0d6efd;
+        transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
+        font-size: 1rem;
+    }
+
+    .btn-action-icon i { margin: 0; }
+
+    .btn-action-icon:hover {
+        background-color: #0d6efd;
+        color: #fff !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(13,110,253,0.12);
+    }
+</style>
 {% endblock %}

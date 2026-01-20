@@ -1,124 +1,327 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
+<div class="container py-4" style="max-width: 900px;">
+    <div class="row mb-4 align-items-center">
         <div class="col-md-8">
-            <div class="card shadow border-0">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">{{ titulo }}</h5>
-                </div>
-                <div class="card-body p-4">
-                    <form method="post">
-                        {% csrf_token %}
-                        
-                        <!-- Turno -->
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">{{ form.turno.label }}</label>
-                            {{ form.turno }}
-                            {% if form.turno.errors %}
-                                <div class="text-danger small mt-1">{{ form.turno.errors.0 }}</div>
-                            {% endif %}
-                        </div>
+            <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Nueva Excepción</h1>
+            <p class="text-muted fs-5 mb-0">Configuración de la demanda puntual</p>
+        </div>
+        {% if not form.es_turno_dificil.is_hidden %}
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <div class="form-check form-switch d-inline-flex align-items-center gap-2 switch-custom">
+                <input type="checkbox" class="form-check-input" id="{{ form.es_turno_dificil.id_for_label }}" name="{{ form.es_turno_dificil.html_name }}" {% if form.es_turno_dificil.value %}checked{% endif %} form="form-regla">
+                <label class="form-check-label mb-0 fw-semibold" for="{{ form.es_turno_dificil.id_for_label }}" style="color: #2f3e4c;">Turno Difícil</label>
+            </div>
+        </div>
+        {% endif %}
+    </div>
 
-                        <!-- Días de la semana con checkboxes estilo "puntitos" -->
-                        <div class="mb-4">
-                            <label class="form-label fw-bold">Días de aplicación</label>
-                            <div class="alert alert-light border">
-                                <div class="d-flex justify-content-around align-items-center flex-wrap gap-3">
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="checkbox" id="id_dia_lunes" name="dia_lunes" {% if form.dia_lunes.value %}checked{% endif %}>
-                                        <label class="form-check-label" for="id_dia_lunes">Lunes</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="checkbox" id="id_dia_martes" name="dia_martes" {% if form.dia_martes.value %}checked{% endif %}>
-                                        <label class="form-check-label" for="id_dia_martes">Martes</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="checkbox" id="id_dia_miercoles" name="dia_miercoles" {% if form.dia_miercoles.value %}checked{% endif %}>
-                                        <label class="form-check-label" for="id_dia_miercoles">Miércoles</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="checkbox" id="id_dia_jueves" name="dia_jueves" {% if form.dia_jueves.value %}checked{% endif %}>
-                                        <label class="form-check-label" for="id_dia_jueves">Jueves</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="checkbox" id="id_dia_viernes" name="dia_viernes" {% if form.dia_viernes.value %}checked{% endif %}>
-                                        <label class="form-check-label" for="id_dia_viernes">Viernes</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="checkbox" id="id_dia_sabado" name="dia_sabado" {% if form.dia_sabado.value %}checked{% endif %}>
-                                        <label class="form-check-label" for="id_dia_sabado">Sábado</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="checkbox" id="id_dia_domingo" name="dia_domingo" {% if form.dia_domingo.value %}checked{% endif %}>
-                                        <label class="form-check-label" for="id_dia_domingo">Domingo</label>
-                                    </div>
+    <div class="card border-0" style="border-radius: 14px;">
+        <div class="card-body p-4 p-lg-5">
+            <!-- Nota informativa (texto actualizado) -->
+            <div class="alert alert-info mb-4 border-0" role="alert" style="background-color: #e7f3ff; border-left: 4px solid #0d6efd !important;">
+                <div class="fw-bold" style="color: #2f3e4c;">Nota</div>
+                <div class="small text-muted">Esta excepción pisa la demanda de la regla semanal solamente en la fecha elegida; no modifica el resto de la semana ni otras reglas configuradas.</div>
+            </div>
+
+            <form method="post" id="form-regla" novalidate autocomplete="off">
+                {% csrf_token %}
+
+                <div id="form-warning" class="field-error d-none">
+                    <i class="bi bi-exclamation-circle"></i>
+                    <span id="form-warning-text"></span>
+                </div>
+
+                {% if form.non_field_errors %}
+                    <div id="server-errors" class="field-error mb-4">
+                        <i class="bi bi-exclamation-circle"></i>
+                        <span>{{ form.non_field_errors|join:", " }}</span>
+                    </div>
+                {% endif %}
+
+                <!-- Turno (custom dropdown). If exception (fecha) present, show fecha at the right column -->
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold" for="{{ form.turno.id_for_label }}">{{ form.turno.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                        <div class="custom-select-wrapper">
+                            <select class="form-select d-none" id="{{ form.turno.id_for_label }}" name="{{ form.turno.html_name }}" required>
+                                <option value="" disabled {% if not form.instance.turno and not form.initial.turno %}selected{% endif %}>Seleccioná un turno</option>
+                                {% for turno in form.fields.turno.queryset.all %}
+                                    <option value="{{ turno.pk }}" {% if form.instance.turno and form.instance.turno.pk == turno.pk %}selected{% elif form.initial.turno and form.initial.turno == turno.pk %}selected{% endif %} data-especialidad="{{ turno.especialidad }}">{{ turno.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="custom-dropdown">
+                                <div class="custom-dropdown-header" tabindex="0">
+                                    {% if form.instance.turno %}
+                                        {{ form.instance.turno.nombre }}
+                                    {% elif form.initial.turno %}
+                                        {% for t in form.fields.turno.queryset.all %}{% if t.pk|stringformat:"s" == form.initial.turno|stringformat:"s" %}{{ t.nombre }}{% endif %}{% endfor %}
+                                    {% else %}
+                                        Seleccioná un turno
+                                    {% endif %}
+                                </div>
+                                <div class="custom-dropdown-menu">
+                                    <div class="custom-option" data-value="">Seleccioná un turno</div>
+                                    {% for turno in form.fields.turno.queryset.all %}
+                                        <div class="custom-option" data-value="{{ turno.pk }}" data-especialidad="{{ turno.especialidad }}">{{ turno.nombre }}</div>
+                                    {% endfor %}
                                 </div>
                             </div>
-                            {% if form.non_field_errors %}
-                                <div class="text-danger small mt-1">{{ form.non_field_errors.0 }}</div>
-                            {% endif %}
                         </div>
+                        {% if form.turno.errors %}
+                            <div class="text-danger small mt-1">{{ form.turno.errors.0 }}</div>
+                        {% endif %}
+                    </div>
 
-                        <!-- Cantidad Senior -->
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">{{ form.cantidad_senior.label }}</label>
-                            {{ form.cantidad_senior }}
-                            {% if form.cantidad_senior.errors %}
-                                <div class="text-danger small mt-1">{{ form.cantidad_senior.errors.0 }}</div>
-                            {% endif %}
-                        </div>
-
-                        <!-- Cantidad Junior -->
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">{{ form.cantidad_junior.label }}</label>
-                            {{ form.cantidad_junior }}
-                            {% if form.cantidad_junior.errors %}
-                                <div class="text-danger small mt-1">{{ form.cantidad_junior.errors.0 }}</div>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="alert alert-info small mt-4">
-                            <i class="bi bi-info-circle-fill"></i> <strong>Nota:</strong> Si seleccionas un día que ya está asignado en otra regla con el mismo turno, automáticamente se quitará de la regla anterior.
-                        </div>
-
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                            <a href="#" onclick="window.history.back()" class="btn btn-secondary me-md-2">Cancelar</a>
-                            <button type="submit" class="btn btn-success">Guardar</button>
-                        </div>
-                    </form>
+                    {% if form.fecha %}
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold" for="{{ form.fecha.id_for_label }}">Fecha<span class="required-asterisk" aria-hidden="true">*</span></label>
+                        {{ form.fecha }}
+                        {% if form.fecha.errors %}
+                            <div class="text-danger small mt-1">{{ form.fecha.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
 
-                {% if form.es_turno_dificil %}
-                    <div class="mb-3 mt-2">
-                        <div class="form-check form-switch ps-0">
-                            <div class="d-flex align-items-center">
-                                {{ form.es_turno_dificil }}
-                                <label class="form-check-label ms-2 fw-medium text-dark" for="{{ form.es_turno_dificil.id_for_label }}">
-                                    Es Turno Difícil
-                                </label>
+                {% if form.dia_lunes %}
+                <!-- Regla semanal: selección de días -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Días de aplicación</label>
+                    <div class="alert alert-light border">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="id_dia_lunes" name="dia_lunes" {% if form.dia_lunes.value %}checked{% endif %}>
+                                <label class="form-check-label" for="id_dia_lunes">Lunes</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="id_dia_martes" name="dia_martes" {% if form.dia_martes.value %}checked{% endif %}>
+                                <label class="form-check-label" for="id_dia_martes">Martes</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="id_dia_miercoles" name="dia_miercoles" {% if form.dia_miercoles.value %}checked{% endif %}>
+                                <label class="form-check-label" for="id_dia_miercoles">Miércoles</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="id_dia_jueves" name="dia_jueves" {% if form.dia_jueves.value %}checked{% endif %}>
+                                <label class="form-check-label" for="id_dia_jueves">Jueves</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="id_dia_viernes" name="dia_viernes" {% if form.dia_viernes.value %}checked{% endif %}>
+                                <label class="form-check-label" for="id_dia_viernes">Viernes</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="id_dia_sabado" name="dia_sabado" {% if form.dia_sabado.value %}checked{% endif %}>
+                                <label class="form-check-label" for="id_dia_sabado">Sábado</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="id_dia_domingo" name="dia_domingo" {% if form.dia_domingo.value %}checked{% endif %}>
+                                <label class="form-check-label" for="id_dia_domingo">Domingo</label>
                             </div>
                         </div>
-                        <div class="form-text text-muted ms-1" style="font-size: 0.85rem;">
-                            Activalo para feriados o fechas críticas.
-                        </div>
                     </div>
+                    {% if form.non_field_errors %}
+                        <div class="text-danger small mt-1">{{ form.non_field_errors.0 }}</div>
+                    {% endif %}
+                </div>
                 {% endif %}
 
-                {% if form.motivo %} <div class="mb-4">
-                        <label class="form-label">Motivo (Opcional)</label>
-                        {{ form.motivo }}
-                        <div class="form-text">Ej: "Navidad", "Refuerzo por Gripe", etc.</div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">{{ form.cantidad_senior.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                        {{ form.cantidad_senior }}
+                        {% if form.cantidad_senior.errors %}
+                            <div class="text-danger small mt-1">{{ form.cantidad_senior.errors.0 }}</div>
+                        {% endif %}
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">{{ form.cantidad_junior.label }}<span class="required-asterisk" aria-hidden="true">*</span></label>
+                        {{ form.cantidad_junior }}
+                        {% if form.cantidad_junior.errors %}
+                            <div class="text-danger small mt-1">{{ form.cantidad_junior.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# Nota eliminada por petición del usuario #}
+
+                {% if form.es_turno_dificil.is_hidden %}
+                    {{ form.es_turno_dificil }}
                 {% endif %}
 
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-primary">Guardar</button>
-                    <a href="{{ request.META.HTTP_REFERER }}" class="btn btn-link text-muted">Cancelar</a>
+                {% if form.motivo %}
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Motivo</label>
+                    {{ form.motivo }}
+                </div>
+                {% endif %}
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary me-md-2 fw-bold px-4">Cancelar</a>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">Guardar Cambios</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+<style>
+    /* Adoptar estilos consistentes con otros formularios */
+    .form-control, .form-select {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-size: 0.95rem;
+        transition: all 0.3s ease;
+        background-color: #ffffff;
+        color: #2f3e4c;
+    }
+    .form-select.d-none { display: none !important; }
+    .form-control::placeholder { color: #adb5bd; font-style: italic; }
+    .form-control:focus, .form-select:focus { border-color: #0d6efd; box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15); background-color: #f8fbff; outline: none; }
+    .form-control:hover { background-color: #f5f7fb; }
+    .form-control:disabled, .form-select:disabled { background-color: #f8f9fa; color: #6c757d; cursor: not-allowed; opacity: 0.7; }
+    .form-label { font-size: 0.95rem; margin-bottom: 0.5rem; color: #2f3e4c; letter-spacing: 0.3px; }
+    .form-text { display: block; margin-top: 0.35rem; color: #6c757d; font-size: 0.85rem; }
+    .required-asterisk { color: #dc3545; margin-left: 0.25rem; font-weight: 700; }
+    .field-error { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 1rem; color: #c41c3b; font-size: 0.9rem; font-weight: 500; }
+    .btn { border-radius: 8px; font-size: 0.95rem; padding: 0.625rem 1.25rem; transition: all 0.3s ease; font-weight: 600; letter-spacing: 0.2px; }
+    .btn-primary { background-color: #0d6efd; border-color: #0d6efd; }
+    .btn-primary:hover { background-color: #0b5ed7; border-color: #0b5ed7; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(13, 110, 253, 0.18); }
+    .btn-outline-secondary { color: #6c757d; border-color: #6c757d; }
+    .switch-custom .form-check-input { width: 3.5em; height: 1.75em; cursor: pointer; }
+    /* Custom dropdown styles (copied from preferencia_form / nodisponibilidad_form) */
+    .custom-select-wrapper { position: relative; display: inline-block; width: 100%; }
+    .custom-dropdown { position: relative; pointer-events: auto; }
+    .custom-dropdown-header {
+        height: 46px; box-sizing: border-box; border-radius: 8px; border: 1px solid #e0e5ec; background-color: #ffffff;
+        padding: 0.75rem 1rem; font-size: 0.95rem; line-height: 1; color: #495057; display: inline-flex; align-items: center; width: 100%;
+        transition: all 0.2s ease; cursor: pointer;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23666' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat; background-position: right 12px center; background-size: 16px; padding-right: 40px; pointer-events: auto;
+    }
+    .custom-dropdown-header.is-invalid { border-color: #c41c3b !important; color: #c41c3b !important; box-shadow: 0 0 0 0.15rem rgba(196,28,59,0.15); }
+    .custom-dropdown-header.disabled{ opacity:0.6; cursor:not-allowed; pointer-events:none; }
+    .custom-dropdown-menu {
+        position: absolute; top: 100%; left: 0; right: 0; background-color: #ffffff; border: none;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); border-radius: 10px; max-height: 0; overflow: hidden;
+        transition: max-height 0.3s ease; pointer-events: none; z-index: 100; margin-top: 0; padding: 0;
+    }
+    .custom-dropdown.open .custom-dropdown-menu { max-height: 300px; pointer-events: auto; opacity: 1; margin-top: 0.5rem; padding: 0.5rem 0; }
+    .custom-option { padding: 0.5rem 1.2rem; color: #495057; cursor: pointer; transition: all 0.2s ease; font-size: 0.95rem; border-bottom: none; font-weight: 500; }
+    .custom-option:hover { background-color: rgba(13, 110, 253, 0.1); color: #0d6efd; padding-left: 1.4rem; }
+    @media (max-width: 768px) { .card-body { padding: 1.5rem !important; } h1 { font-size: 1.5rem !important; } .btn { padding: 0.5rem 1rem; font-size: 0.9rem; } .form-control, .form-select { padding: 0.625rem 0.875rem; font-size: 0.9rem; } }
+</style>
+<script>
+// Define setupCustomDropdown if not already defined (reuse across templates)
+if (typeof setupCustomDropdown !== 'function') {
+    function setupCustomDropdown(wrapper){
+        const nativeSelect = wrapper.querySelector('.form-select');
+        const header = wrapper.querySelector('.custom-dropdown-header');
+        const dropdown = wrapper.querySelector('.custom-dropdown');
+        const menu = wrapper.querySelector('.custom-dropdown-menu');
+        if (!header || !dropdown || !menu || !nativeSelect) return;
+
+        try {
+            const sel = nativeSelect.options[nativeSelect.selectedIndex];
+            if (sel && sel.value) header.textContent = sel.textContent;
+        } catch(e) {}
+
+        header.onclick = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            if (nativeSelect.disabled) return;
+            document.querySelectorAll('.custom-dropdown.open').forEach(d => { if (d !== dropdown) d.classList.remove('open'); });
+            dropdown.classList.toggle('open');
+        };
+
+        menu.querySelectorAll('.custom-option').forEach((option) => {
+            option.onclick = (e) => {
+                e.preventDefault(); e.stopPropagation();
+                if (nativeSelect.disabled) return;
+                if (option.style.display === 'none') return;
+                const value = option.getAttribute('data-value') ?? '';
+                const nativeOpt = nativeSelect.querySelector(`option[value="${value}"]`);
+                if (value === '' && nativeOpt && nativeOpt.disabled) return;
+                const text = option.textContent;
+                nativeSelect.value = value;
+                header.textContent = text;
+                dropdown.classList.remove('open');
+                nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            };
+        });
+
+        document.addEventListener('click', (e) => { if (!wrapper.contains(e.target)) dropdown.classList.remove('open'); });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
+
+    // Form validation: ensure a turno is selected
+    const form = document.getElementById('form-regla');
+    const selectTurno = document.getElementById('{{ form.turno.id_for_label }}');
+    const turnoWrapper = selectTurno ? selectTurno.closest('.custom-select-wrapper') : null;
+    const turnoHeader = turnoWrapper ? turnoWrapper.querySelector('.custom-dropdown-header') : null;
+    const warningDiv = document.getElementById('form-warning');
+    const warningText = document.getElementById('form-warning-text');
+    const fechaInput = document.getElementById('{{ form.fecha.id_for_label }}');
+    const seniorInput = document.getElementById('{{ form.cantidad_senior.id_for_label }}');
+    const juniorInput = document.getElementById('{{ form.cantidad_junior.id_for_label }}');
+
+    if (form) {
+        form.addEventListener('submit', function(e){
+            // hide previous
+            if (warningDiv) warningDiv.classList.add('d-none');
+            if (document.getElementById('server-errors')) document.getElementById('server-errors').classList.add('d-none');
+
+            // build list of required fields
+            const requiredFields = [];
+            if (selectTurno) requiredFields.push({ field: selectTurno, name: 'Turno' });
+            if (fechaInput) requiredFields.push({ field: fechaInput, name: 'Fecha' });
+            if (seniorInput) requiredFields.push({ field: seniorInput, name: 'Req. Senior' });
+            if (juniorInput) requiredFields.push({ field: juniorInput, name: 'Req. Junior' });
+
+            // find empty required fields
+            const emptyFields = requiredFields.filter(item => !item.field || item.field.value === undefined || item.field.value === null || (typeof item.field.value === 'string' && item.field.value.trim() === ''));
+            if (emptyFields.length > 0){
+                e.preventDefault();
+                if (warningText) warningText.textContent = 'Por favor, completá todos los campos obligatorios (*)';
+                if (warningDiv) { warningDiv.classList.remove('d-none'); warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+
+                emptyFields.forEach(function(item){
+                    try{
+                        const fld = item.field;
+                        fld.classList.add('is-invalid');
+                        // remove invalid state on user input/change
+                        fld.addEventListener('input', function handler(){ fld.classList.remove('is-invalid'); fld.removeEventListener('input', handler); });
+                        // if it's a hidden native select used by custom dropdown, mark its header
+                        if (fld.classList && fld.classList.contains('form-select')){
+                            var wrapper = fld.closest('.custom-select-wrapper');
+                            if (wrapper){ var header = wrapper.querySelector('.custom-dropdown-header'); if (header) header.classList.add('is-invalid'); fld.addEventListener('change', function handler2(){ if (header) header.classList.remove('is-invalid'); fld.classList.remove('is-invalid'); fld.removeEventListener('change', handler2); }); }
+                        }
+                    }catch(ex){}
+                });
+                return;
+            }
+
+            // Validate numeric non-negative for senior/junior
+            const numericErrs = [];
+            [ {input: seniorInput, name: 'Req. Senior'}, {input: juniorInput, name: 'Req. Junior'} ].forEach(function(it){
+                if (!it.input) return;
+                const val = it.input.value;
+                const num = Number(val);
+                if (val === '' || isNaN(num) || num < 0){ numericErrs.push(it); }
+            });
+            if (numericErrs.length > 0){
+                e.preventDefault();
+                if (warningText) warningText.textContent = 'Por favor, completá valores válidos (>= 0) para Req. Senior y Req. Junior.';
+                if (warningDiv) { warningDiv.classList.remove('d-none'); warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                numericErrs.forEach(function(it){ try{ it.input.classList.add('is-invalid'); it.input.addEventListener('input', function handler(){ it.input.classList.remove('is-invalid'); it.input.removeEventListener('input', handler); }); it.input.scrollIntoView({ behavior: 'smooth', block: 'center' }); }catch(e){} });
+                return;
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

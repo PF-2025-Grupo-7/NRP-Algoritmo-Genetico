@@ -8,23 +8,28 @@
     
     <!-- Header al estilo Panel de Control -->
     <div class="row mb-4 align-items-center">
-        <div class="col-md-8">
+        <div class="col-md-6">
             <h1 class="h2 fw-bold mb-1" style="color: #2f3e4c;">Plantilla de Demanda - {{ plantilla.nombre }}</h1>
             <p class="text-muted fs-5 mb-0">Configuración de reglas semanales y excepciones</p>
         </div>
-        <div class="col-md-4 text-md-end mt-3 mt-md-0">
-            <button type="button" class="btn btn-primary px-4 shadow-sm me-2" onclick="agregarFilaRegla()">
-                <i class="bi bi-plus-lg me-2"></i>Nueva Regla
-            </button>
-            <a href="{% url 'plantilla_update' plantilla.id %}" class="btn btn-outline-primary px-4 shadow-sm">
-                <i class="bi bi-pencil-square me-1"></i> Editar
-            </a>
+        <div class="col-md-6 text-md-end mt-3 mt-md-0">
+            <div class="d-flex gap-2 justify-content-end flex-wrap">
+                <button type="button" class="btn btn-primary shadow-sm" style="min-width: 160px;" onclick="agregarFilaRegla()">
+                    <i class="bi bi-plus-lg me-2"></i>Nueva Regla
+                </button>
+                <a href="{% url 'excepcion_create' plantilla.id %}" class="btn btn-primary shadow-sm" style="min-width: 180px;">
+                    <i class="bi bi-plus-lg me-2"></i>Nueva Excepción
+                </a>
+                <a href="{% url 'plantilla_update' plantilla.id %}" class="btn btn-outline-primary shadow-sm" style="min-width: 120px;">
+                    <i class="bi bi-pencil-square me-1"></i> Editar
+                </a>
+            </div>
         </div>
     </div>
 
     <div class="row g-4">
         <!-- Columna Principal: Reglas Semanales -->
-        <div class="col-12">
+        <div class="col-12 col-lg-8">
             <div class="card shadow-sm border-0" style="overflow: visible;">
                 <div class="card-body p-0" style="overflow: visible;">
                     <div class="table-responsive" style="overflow: visible;">
@@ -41,7 +46,6 @@
                                     <th class="text-center col-group-dias">V</th>
                                     <th class="text-center col-group-dias">S</th>
                                     <th class="text-center col-group-dias">D</th>
-                                    <th class="text-center col-group-excepcion">Excepción</th>
                                     <th class="text-center col-group-acciones">Acciones</th>
                                 </tr>
                             </thead>
@@ -63,13 +67,6 @@
                                         {% endif %}
                                     </td>
                                     {% endfor %}
-                                    <td class="text-center col-group-excepcion">
-                                        {% if r.es_excepcion %}
-                                        <span class="badge badge-status bg-success-subtle-custom">SÍ</span>
-                                        {% else %}
-                                        <span class="badge badge-status bg-danger-subtle-custom">NO</span>
-                                        {% endif %}
-                                    </td>
                                     <td class="text-center pe-2 col-group-acciones">
                                         <div class="action-buttons">
                                             <button class="btn btn-sm btn-action btn-action-edit" onclick="editarRegla({{ r.pk }})" title="Editar regla">
@@ -125,11 +122,6 @@
                                         <input type="checkbox" class="form-check-input dia-checkbox custom-checkbox" value="{{ dia_num }}" style="cursor: pointer; width: 18px; height: 18px;">
                                     </td>
                                     {% endfor %}
-                                    <td class="text-center col-group-excepcion">
-                                        <div class="form-check form-switch" style="display: flex; justify-content: center;">
-                                            <input class="form-check-input custom-switch" type="checkbox" id="checkExcepcion" style="cursor: pointer;">
-                                        </div>
-                                    </td>
                                     <td class="text-center pe-2 col-group-acciones">
                                         <div class="action-buttons-inline" role="group">
                                             <button type="button" class="btn btn-primary" onclick="guardarRegla()" title="Guardar">
@@ -145,7 +137,65 @@
                         </table>
                     </div>
                 </div>
-            </div>            <script>
+            </div>
+        </div>
+
+        <!-- Columna lateral: Excepciones -->
+        <div class="col-12 col-lg-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header p-0 border-0">
+                    <div class="table-responsive mb-0">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light text-muted">
+                                <tr>
+                                    <th class="text-center">Excepciones</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if excepciones %}
+                    <div class="list-group list-group-flush">
+                        {% for ex in excepciones %}
+                        <div class="list-group-item d-flex align-items-center justify-content-between px-3 py-2 border-0 border-bottom">
+                            <div class="d-flex align-items-center gap-3 flex-grow-1">
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2 py-1" style="font-size: 0.75rem; font-weight: 600; min-width: 45px; text-align: center;">{{ ex.fecha|date:"d/m" }}</span>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <span class="fw-bold text-dark" style="font-size: 0.9rem;">{{ ex.turno.nombre }}</span>
+                                        <span class="text-muted" style="font-size: 0.8rem;">Sr: <strong>{{ ex.cantidad_senior }}</strong></span>
+                                        <span class="text-muted" style="font-size: 0.8rem;">Jr: <strong>{{ ex.cantidad_junior }}</strong></span>
+                                        {% if ex.es_turno_dificil %}
+                                        <span class="badge-dificil">Difícil</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if ex.motivo %}
+                                    <div class="text-muted" style="font-size: 0.75rem; font-style: italic;">{{ ex.motivo }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <form method="post" action="{% url 'excepcion_delete' ex.id %}" onsubmit="return confirm('¿Eliminar excepción?');" style="display: inline;">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-action btn-action-delete" title="Eliminar excepción">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="p-5 text-center">
+                        <i class="bi bi-calendar-x fs-1 d-block mb-3" style="color: #dee2e6;"></i>
+                        <h6 class="text-muted fw-normal mb-1">Sin excepciones</h6>
+                        <p class="text-muted small mb-0">Agregá feriados o días especiales</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+            <script>
                 // Variables globales
                 const plantillaId = {{ plantilla.pk }};
                 let reglaModoEdicion = null;
@@ -190,8 +240,6 @@
                     const turnoId = fila.dataset.turnoId;
                     const seniors = parseInt(fila.querySelector('.cantidad-senior').textContent);
                     const juniors = parseInt(fila.querySelector('.cantidad-junior').textContent);
-                    const esExcepcion = fila.textContent.includes('SÍ');
-                    
                     // Obtener los días seleccionados
                     const diasSeleccionados = [];
                     fila.querySelectorAll('.dia-punto').forEach((punto, idx) => {
@@ -261,11 +309,6 @@
                     }
                     
                     htmlEdicion += `
-                        <td class="text-center col-group-excepcion">
-                            <div class="form-check form-switch" style="display: flex; justify-content: center;">
-                                <input class="form-check-input custom-switch edit-excepcion" type="checkbox" ${esExcepcion ? 'checked' : ''} style="cursor: pointer;">
-                            </div>
-                        </td>
                         <td class="text-center pe-2 col-group-acciones">
                             <div class="action-buttons-inline" role="group">
                                 <button type="button" class="btn btn-primary" onclick="guardarReglaInline(${reglaPk})" title="Guardar">
@@ -297,8 +340,6 @@
                     const turnoId = fila.querySelector('.edit-turno-select').value;
                     const seniors = parseInt(fila.querySelector('.edit-senior').value) || 0;
                     const juniors = parseInt(fila.querySelector('.edit-junior').value) || 0;
-                    const esExcepcion = fila.querySelector('.edit-excepcion').checked;
-
                     const diasSeleccionados = [];
                     fila.querySelectorAll('.edit-dia-checkbox:checked').forEach(checkbox => {
                         diasSeleccionados.push(parseInt(checkbox.value));
@@ -351,7 +392,6 @@
                     formData.append('turno_id', turnoId);
                     formData.append('cantidad_senior', seniors);
                     formData.append('cantidad_junior', juniors);
-                    formData.append('es_excepcion', esExcepcion ? '1' : '0');
                     diasSeleccionados.forEach(dia => {
                         formData.append('dias[]', dia);
                     });
@@ -448,7 +488,7 @@
                     formData.append('turno_id', turnoId);
                     formData.append('cantidad_senior', seniors);
                     formData.append('cantidad_junior', juniors);
-                    formData.append('es_excepcion', document.getElementById('checkExcepcion').checked ? '1' : '0');
+                    formData.append('es_excepcion', '0');
                     diasSeleccionados.forEach(dia => {
                         formData.append('dias[]', dia);
                     });
@@ -520,7 +560,7 @@
                     
                     document.getElementById('inputSenior').value = '0';
                     document.getElementById('inputJunior').value = '0';
-                    document.getElementById('checkExcepcion').checked = false;
+                    
                     document.querySelectorAll('.dia-checkbox').forEach(checkbox => {
                         checkbox.checked = false;
                     });
@@ -943,37 +983,37 @@
 
     /* Columnas agrupadas (Turno, Seniors, Juniors) con menos espaciado */
     .col-group-info {
-        padding-left: 0.25rem !important;
-        padding-right: 0.25rem !important;
+        padding-left: 0.15rem !important;
+        padding-right: 0.15rem !important;
     }
 
     /* Columnas de días agrupadas con menos espaciado */
     .col-group-dias {
-        padding-left: 0.25rem !important;
-        padding-right: 0.25rem !important;
+        padding-left: 0.15rem !important;
+        padding-right: 0.15rem !important;
     }
 
     /* Primera columna de días: separa el bloque y ajusta espacio con M */
     .col-group-dias-first {
-        padding-left: 0.3rem !important;   /* separa bloque desde info */
+        padding-left: 0.2rem !important;   /* separa bloque desde info */
         padding-right: 0.15rem !important;  /* ajuste más fino L–M */
-    }
-
-    /* Columna de excepción */
-    .col-group-excepcion {
-        padding-left: 0.75rem !important;
-        padding-right: 0.75rem !important;
     }
 
     /* Columna de acciones con separación */
     .col-group-acciones {
-        padding-left: 2.5rem !important;
+        padding-left: 0.8rem !important;
+        padding-right: 0.25rem !important;
     }
 
     .table tbody td {
         color: #6c757d;
         padding: 1rem 0.75rem;
         vertical-align: middle;
+    }
+
+    /* Tabla de excepciones con filas más compactas */
+    .card-body .table tbody td {
+        padding: 0.5rem 0.75rem;
     }
 
     /* Filas con efecto hover */
@@ -1007,6 +1047,27 @@
     .bg-danger-subtle-custom { 
         background-color: #f8d7da !important; 
         color: #915c61 !important; 
+    }
+
+    /* Etiqueta para marcar turnos difíciles (sin amarillo) */
+    .badge-dificil {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.78rem;
+        padding: 0.28rem 0.6rem;
+        color: #b02a37; /* rojo oscuro para legibilidad */
+        background-color: rgba(176,42,55,0.06); /* sutil tintado sin amarillo */
+        border: 1px solid rgba(176,42,55,0.12);
+        border-radius: 999px; /* pill */
+        font-weight: 600;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        line-height: 1;
+    }
+
+    .badge-dificil:hover {
+        background-color: rgba(176,42,55,0.09);
+        transform: translateY(-1px);
     }
 
     /* Dots de días seleccionados: usar azul en lugar de verde */
