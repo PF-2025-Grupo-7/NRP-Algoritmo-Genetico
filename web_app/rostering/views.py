@@ -118,7 +118,6 @@ def pagina_generador(request):
     """Renderiza la pantalla para configurar y lanzar una nueva planificación."""
     return render(request, 'rostering/generador.html')
 
-
 @csrf_exempt 
 @login_required
 @require_POST
@@ -126,26 +125,31 @@ def iniciar_planificacion(request):
     try:
         data = json.loads(request.body)
         job_id = iniciar_proceso_optimizacion(data)
+        
+        # Respuesta exitosa estándar
         return JsonResponse({'status': 'started', 'job_id': job_id})
 
     except ValidationError as e:
-        # Si el error trae parámetros (nuestros datos de dotación), los enviamos
+        # CASO A: Error de Negocio con Datos (Dotación insuficiente)
+        # Este bloque soluciona el "reading 'oferta' of undefined" en el frontend
         if hasattr(e, 'params') and e.params:
             return JsonResponse({
-                'error': e.message,
-                'tipo_error': 'FALTA_DOTACION', # Flag para que el JS sepa qué modal abrir
-                'detalles': e.params
-            }, status=422) # 422: Entidad no procesable (Validación de negocio fallida)
+                'error': e.message if hasattr(e, 'message') else 'Error de capacidad',
+                'tipo_error': 'FALTA_DOTACION', # Flag para que el JS active el modal con gráficos
+                'detalles': e.params            # <--- Aquí viaja el objeto {senior:..., junior:...}
+            }, status=422) 
         
-        # Error genérico de validación
-        return JsonResponse({'error': str(e.message)}, status=400)
+        # CASO B: Error Genérico de Validación (Fechas, formatos, etc.)
+        # CORRECCIÓN: Usamos e.messages para evitar AttributeError si e.message no existe
+        mensaje_error = e.messages if hasattr(e, 'messages') else str(e)
+        return JsonResponse({'error': mensaje_error}, status=400)
         
     except ValueError as e:
+        # Errores de parsing JSON o datos faltantes simples
         return JsonResponse({'error': str(e)}, status=400)
-    except Exception as e:
-        print(e)
-        return JsonResponse({'error': "Error interno del servidor"}, status=500)
 
+    except Exception as e:
+        return JsonResponse({'error': "Error interno del servidor. Consulte los logs."}, status=500)
 
 @csrf_exempt
 @require_GET
@@ -188,14 +192,11 @@ def verificar_estado_planificacion(request, job_id):
                 })
             except Exception as e:
                 # Esto imprimirá el error real en tu consola de Docker
-                print("🔴 ERROR CRÍTICO EN POLLING/GUARDADO:")
-                print(traceback.format_exc()) 
                 return JsonResponse({'error': f"Error interno: {str(e)}"}, status=500)
 
         return JsonResponse({'status': 'running'})
 
     except Exception as e:
-        print(f"Error polling: {e}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -476,7 +477,6 @@ def config_turnos_edit(request, especialidad):
                 # --- CREACIÓN O ACTUALIZACIÓN ---
                 if not es_edicion:
                     # CASO 1: PRIMERA VEZ (Crear objetos TipoTurno)
-                    print(f"✨ CREACIÓN INICIAL: Generando turnos para {especialidad}")
                     for datos in nuevos_datos:
                         meta = nombres[datos['key']]
                         es_noc_calc = datos['fin'] < datos['inicio']
@@ -493,7 +493,6 @@ def config_turnos_edit(request, especialidad):
 
                 else:
                     # CASO 2: EDICIÓN (Actualizar existentes)
-                    print(f"🔄 ACTUALIZACIÓN: Modificando detalles para {especialidad}")
                     
                     # CORRECCIÓN: Eliminamos activo=True del filtro
                     turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))

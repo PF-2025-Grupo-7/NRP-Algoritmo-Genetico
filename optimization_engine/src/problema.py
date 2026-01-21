@@ -112,51 +112,6 @@ class ProblemaGAPropio(PenalizacionesDurasMixin, PenalizacionesBlandasMixin):
             
             self.requerimientos_cobertura.append(dia_data_limpio)
 
-        # =========================================================================
-        # 4. LA TRAMPA DE DIAGNÓSTICO (Si esto falla, te dirá por qué)
-        # =========================================================================
-        try:
-            # Verificamos Día 0, Turno 6 (que sabemos que requiere gente)
-            dia_0 = self.requerimientos_cobertura[0]
-            turno_test = int(self.turnos_a_cubrir[0]) # Debería ser 6 o 8
-            demanda_test = dia_0.get(turno_test, {})
-            
-            seniors_req = demanda_test.get('senior', 0)
-            juniors_req = demanda_test.get('junior', 0)
-            
-            total_req = seniors_req + juniors_req
-            
-            if total_req == 0:
-                # ¡AQUÍ ESTÁ EL PROBLEMA!
-                # Si llegamos aquí, el algoritmo cree que no se necesita nadie.
-                # Lanzamos error con los datos crudos para ver qué llegó.
-                debug_info = {
-                    "turnos_a_cubrir": self.turnos_a_cubrir,
-                    "dia_0_procesado": dia_0,
-                    "dia_0_crudo_type": str(type(requerimientos_cobertura)),
-                    "dia_0_crudo_len": len(requerimientos_cobertura) if isinstance(requerimientos_cobertura, list) else "N/A"
-                }
-                # Intentamos mostrar el primer elemento crudo si existe
-                if isinstance(requerimientos_cobertura, list) and len(requerimientos_cobertura) > 0:
-                    debug_info["dia_0_crudo_content"] = requerimientos_cobertura[0]
-
-                msg = f"🛑 DATOS VACÍOS DETECTADOS: El algoritmo ve Demanda 0 para el Día 0. Debug: {json.dumps(debug_info, default=str)}"
-                print(msg)
-                raise ValueError(msg)
-            
-            print(f"✅ DIAGNÓSTICO OK: Día 0 requiere {total_req} personas. El algoritmo ve los datos.")
-
-        except Exception as e:
-            # Si no podemos ni validar, algo está fatal
-            if "DATOS VACÍOS" not in str(e):
-                print(f"⚠️ Error validando datos: {e}")
-                # No lanzamos error aquí para dejar que el crash de fitness lo atrape si es necesario
-                # O mejor, lanzamos para que lo veas en el mensaje de error de la API
-                raise ValueError(f"Fallo en Validación de Datos Inicial: {e}")
-            raise e
-
-        print("✅ ProblemaGAPropio inicializado.")
-
     def _calcular_pen_cobertura(self, matriz, detallar=False):
         penalizacion = 0.0
         faltantes_total = 0

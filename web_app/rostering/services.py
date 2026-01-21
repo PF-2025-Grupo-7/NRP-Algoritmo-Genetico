@@ -15,9 +15,11 @@ from .models import (
     ConfiguracionAlgoritmo, SecuenciaProhibida, DiaSemana,
     Cronograma, Asignacion, TrabajoPlanificacion
 )
+
 def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantilla):
     """
-    Verifica capacidad con desglose Junior/Senior, descuento de ausencias y margen de seguridad.
+    Verifica capacidad y picos.
+    Calcula TOTALES reales primero para no mostrar datos parciales en el Frontend.
     """
     # 1. Configuración Básica
     MARGEN_SEGURIDAD = 0.10
@@ -30,6 +32,11 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
         
     duracion_promedio = sum(t.duracion_horas for t in turnos) / len(turnos)
     duracion_promedio = float(duracion_promedio)
+
+    # Conteo de Nómina (Cuerpos Físicos)
+    nomina_total = empleados_qs.count()
+    nomina_senior = empleados_qs.filter(experiencia='SENIOR').count()
+    nomina_junior = empleados_qs.filter(experiencia='JUNIOR').count()
 
     # 2. Cálculo de la Oferta (Horas Reales Disponibles)
     oferta = {'SENIOR': 0.0, 'JUNIOR': 0.0}
@@ -47,12 +54,10 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
         
         horas_ausencia = 0.0
         mis_ausencias = [a for a in ausencias if a.empleado_id == emp.id]
-        
         for aus in mis_ausencias:
             inicio_cruce = max(aus.fecha_inicio, fecha_inicio)
             fin_cruce = min(aus.fecha_fin, fecha_fin)
             dias_cruce = (fin_cruce - inicio_cruce).days + 1
-            
             if dias_cruce > 0:
                 if aus.tipo_turno:
                     horas_ausencia += (dias_cruce * float(aus.tipo_turno.duracion_horas))
@@ -66,21 +71,18 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
         if rol not in oferta: rol = 'JUNIOR'
         oferta[rol] += horas_netas
 
-    # 3. Cálculo de la Demanda (Requerimiento Exacto)
+    # 3. Cálculo de la Demanda y Validación de Picos (RECORRIDO COMPLETO)
     demanda = {'SENIOR': 0.0, 'JUNIOR': 0.0}
+    errores_pico = [] # Lista para acumular problemas de "cuerpos presentes"
     
     reglas = ReglaDemandaSemanal.objects.filter(plantilla=plantilla).select_related('turno')
     mapa_reglas = {d: [] for d in range(7)}
     for r in reglas:
-        # r.dias es una lista de días (ej: [0, 1, 2, 3, 4] para lunes-viernes)
-        for dia in r.dias:
+        lista_dias = r.dias if isinstance(r.dias, list) else []
+        for dia in lista_dias:
             mapa_reglas[dia].append(r)
 
-    excepciones = ExcepcionDemanda.objects.filter(
-        plantilla=plantilla, 
-        fecha__range=[fecha_inicio, fecha_fin]
-    ).select_related('turno')
-    
+    excepciones = ExcepcionDemanda.objects.filter(plantilla=plantilla, fecha__range=[fecha_inicio, fecha_fin]).select_related('turno')
     mapa_excepciones = {}
     for ex in excepciones:
         f_str = ex.fecha.strftime("%Y-%m-%d")
@@ -92,41 +94,58 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
         dia_sem = fecha_iter.weekday()
         f_str = fecha_iter.strftime("%Y-%m-%d")
         
-        items_dia = []
+        demanda_dia_por_turno = {} 
+        for r in mapa_reglas[dia_sem]:
+            demanda_dia_por_turno[r.turno.id] = {'s': r.cantidad_senior, 'j': r.cantidad_junior, 'obj': r}
         if f_str in mapa_excepciones:
-            items_dia = mapa_excepciones[f_str]
-        else:
-            items_dia = mapa_reglas[dia_sem]
+            for ex in mapa_excepciones[f_str]:
+                demanda_dia_por_turno[ex.turno.id] = {'s': ex.cantidad_senior, 'j': ex.cantidad_junior, 'obj': ex}
+
+        for t_id, cant in demanda_dia_por_turno.items():
+            req_s = cant['s']
+            req_j = cant['j']
+            obj_turno = cant['obj'].turno
+            dur = float(obj_turno.duracion_horas)
             
-        for item in items_dia:
-            dur = float(item.turno.duracion_horas)
-            demanda['SENIOR'] += (item.cantidad_senior * dur)
-            demanda['JUNIOR'] += (item.cantidad_junior * dur)
+            # Acumulamos SIEMPRE para tener el total real al final
+            demanda['SENIOR'] += (req_s * dur)
+            demanda['JUNIOR'] += (req_j * dur)
             
+            # Validación de Pico (Solo guardamos el primer error grave para no saturar)
+            if not errores_pico:
+                if req_s > nomina_senior:
+                    errores_pico.append(f"Día {f_str}: Se piden {req_s} Seniors ({obj_turno.nombre}), pero hay {nomina_senior} en nómina.")
+                elif req_j > nomina_junior:
+                    errores_pico.append(f"Día {f_str}: Se piden {req_j} Juniors ({obj_turno.nombre}), pero hay {nomina_junior} en nómina.")
+                elif (req_s + req_j) > nomina_total:
+                    errores_pico.append(f"Día {f_str}: Se piden {req_s + req_j} profesionales, nómina total es {nomina_total}.")
+
         fecha_iter += timedelta(days=1)
 
+    # 4. Construcción de Respuesta
     demanda_con_margen = {k: v * (1 + MARGEN_SEGURIDAD) for k, v in demanda.items()}
-    
-    # 4. Balance y Veredicto
     balance_senior = oferta['SENIOR'] - demanda_con_margen['SENIOR']
     balance_junior = oferta['JUNIOR'] - demanda_con_margen['JUNIOR']
     
-    es_viable_senior = balance_senior >= -5.0 
-    es_viable_junior = balance_junior >= -5.0
-    
-    if not es_viable_senior or not es_viable_junior:
+    # Determinamos viabilidad (Horas o Picos)
+    es_viable_senior = (balance_senior >= -12.0)
+    es_viable_junior = (balance_junior >= -12.0)
+    hay_error_pico = len(errores_pico) > 0
+
+    if not es_viable_senior or not es_viable_junior or hay_error_pico:
+        # Construimos el objeto de datos REALES (sin números falsos)
         datos_error = {
             "senior": {
                 "oferta": int(oferta['SENIOR']),
                 "demanda": int(demanda_con_margen['SENIOR']),
                 "balance": int(balance_senior),
-                "estado": "CRITICO" if not es_viable_senior else "OK"
+                "estado": "CRITICO" if (not es_viable_senior) else "OK"
             },
             "junior": {
                 "oferta": int(oferta['JUNIOR']),
                 "demanda": int(demanda_con_margen['JUNIOR']),
                 "balance": int(balance_junior),
-                "estado": "CRITICO" if not es_viable_junior else "OK"
+                "estado": "CRITICO" if (not es_viable_junior) else "OK"
             },
             "global": {
                 "ausencias_impacto": int(ausencias_total_horas),
@@ -134,6 +153,16 @@ def validar_cobertura_suficiente(fecha_inicio, fecha_fin, empleados_qs, plantill
                 "dias": dias_totales
             }
         }
+
+        # Si el problema fue un pico físico, lo marcamos explícitamente
+        if hay_error_pico:
+            datos_error["error_pico"] = True
+            datos_error["mensaje"] = errores_pico[0]
+            # Opcional: Forzar estado CRITICO visualmente si hay error de pico aunque den las horas
+            # Esto ayuda a que la barra salga roja si el JS usa ese flag
+            datos_error["senior"]["estado"] = "CRITICO" 
+            datos_error["junior"]["estado"] = "CRITICO"
+
         return False, datos_error
 
     return True, None
@@ -393,6 +422,17 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         # 1. Obtener base del día de la semana
         demanda_dia = copy.deepcopy(plantilla_semanal.get(dia_semana, {}))
         
+        # --- CORRECCIÓN CRÍTICA: Relleno de Huecos (Semántica de Ausencia) ---
+        # Si no hay regla para un turno específico (o para todo el día),
+        # DEBEMOS enviar explícitamente 0,0 para que la API no falle.
+        for t_id in turnos_a_cubrir:
+            t_str = str(t_id)
+            if t_str not in demanda_dia:
+                demanda_dia[t_str] = {
+                    "junior": 0,
+                    "senior": 0
+                }
+                
         # 2. Detectar Finde (Sábado y Domingo)
         if dia_semana >= 5: 
             dias_no_habiles_indices.append(i)
@@ -453,7 +493,6 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         # A. Aplicamos el recorte: Nos quedamos con las ÚLTIMAS (más recientes)
         if len(lista_prefs) > MAX_PREFERENCIAS_MVP:
             seleccionadas = lista_prefs[-MAX_PREFERENCIAS_MVP:]
-            print(f"⚖️ EQUIDAD: Empleado {emp_id} tenía {len(lista_prefs)} prefs. Se recortaron a las últimas {MAX_PREFERENCIAS_MVP}.")
         else:
             seleccionadas = lista_prefs
 
@@ -526,14 +565,11 @@ def invocar_api_planificacion(payload):
     """Envía el JSON a la API de optimización."""
     url = "http://optimizer:8000/planificar" 
     
-    # --- BLOQUE ESPÍA: GUARDAR PAYLOAD ---
-    print("🕵️ INTERCEPTANDO PAYLOAD...")
     try:
         with open('debug_payload.json', 'w', encoding='utf-8') as f:
             json.dump(payload, f, indent=4, default=str)
-        print("✅ Payload guardado en 'debug_payload.json'")
     except Exception as e:
-        print(f"⚠️ Error al guardar payload: {e}")
+        print(f"Error al guardar payload: {e}")
     # -------------------------------------
 
     try:
@@ -548,17 +584,11 @@ def invocar_api_planificacion(payload):
         return response.json()
         
     except requests.exceptions.RequestException as e:
-        # Si lanzamos el ValueError arriba, caerá aquí o en el try/catch superior
-        print(f"Error fatal: {e}")
         raise e # Re-lanzamos para que se vea
 
     except requests.exceptions.HTTPError as e:
-        # Si fue un 422, ya lo imprimimos arriba. 
-        # Si fue otro error (500, 404), se imprimirá aquí.
-        print(f"❌ Error HTTP: {e}")
         return None
     except requests.exceptions.RequestException as e:
-        print(f"❌ Error de conexión: {e}")
         return None
 
 def consultar_resultado_ag(job_id):
@@ -582,7 +612,6 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
     1. Validación Post-Algoritmo (RF04).
     2. Detección Inteligente de Patrones (Insights).
     """
-    print("--- DEBUG: INICIANDO GUARDADO CON VALIDACIÓN Y BI ---")
     try:
         matriz_solucion = resultado.get('matriz_solucion') or resultado.get('solution')
         if not matriz_solucion:
@@ -834,8 +863,6 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
             if demanda_total_teorica > 0:
                 porcentaje_deficit = (contador_slots_vacios_total / demanda_total_teorica) * 100
             
-            print(f"📊 ANÁLISIS FINAL: Vacíos {contador_slots_vacios_total} ({porcentaje_deficit:.2f}%)")
-
             if contador_slots_vacios_senior > 0:
                 estado_cronograma = 'FALLIDO'
                 mensaje_validacion = f"FALLIDO: Faltan cubrir {contador_slots_vacios_senior} puestos Críticos de Senior."
@@ -900,6 +927,4 @@ def guardar_solucion_db(fecha_inicio, fecha_fin, especialidad, payload_original,
         return cronograma
 
     except Exception as e:
-        print("\n🔴 CRASH EN GUARDAR_SOLUCION")
-        print(traceback.format_exc()) 
         raise e
