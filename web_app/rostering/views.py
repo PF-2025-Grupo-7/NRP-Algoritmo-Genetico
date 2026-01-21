@@ -115,7 +115,6 @@ def pagina_generador(request):
     """Renderiza la pantalla para configurar y lanzar una nueva planificación."""
     return render(request, 'rostering/generador.html')
 
-
 @csrf_exempt 
 @login_required
 @require_POST
@@ -123,26 +122,33 @@ def iniciar_planificacion(request):
     try:
         data = json.loads(request.body)
         job_id = iniciar_proceso_optimizacion(data)
+        
+        # Respuesta exitosa estándar
         return JsonResponse({'status': 'started', 'job_id': job_id})
 
     except ValidationError as e:
-        # Si el error trae parámetros (nuestros datos de dotación), los enviamos
+        # CASO A: Error de Negocio con Datos (Dotación insuficiente)
+        # Este bloque soluciona el "reading 'oferta' of undefined" en el frontend
         if hasattr(e, 'params') and e.params:
             return JsonResponse({
-                'error': e.message,
-                'tipo_error': 'FALTA_DOTACION', # Flag para que el JS sepa qué modal abrir
-                'detalles': e.params
-            }, status=422) # 422: Entidad no procesable (Validación de negocio fallida)
+                'error': e.message if hasattr(e, 'message') else 'Error de capacidad',
+                'tipo_error': 'FALTA_DOTACION', # Flag para que el JS active el modal con gráficos
+                'detalles': e.params            # <--- Aquí viaja el objeto {senior:..., junior:...}
+            }, status=422) 
         
-        # Error genérico de validación
-        return JsonResponse({'error': str(e.message)}, status=400)
+        # CASO B: Error Genérico de Validación (Fechas, formatos, etc.)
+        # CORRECCIÓN: Usamos e.messages para evitar AttributeError si e.message no existe
+        mensaje_error = e.messages if hasattr(e, 'messages') else str(e)
+        return JsonResponse({'error': mensaje_error}, status=400)
         
     except ValueError as e:
+        # Errores de parsing JSON o datos faltantes simples
         return JsonResponse({'error': str(e)}, status=400)
-    except Exception as e:
-        print(e)
-        return JsonResponse({'error': "Error interno del servidor"}, status=500)
 
+    except Exception as e:
+        # Logueamos el error real en consola para debug
+        print(f"🔴 Error interno en iniciar_planificacion: {e}")
+        return JsonResponse({'error': "Error interno del servidor. Consulte los logs."}, status=500)
 
 @csrf_exempt
 @require_GET
