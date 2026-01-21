@@ -146,8 +146,6 @@ def iniciar_planificacion(request):
         return JsonResponse({'error': str(e)}, status=400)
 
     except Exception as e:
-        # Logueamos el error real en consola para debug
-        print(f"🔴 Error interno en iniciar_planificacion: {e}")
         return JsonResponse({'error': "Error interno del servidor. Consulte los logs."}, status=500)
 
 @csrf_exempt
@@ -191,14 +189,11 @@ def verificar_estado_planificacion(request, job_id):
                 })
             except Exception as e:
                 # Esto imprimirá el error real en tu consola de Docker
-                print("🔴 ERROR CRÍTICO EN POLLING/GUARDADO:")
-                print(traceback.format_exc()) 
                 return JsonResponse({'error': f"Error interno: {str(e)}"}, status=500)
 
         return JsonResponse({'status': 'running'})
 
     except Exception as e:
-        print(f"Error polling: {e}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -479,7 +474,6 @@ def config_turnos_edit(request, especialidad):
                 # --- CREACIÓN O ACTUALIZACIÓN ---
                 if not es_edicion:
                     # CASO 1: PRIMERA VEZ (Crear objetos TipoTurno)
-                    print(f"✨ CREACIÓN INICIAL: Generando turnos para {especialidad}")
                     for datos in nuevos_datos:
                         meta = nombres[datos['key']]
                         es_noc_calc = datos['fin'] < datos['inicio']
@@ -496,7 +490,6 @@ def config_turnos_edit(request, especialidad):
 
                 else:
                     # CASO 2: EDICIÓN (Actualizar existentes)
-                    print(f"🔄 ACTUALIZACIÓN: Modificando detalles para {especialidad}")
                     
                     # CORRECCIÓN: Eliminamos activo=True del filtro
                     turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
