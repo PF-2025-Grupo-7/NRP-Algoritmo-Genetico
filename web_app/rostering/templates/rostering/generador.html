@@ -199,6 +199,37 @@
     </div>
 </div>
 
+<!-- Navigation confirm modal (warn when job in progress) -->
+<!-- Navigation confirm modal (styled like plantilla_detail conflict modal) -->
+<div class="modal fade" id="navigationConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4" style="background: white;">
+                <button type="button" class="btn-close position-absolute" style="top: 16px; right: 16px; opacity: 0.5;" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center px-5 pb-4 pt-2">
+                <div class="mb-4">
+                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #0d6efd;">
+                        <i class="bi bi-exclamation-lg" style="font-size: 2rem; color: #0d6efd;"></i>
+                    </div>
+                </div>
+
+                <h4 class="fw-bold mb-3" style="color: #2f3e4c;">¿Estás seguro?</h4>
+
+                <div class="mb-3 p-4 text-center" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+                    <p class="mb-2 small text-muted">La optimización está en ejecución. Si salís ahora, se perderá el progreso y no podrá recuperarse.</p>
+                </div>
+
+                <!-- informational line removed as requested -->
+            </div>
+            <div class="modal-footer border-0 bg-white justify-content-center gap-2 pb-4">
+                <button type="button" class="btn btn-light px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 600; border: 1px solid #dee2e6; min-width: 160px;">Permanecer aquí</button>
+                <button type="button" id="confirmLeaveBtn" class="btn btn-primary px-4 py-2" style="border-radius: 10px; font-weight: 600; min-width: 160px;">Salir y perder progreso</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
     body { background-color: #EFF3F8 !important; }
     footer { background-color: #EFF3F8 !important; border-top-color: #e0e5ec !important; }
@@ -541,16 +572,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const $warnText = document.getElementById('form-warning-text');
 
     // --- Sugerir período del próximo mes ---
-    try {
-        const hoy = new Date();
-        const y = hoy.getFullYear();
-        const m = hoy.getMonth();
-        const start = new Date(y, m + 1, 1);
-        const end = new Date(y, m + 2, 0);
-        
-        if($inicio) $inicio.value = start.toISOString().slice(0,10);
-        if($fin) $fin.value = end.toISOString().slice(0,10);
-    } catch(e) {}
+    // Not auto-filling `fecha_inicio` / `fecha_fin` so inputs remain empty by default.
+    // If you want an automatic suggestion later, re-add logic here.
 
     // --- Funciones de UI ---
     function setEstado(text, kind){
@@ -594,6 +617,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if($plant) $plant.disabled = !!on;
         if($inicio) $inicio.disabled = !!on;
         if($fin) $fin.disabled = !!on;
+        // Track whether a job/operation is in progress. Used to warn user on navigation.
+        window.__generadorJobInProgress = !!on;
     }
     
     function resetUI(){
@@ -606,6 +631,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if($panelEstado) $panelEstado.classList.add('d-none');
         if($warn) $warn.classList.add('d-none');
         toggleLoading(false);
+        // Clear in-progress flag when UI reset
+        window.__generadorJobInProgress = false;
     }
 
     resetUI();
@@ -783,9 +810,92 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if($btnReset) {
-        $btnReset.addEventListener('click', () => {
-            resetUI();
+    
+
+    // --- NAVIGATION / UNLOAD HANDLING ---
+    // Warn user before leaving while a job is in progress.
+    let pendingNavigationAction = null; // { type: 'link'|'reset'|'reload', href?: string }
+    const navModalEl = document.getElementById('navigationConfirmModal');
+    const navModal = navModalEl ? new bootstrap.Modal(navModalEl) : null;
+    const confirmLeaveBtn = document.getElementById('confirmLeaveBtn');
+
+    // beforeunload fallback for closing tab / refreshing (browser shows native dialog)
+    window.addEventListener('beforeunload', function(e){
+        if (window.__generadorJobInProgress) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    });
+
+    // Intercept link clicks for internal navigation and show modal
+    document.addEventListener('click', function(e){
+        if (!window.__generadorJobInProgress) return;
+        const a = e.target.closest && e.target.closest('a');
+        if (!a) return;
+        const href = a.getAttribute('href');
+        // Ignore anchors without href or javascript links and same-page anchors
+        if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+        // Allow links that are explicitly marked to ignore navigation guard
+        if (a.hasAttribute('data-ignore-navigation')) return;
+
+        // Prevent navigation and show modal
+        e.preventDefault();
+        pendingNavigationAction = { type: 'link', href: a.href };
+        if (navModal) navModal.show();
+    });
+
+    // Intercept reload keys (F5, Ctrl+R) to show modal
+    window.addEventListener('keydown', function(e){
+        if (!window.__generadorJobInProgress) return;
+        // F5
+        if (e.key === 'F5') {
+            e.preventDefault();
+            pendingNavigationAction = { type: 'reload' };
+            if (navModal) navModal.show();
+        }
+        // Ctrl+R or Command+R
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R')) {
+            e.preventDefault();
+            pendingNavigationAction = { type: 'reload' };
+            if (navModal) navModal.show();
+        }
+    });
+
+    // Intercept the page reset button (internal 'Reiniciar') to show modal
+    if ($btnReset) {
+        $btnReset.addEventListener('click', function(e){
+            if (!window.__generadorJobInProgress) {
+                // behave normally
+                resetUI();
+                return;
+            }
+            e.preventDefault();
+            pendingNavigationAction = { type: 'reset' };
+            if (navModal) navModal.show();
+        });
+    }
+
+    if (confirmLeaveBtn) {
+        confirmLeaveBtn.addEventListener('click', function(){
+            // User confirmed leaving: disable guard and perform action
+            window.__generadorJobInProgress = false;
+            if (navModal) navModal.hide();
+            const action = pendingNavigationAction || { type: 'link', href: '/' };
+            pendingNavigationAction = null;
+            // Small timeout so modal hides smoothly
+            setTimeout(() => {
+                if (action.type === 'link' && action.href) {
+                    window.location.href = action.href;
+                } else if (action.type === 'reload') {
+                    window.location.reload();
+                } else if (action.type === 'reset') {
+                    resetUI();
+                } else {
+                    // default to home
+                    window.location.href = '/';
+                }
+            }, 120);
         });
     }
 

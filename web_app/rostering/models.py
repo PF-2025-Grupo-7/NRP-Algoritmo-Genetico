@@ -2,6 +2,7 @@ from datetime import datetime, date, timedelta
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.db.models import Q
 
 # ==============================================================================
 # HELPERS / UTILIDADES
@@ -313,7 +314,7 @@ class NoDisponibilidad(models.Model):
         TipoTurno, on_delete=models.CASCADE, 
         null=True, blank=True, verbose_name="Turno (Dejar vacío para todo el día)"
     )
-    motivo = models.CharField(max_length=100)
+    motivo = models.CharField(max_length=100, blank=True, default='')
 
     class Meta:
         verbose_name_plural = "No Disponibilidades"
@@ -357,6 +358,27 @@ class NoDisponibilidad(models.Model):
                         f"Contradicción: El empleado pidió 'TRABAJAR' el día {p.fecha} ({p.tipo_turno or 'Día completo'}), "
                         f"no se puede cargar una ausencia para '{turno_msg}'."
                     )
+
+        # 4. Validación: evitar duplicados exactos (mismo empleado, rango que se superpone y mismo turno)
+        # Solo consideramos duplicado si el turno es el mismo (incluye ambos None -> 'Todo el día')
+        if self.empleado_id and self.fecha_inicio and self.fecha_fin:
+            dup_q = Q()
+            if self.tipo_turno_id is None:
+                dup_q = Q(tipo_turno__isnull=True)
+            else:
+                dup_q = Q(tipo_turno_id=self.tipo_turno_id)
+
+            qs_dup = NoDisponibilidad.objects.filter(
+                empleado_id=self.empleado_id,
+                fecha_fin__gte=self.fecha_inicio,
+                fecha_inicio__lte=self.fecha_fin,
+            ).filter(dup_q)
+
+            if self.pk:
+                qs_dup = qs_dup.exclude(pk=self.pk)
+
+            if qs_dup.exists():
+                raise ValidationError('Ya existe una ausencia para este empleado en este período y turno.')
 
     def save(self, *args, **kwargs):
         self.full_clean()

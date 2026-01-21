@@ -88,7 +88,7 @@
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label">Selección<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         <div class="custom-select-wrapper">
-                                            <select class="form-select d-none" id="{{ form.estrategia_seleccion.id_for_label }}" name="{{ form.estrategia_seleccion.html_name }}">
+                                            <select class="form-select d-none" id="{{ form.estrategia_seleccion.id_for_label }}" name="{{ form.estrategia_seleccion.html_name }}" required>
                                                 {% for value,label in form.estrategia_seleccion.field.choices %}
                                                     <option value="{{ value }}" {% if form.estrategia_seleccion.value == value %}selected{% endif %}>{{ label }}</option>
                                                 {% endfor %}
@@ -114,7 +114,7 @@
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label">Cruce<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         <div class="custom-select-wrapper">
-                                            <select class="form-select d-none" id="{{ form.estrategia_cruce.id_for_label }}" name="{{ form.estrategia_cruce.html_name }}">
+                                            <select class="form-select d-none" id="{{ form.estrategia_cruce.id_for_label }}" name="{{ form.estrategia_cruce.html_name }}" required>
                                                 {% for value,label in form.estrategia_cruce.field.choices %}
                                                     <option value="{{ value }}" {% if form.estrategia_cruce.value == value %}selected{% endif %}>{{ label }}</option>
                                                 {% endfor %}
@@ -140,7 +140,7 @@
                                     <div class="col-md-4 mb-3">
                                         <label class="form-label">Mutación<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         <div class="custom-select-wrapper">
-                                            <select class="form-select d-none" id="{{ form.estrategia_mutacion.id_for_label }}" name="{{ form.estrategia_mutacion.html_name }}">
+                                            <select class="form-select d-none" id="{{ form.estrategia_mutacion.id_for_label }}" name="{{ form.estrategia_mutacion.html_name }}" required>
                                                 {% for value,label in form.estrategia_mutacion.field.choices %}
                                                     <option value="{{ value }}" {% if form.estrategia_mutacion.value == value %}selected{% endif %}>{{ label }}</option>
                                                 {% endfor %}
@@ -200,7 +200,7 @@
                                         {{ form.tolerancia_general }}
                                     </div>
                                     <div class="col-md-4 mb-3">
-                                        <label class="form-label">Tolerancia Difícil (Turnos)<span class="required-asterisk" aria-hidden="true">*</span></label>
+                                        <label class="form-label">Tolerancia Difícil (Horas)<span class="required-asterisk" aria-hidden="true">*</span></label>
                                         {{ form.tolerancia_dificil }}
                                     </div>
                                     <div class="col-md-4 mb-3">
@@ -377,21 +377,60 @@ function setupCustomDropdown(wrapper){
             if (warningDiv) warningDiv.classList.add('d-none');
             if (serverErrors) serverErrors.classList.add('d-none');
 
+            // Helper to locate a field robustly (handles possible Django prefixes)
+            function findField(name) {
+                let el = form.querySelector('[name="' + name + '"]') || form.querySelector('#id_' + name) || form.querySelector('[name$="' + name + '"]');
+                // If still not found, try inputs/selects with matching id or data-name
+                if (!el) {
+                    el = form.querySelector('[data-name="' + name + '"]') || document.getElementById('id_' + name);
+                }
+                return el;
+            }
+
             const requiredFields = [
-                { field: form.querySelector('[name="nombre"]'), name: 'Nombre configuración' },
-                { field: form.querySelector('[name="tamano_poblacion"]'), name: 'Población' },
-                { field: form.querySelector('[name="generaciones"]'), name: 'Generaciones' },
-                { field: form.querySelector('[name="prob_cruce"]'), name: 'Prob. Cruce' },
-                { field: form.querySelector('[name="prob_mutacion"]'), name: 'Prob. Mutación' },
-                { field: form.querySelector('[name="estrategia_seleccion"]'), name: 'Selección' },
-                { field: form.querySelector('[name="estrategia_cruce"]'), name: 'Cruce' },
-                { field: form.querySelector('[name="estrategia_mutacion"]'), name: 'Mutación' },
-                { field: form.querySelector('[name="tolerancia_general"]'), name: 'Tolerancia Gral' },
-                { field: form.querySelector('[name="tolerancia_dificil"]'), name: 'Tolerancia Difícil' },
-                { field: form.querySelector('[name="factor_alpha_pte"]'), name: 'Factor Alpha' }
+                { field: findField('nombre'), name: 'Nombre configuración' },
+                { field: findField('tamano_poblacion'), name: 'Población' },
+                { field: findField('generaciones'), name: 'Generaciones' },
+                { field: findField('prob_cruce'), name: 'Prob. Cruce' },
+                { field: findField('prob_mutacion'), name: 'Prob. Mutación' },
+                { field: findField('estrategia_seleccion'), name: 'Selección' },
+                { field: findField('estrategia_cruce'), name: 'Cruce' },
+                { field: findField('estrategia_mutacion'), name: 'Mutación' },
+                { field: findField('tolerancia_general'), name: 'Tolerancia Gral' },
+                { field: findField('tolerancia_dificil'), name: 'Tolerancia Difícil' },
+                { field: findField('factor_alpha_pte'), name: 'Factor Alpha' },
+                { field: findField('peso_equidad_general'), name: 'Peso Equidad General' },
+                { field: findField('peso_equidad_dificil'), name: 'Peso Turnos Difíciles' },
+                { field: findField('peso_preferencia_dias_libres'), name: 'Peso Días Libres' },
+                { field: findField('peso_preferencia_turno'), name: 'Peso Turno Específico' }
             ];
 
-            const emptyFields = requiredFields.filter(item => !item.field || !item.field.value || String(item.field.value).trim() === '');
+            // Determine empty fields (handles selects, numbers, and custom dropdowns)
+            const emptyFields = requiredFields.filter(item => {
+                const f = item.field;
+                if (!f) return true;
+                // For select elements, check selectedIndex/value
+                if (f.tagName === 'SELECT') return !f.value || String(f.value).trim() === '';
+                // For inputs, consider empty string
+                if (f.tagName === 'INPUT' || f.tagName === 'TEXTAREA') return !f.value || String(f.value).trim() === '';
+                // For other elements (custom dropdown header), try to read aria/value/text
+                if (f.getAttribute && (f.getAttribute('data-value') !== null || f.getAttribute('aria-selected') !== null)) {
+                    return !f.getAttribute('data-value') && !f.textContent.trim();
+                }
+                return !f.value || String(f.value).trim() === '';
+            });
+            // Debugging output to help identify why fields are not detected as empty
+            try {
+                console.groupCollapsed('config_avanzada validation debug');
+                requiredFields.forEach(item => {
+                    const f = item.field;
+                    let val = null;
+                    try { val = f ? (f.value !== undefined ? f.value : f.textContent) : null; } catch(e){ val = null; }
+                    console.log(item.name, { found: !!f, tag: f && f.tagName, value: val });
+                });
+                console.log('emptyFields:', emptyFields.map(i => i.name));
+                console.groupEnd();
+            } catch(e) { console.log('validation debug error', e); }
 
             if (emptyFields.length > 0) {
                 e.preventDefault();

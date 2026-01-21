@@ -17,6 +17,9 @@ from django.views.generic import (
     DetailView, TemplateView, FormView
 )
 from django.contrib.auth.decorators import user_passes_test
+import logging
+
+logger = logging.getLogger(__name__)
 from django.core.exceptions import PermissionDenied
 
 # --- MODELOS ---
@@ -581,6 +584,23 @@ class NoDisponibilidadCreateView(LoginRequiredMixin, CreateView):
     template_name = 'rostering/nodisponibilidad_form.html'
     success_url = reverse_lazy('nodisponibilidad_list')
     extra_context = {'titulo': 'Registrar Ausencia'}
+    def post(self, request, *args, **kwargs):
+        try:
+            logger.info('NoDisponibilidadCreateView POST received. POST data: %s', dict(request.POST))
+        except Exception as e:
+            logger.exception('Error printing POST data: %s', e)
+        return super().post(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        logger.info('NoDisponibilidad create form_valid. cleaned_data keys: %s', list(form.cleaned_data.keys()))
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        try:
+            logger.warning('NoDisponibilidad create form_invalid. Errors: %s', form.errors.as_json())
+        except Exception:
+            logger.warning('NoDisponibilidad create form_invalid. Errors (repr): %s', repr(form.errors))
+        return super().form_invalid(form)
 
 class NoDisponibilidadUpdateView(LoginRequiredMixin, UpdateView):
     model = NoDisponibilidad
@@ -588,6 +608,23 @@ class NoDisponibilidadUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'rostering/nodisponibilidad_form.html'
     success_url = reverse_lazy('nodisponibilidad_list')
     extra_context = {'titulo': 'Editar Ausencia'}
+    def post(self, request, *args, **kwargs):
+        try:
+            logger.info('NoDisponibilidadUpdateView POST received. POST data: %s', dict(request.POST))
+        except Exception as e:
+            logger.exception('Error printing POST data: %s', e)
+        return super().post(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        logger.info('NoDisponibilidad update form_valid. cleaned_data keys: %s', list(form.cleaned_data.keys()))
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        try:
+            logger.warning('NoDisponibilidad update form_invalid. Errors: %s', form.errors.as_json())
+        except Exception:
+            logger.warning('NoDisponibilidad update form_invalid. Errors (repr): %s', repr(form.errors))
+        return super().form_invalid(form)
 
 class NoDisponibilidadDeleteView(LoginRequiredMixin, DeleteView):
     model = NoDisponibilidad
@@ -799,7 +836,19 @@ class ExcepcionCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.plantilla = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
-        return super().form_valid(form)
+        try:
+            return super().form_valid(form)
+        except ValidationError as ve:
+            # Mostrar un mensaje amigable al usuario en lugar del traceback
+            try:
+                raw = ve.messages[0] if hasattr(ve, 'messages') and ve.messages else str(ve)
+            except Exception:
+                raw = str(ve)
+            logger.warning('ExcepcionCreateView validation error (raw): %s', raw)
+            # Mensaje solicitado por el usuario
+            message = 'Ya existe una Excepción para esta fecha y turno. Eliminá la excepción existente para poder crear una nueva.'
+            form.add_error(None, message)
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse_lazy('plantilla_detail', kwargs={'pk': self.kwargs['plantilla_id']})

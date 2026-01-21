@@ -78,7 +78,7 @@
                             <th class="text-center">Empleado</th>
                             <th class="text-center">Especialidad</th>
                             <th class="text-center">Período</th>
-                            <th class="text-center">Alcance</th>
+                            <th class="text-center">Turno</th>
                             <th class="text-center">Motivo</th>
                             <th class="text-center">Acciones</th>
                         </tr>
@@ -126,7 +126,7 @@
                                        class="btn btn-sm btn-action btn-action-delete" 
                                        data-bs-toggle="tooltip" 
                                        data-bs-title="Eliminar"
-                                       onclick="openDeleteModal('{{ a.empleado.nombre_completo }}', '{{ a.fecha_inicio|date:"d/m/Y" }}', '{{ a.fecha_fin|date:"d/m/Y" }}', '{% url 'nodisponibilidad_delete' a.pk %}')">
+                                       onclick="openDeleteModal('{{ a.empleado.nombre_completo }}', '{{ a.empleado.legajo }}', '{% if a.tipo_turno %}{{ a.tipo_turno }}{% else %}Día Completo{% endif %}', '{{ a.fecha_inicio|date:"d/m/Y" }}', '{{ a.fecha_fin|date:"d/m/Y" }}', '{% url 'nodisponibilidad_delete' a.pk %}')">
                                         <i class="bi bi-trash-fill"></i>
                                     </button>
                                 </div>
@@ -219,7 +219,7 @@
                 <!-- Información de la ausencia -->
                 <div class="mb-3 p-4" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
                     <p class="mb-2 small text-muted">Estás a punto de eliminar la ausencia de:</p>
-                    <p class="mb-1 fw-bold" style="color: #2f3e4c; font-size: 1.1rem;"><span id="deleteEmpleado"></span></p>
+                    <p class="mb-1 fw-bold" style="color: #2f3e4c; font-size: 1.1rem;"><span id="deleteHeader"></span></p>
                     <p class="mb-0 fw-bold" style="color: #2f3e4c;" id="deletePeriodo"></p>
                 </div>
                 
@@ -838,10 +838,11 @@
     });
     
     // Función para abrir el modal de eliminación
-    function openDeleteModal(empleado, fechaInicio, fechaFin, deleteUrl) {
+    function openDeleteModal(empleado, legajo, turno, fechaInicio, fechaFin, deleteUrl) {
         // Actualizar los datos en el modal
-        document.getElementById('deleteEmpleado').textContent = empleado;
-        document.getElementById('deletePeriodo').textContent = fechaInicio + ' al ' + fechaFin;
+        const header = '#' + legajo + ' - ' + empleado;
+        document.getElementById('deleteHeader').textContent = header;
+        document.getElementById('deletePeriodo').textContent = fechaInicio + ' al ' + fechaFin + (turno ? ' (' + turno + ')' : '');
         
         // Actualizar la acción del formulario
         const deleteForm = document.getElementById('deleteForm');
