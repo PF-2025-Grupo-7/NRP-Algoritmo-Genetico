@@ -93,3 +93,58 @@ class TestServicesPayload(TestCase):
         self.assertEqual(datos['num_dias'], 5)
         self.assertIsInstance(datos['lista_profesionales'], list)
         self.assertEqual(len(datos['lista_profesionales']), 1) # Nuestro Dr. Test
+
+    def test_payload_rellena_huecos_con_ceros(self):
+        """
+        Prueba crítica: Si la plantilla NO tiene reglas para un día (ej: Domingo),
+        el payload debe generar explícitamente {senior:0, junior:0} para ese día,
+        en lugar de dejar un objeto vacío {} que rompería al motor.
+        """
+        # 1. Crear un segundo turno para que sea más realista (Mañana y Noche)
+        turno_noche = TipoTurno.objects.create(
+            nombre="Noche", abreviatura="N", especialidad=Empleado.TipoEspecialidad.MEDICO,
+            hora_inicio=time(20,0), hora_fin=time(8,0), es_nocturno=True
+        )
+        
+        # 2. Definir un rango de 3 días: Viernes (4), Sábado (5), Domingo (6)
+        # Usamos fechas reales: 2026-02-06 (Viernes) a 2026-02-08 (Domingo)
+        inicio = date(2026, 2, 6)
+        fin = date(2026, 2, 8)
+        
+        # 3. Crear Regla SOLO para Viernes (día 4 de la semana)
+        # Sábado y Domingo quedan "huecos"
+        from rostering.models import ReglaDemandaSemanal
+        ReglaDemandaSemanal.objects.create(
+            plantilla=self.plantilla,
+            turno=self.turno,
+            dias=[4], # Solo viernes
+            cantidad_senior=1, cantidad_junior=1
+        )
+        # Regla para el turno noche también solo viernes
+        ReglaDemandaSemanal.objects.create(
+            plantilla=self.plantilla,
+            turno=turno_noche,
+            dias=[4], 
+            cantidad_senior=1, cantidad_junior=1
+        )
+        
+        # 4. Generar Payload
+        payload = generar_payload_ag(inicio, fin, Empleado.TipoEspecialidad.MEDICO, self.plantilla.id)
+        reqs = payload['datos_problema']['requerimientos_cobertura_explicita']
+        
+        self.assertEqual(len(reqs), 3, "Debe haber 3 días en la lista")
+        
+        # 5. Verificar Viernes (Debe tener demanda > 0)
+        viernes = reqs[0]
+        self.assertEqual(viernes[str(self.turno.id)]['senior'], 1)
+        
+        # 6. Verificar Sábado (Debe tener ceros explícitos, NO estar vacío)
+        sabado = reqs[1]
+        self.assertIn(str(self.turno.id), sabado, "El sábado debe tener la clave del turno día")
+        self.assertIn(str(turno_noche.id), sabado, "El sábado debe tener la clave del turno noche")
+        self.assertEqual(sabado[str(self.turno.id)]['senior'], 0, "Debe ser 0 explícito")
+        self.assertEqual(sabado[str(self.turno.id)]['junior'], 0, "Debe ser 0 explícito")
+        
+        # 7. Verificar Domingo (Igual)
+        domingo = reqs[2]
+        self.assertEqual(domingo[str(self.turno.id)]['senior'], 0)

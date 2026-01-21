@@ -406,57 +406,37 @@ document.addEventListener('DOMContentLoaded', function() {
         const modalEl = document.getElementById('modalErrorDotacion');
         const modal = new bootstrap.Modal(modalEl);
         
-        // --- SENIORS ---
+        // --- 1. MOSTRAR MENSAJE DE PICO ESPECÍFICO (SI EXISTE) ---
+        // Buscamos o creamos un contenedor para el mensaje de error puntual
+        let alertaPico = document.getElementById('alerta-pico');
+        if (!alertaPico) {
+            // Si no existe en el HTML base, lo inyectamos dinámicamente arriba de las cards
+            const container = document.querySelector('.modal-body');
+            alertaPico = document.createElement('div');
+            alertaPico.id = 'alerta-pico';
+            alertaPico.className = 'alert alert-danger d-flex align-items-center py-2 px-3 mb-3 d-none';
+            alertaPico.innerHTML = '<i class="bi bi-lightning-fill me-2"></i><div id="texto-pico" class="small fw-bold"></div>';
+            // Insertar después del párrafo introductorio
+            const pIntro = container.querySelector('p.text-muted');
+            pIntro.insertAdjacentElement('afterend', alertaPico);
+        }
+
+        if (detalles.error_pico && detalles.mensaje) {
+            document.getElementById('texto-pico').textContent = detalles.mensaje;
+            alertaPico.classList.remove('d-none');
+        } else {
+            alertaPico.classList.add('d-none');
+        }
+
+        // --- 2. SENIORS ---
         const s = detalles.senior;
-        document.getElementById('val-oferta-senior').textContent = s.oferta;
-        document.getElementById('val-demanda-senior').textContent = s.demanda;
-        
-        const badgeSen = document.getElementById('badge-senior');
-        const barSen = document.getElementById('bar-senior');
-        const msgSen = document.getElementById('msg-senior');
-        
-        let pctSen = s.demanda > 0 ? (s.oferta / s.demanda) * 100 : 100;
-        
-        if (s.estado === 'CRITICO') {
-            badgeSen.className = 'badge bg-danger';
-            badgeSen.textContent = 'DÉFICIT';
-            barSen.className = 'progress-bar bg-danger';
-            barSen.style.width = Math.min(pctSen, 100) + '%';
-            msgSen.textContent = `Faltan ${Math.abs(s.balance)} horas`;
-        } else {
-            badgeSen.className = 'badge bg-success';
-            badgeSen.textContent = 'CUBIERTO';
-            barSen.className = 'progress-bar bg-success';
-            barSen.style.width = '100%';
-            msgSen.textContent = '';
-        }
+        configurarTarjetaCapacidad('senior', s);
 
-        // --- JUNIORS ---
+        // --- 3. JUNIORS ---
         const j = detalles.junior;
-        document.getElementById('val-oferta-junior').textContent = j.oferta;
-        document.getElementById('val-demanda-junior').textContent = j.demanda;
-        
-        const badgeJun = document.getElementById('badge-junior');
-        const barJun = document.getElementById('bar-junior');
-        const msgJun = document.getElementById('msg-junior');
-        
-        let pctJun = j.demanda > 0 ? (j.oferta / j.demanda) * 100 : 100;
-        
-        if (j.estado === 'CRITICO') {
-            badgeJun.className = 'badge bg-danger';
-            badgeJun.textContent = 'DÉFICIT';
-            barJun.className = 'progress-bar bg-danger';
-            barJun.style.width = Math.min(pctJun, 100) + '%';
-            msgJun.textContent = `Faltan ${Math.abs(j.balance)} horas`;
-        } else {
-            badgeJun.className = 'badge bg-success';
-            badgeJun.textContent = 'CUBIERTO';
-            barJun.className = 'progress-bar bg-success';
-            barJun.style.width = '100%';
-            msgJun.textContent = '';
-        }
+        configurarTarjetaCapacidad('junior', j);
 
-        // --- GLOBALES ---
+        // --- 4. GLOBALES ---
         const g = detalles.global || {};
         const alertaAus = document.getElementById('alerta-ausencias');
         
@@ -471,6 +451,56 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Mostrar
         modal.show();
+    }
+
+    // Helper para configurar cada tarjeta (Senior/Junior)
+    function configurarTarjetaCapacidad(rol, datos) {
+        // Elementos
+        const elOferta = document.getElementById(`val-oferta-${rol}`);
+        const elDemanda = document.getElementById(`val-demanda-${rol}`);
+        const elBadge = document.getElementById(`badge-${rol}`);
+        const elBar = document.getElementById(`bar-${rol}`);
+        const elMsg = document.getElementById(`msg-${rol}`);
+
+        // Valores
+        elOferta.textContent = datos.oferta;
+        elDemanda.textContent = datos.demanda;
+
+        // Lógica de Barra y Estado
+        const oferta = parseFloat(datos.oferta);
+        const demanda = parseFloat(datos.demanda);
+        
+        // Calculamos porcentaje de cobertura (tope 100%)
+        let porcentaje = 100;
+        if (demanda > 0) {
+            porcentaje = (oferta / demanda) * 100;
+        }
+
+        // Determinar si hay déficit de HORAS (independiente del pico)
+        const deficitHoras = demanda > oferta;
+        const faltante = demanda - oferta;
+
+        if (deficitHoras) {
+            // Caso 1: Faltan horas globales -> ROJO
+            elBadge.className = 'badge bg-danger';
+            elBadge.textContent = 'DÉFICIT';
+            
+            elBar.className = 'progress-bar bg-danger';
+            elBar.style.width = `${Math.min(porcentaje, 100)}%`;
+            
+            elMsg.textContent = `Faltan ${Math.ceil(faltante)} horas`;
+            elMsg.className = 'text-end text-danger small fw-bold mt-1';
+        } else {
+            // Caso 2: Sobran horas globales -> VERDE (Aunque haya pico)
+            elBadge.className = 'badge bg-success';
+            elBadge.textContent = 'CUBIERTO';
+            
+            elBar.className = 'progress-bar bg-success';
+            elBar.style.width = '100%';
+            
+            elMsg.textContent = `Capacidad excedente: ${Math.floor(oferta - demanda)}h`;
+            elMsg.className = 'text-end text-success small mt-1';
+        }
     }
 
     // Helpers: configurar un wrapper de dropdown personalizado
