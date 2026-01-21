@@ -422,6 +422,17 @@ def generar_payload_ag(fecha_inicio, fecha_fin, especialidad, plantilla_id=None)
         # 1. Obtener base del día de la semana
         demanda_dia = copy.deepcopy(plantilla_semanal.get(dia_semana, {}))
         
+        # --- CORRECCIÓN CRÍTICA: Relleno de Huecos (Semántica de Ausencia) ---
+        # Si no hay regla para un turno específico (o para todo el día),
+        # DEBEMOS enviar explícitamente 0,0 para que la API no falle.
+        for t_id in turnos_a_cubrir:
+            t_str = str(t_id)
+            if t_str not in demanda_dia:
+                demanda_dia[t_str] = {
+                    "junior": 0,
+                    "senior": 0
+                }
+                
         # 2. Detectar Finde (Sábado y Domingo)
         if dia_semana >= 5: 
             dias_no_habiles_indices.append(i)
