@@ -131,17 +131,21 @@
         <div class="modal-content border-0 shadow-lg">
             
             <div class="modal-header bg-white border-bottom-0 pb-0">
-                <h5 class="modal-title fw-bold text-danger">
-                    <i class="bi bi-x-circle-fill me-2"></i>Dotación Insuficiente
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
 
-            <div class="modal-body pt-2">
-                <p class="text-muted small mb-4">
-                    La planificación no puede iniciarse. La capacidad operativa actual (descontando ausencias) 
-                    no cubre la demanda requerida más el margen de seguridad.
-                </p>
+                    <div class="modal-body pt-2">
+                        <div class="text-center mb-3">
+                            <div class="icon-top mx-auto mb-3">
+                                <i class="bi bi-x-lg"></i>
+                            </div>
+                            <h4 class="fw-bold mb-2" style="color: #2f3e4c;">Dotación insuficiente</h4>
+                        </div>
+
+                        <p class="text-muted small mb-4 modal-explain">
+                            La planificación no puede iniciarse. La capacidad operativa actual
+                            no cubre la demanda requerida más el margen de seguridad.
+                        </p>
 
                 <div class="card mb-3 border-0 bg-light" id="card-senior">
                     <div class="card-body py-2 px-3">
@@ -193,7 +197,7 @@
             </div>
 
             <div class="modal-footer border-top-0 pt-0">
-                <button type="button" class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">Entendido, revisaré la dotación</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Entendido</button>
             </div>
         </div>
     </div>
@@ -423,6 +427,116 @@
     @media (max-width: 575px){
         .icon-circle{ width: 56px; height: 56px; }
     }
+
+    /* --- Estilos específicos para el modal de Dotación Insuficiente --- */
+    #modalErrorDotacion .modal-content { border-radius: 16px; overflow: hidden; box-shadow: 0 8px 30px rgba(15, 23, 42, 0.12); }
+    #modalErrorDotacion .modal-header { background: #ffffff; border-bottom: 0; padding: 1rem 1.25rem; }
+    #modalErrorDotacion .modal-title { color: #c41c3b; font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem; }
+    #modalErrorDotacion .modal-title i { font-size: 1.25rem; }
+
+    #modalErrorDotacion .modal-body { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+    /* Estilo del párrafo explicativo: más grande y centrado */
+    #modalErrorDotacion .modal-body p.text-muted.modal-explain { color: #6c757d; font-size: 0.95rem; margin-bottom: .8rem; font-style: normal; text-align: center; line-height: 1.35; }
+
+    /* Aviso puntual (pico) estilo tarjeta rosada) */
+    #alerta-pico { background-color: #fdecea; border: 1px solid #f5c6cb; color: #8a1f2d; border-radius: 10px; }
+    #alerta-pico i { color: #c41c3b; font-size: 1.15rem; }
+    #alerta-pico #texto-pico { font-size: 0.95rem; }
+
+    /* Tarjetas internas: seniors / juniors */
+    #modalErrorDotacion .card { border-radius: 10px; box-shadow: none; border: 1px solid #eef0f3; background: #ffffff; }
+    #modalErrorDotacion .card-body { padding: 0.7rem 0.9rem; }
+    #modalErrorDotacion .card .fw-bold.text-uppercase { letter-spacing: .6px; }
+
+    /* Badges más visibles y redondeados */
+    #modalErrorDotacion .badge { font-weight: 700; border-radius: 999px; padding: .38rem .65rem; font-size: 0.78rem; }
+    /* Ocultar el texto de la badge cuando está en estado de DÉFICIT (bg-danger) */
+    #modalErrorDotacion .badge.bg-danger { color: transparent; text-shadow: none; }
+    /* Quitar la mancha roja (badge) visualmente dentro del modal */
+    #modalErrorDotacion .badge.bg-danger { display: none !important; }
+
+    /* Barras de progreso redondeadas y más altas */
+    #modalErrorDotacion .progress { height: 8px; background-color: #f3f5f7; border-radius: 999px; overflow: hidden; }
+    #modalErrorDotacion .progress .progress-bar { border-radius: 999px; transition: width .4s ease; }
+
+    /* Mensajes de déficit/ exceso */
+    #modalErrorDotacion .text-end.small { font-size: 0.78rem; }
+
+    #modalErrorDotacion #msg-senior, #modalErrorDotacion #msg-junior { font-size: 0.82rem; }
+
+    /* Alert de ausencias */
+    #modalErrorDotacion #alerta-ausencias { border-radius: 10px; font-size: 0.9rem; }
+
+    /* Footer y botón */
+    #modalErrorDotacion .modal-footer { background: #ffffff; border-top: 0; padding: 1rem; display: flex; justify-content: center; }
+    /* Borde del botón un poco más gris para mejor contraste */
+    #modalErrorDotacion .modal-footer .btn { border-radius: 10px; font-weight: 600; min-width: 140px; padding: .45rem .8rem; border: 1px solid #bfc6cc; color: #495057; }
+
+    /* Ajustes responsivos */
+    @media (max-width: 575px){
+        #modalErrorDotacion .modal-dialog { max-width: 95%; }
+        #modalErrorDotacion .modal-title { font-size: 0.98rem; }
+        #modalErrorDotacion .modal-footer .btn { min-width: 100%; }
+    }
+
+    /* --- Overrides para un look más pulido (ej.: icono circulado, sombras y gradientes) --- */
+    /* Icono circular rojo en el título */
+    #modalErrorDotacion .modal-title i {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(180deg, #e86b76 0%, #c41c3b 100%);
+        color: #fff;
+        border-radius: 50%;
+        box-shadow: 0 4px 12px rgba(196, 28, 59, 0.18);
+        font-size: 1rem;
+    }
+
+    /* Titular más prominente */
+    #modalErrorDotacion .modal-title { font-size: 1.15rem; letter-spacing: .2px; }
+
+    /* Alerta pico estilo tarjeta con sombra sutil y borde interior */
+    #alerta-pico { padding: .7rem .9rem; box-shadow: 0 6px 18px rgba(200,30,50,0.06); border-left: 4px solid #f5c6cb; }
+    #alerta-pico i { background: transparent; color: #941827; font-size: 1.05rem; }
+
+    /* Cards: fondo gris claro y contenido en caja blanca (efecto tarjeta interna) */
+    #modalErrorDotacion .card { background: transparent; border: none; }
+    #modalErrorDotacion .card-body { background: #ffffff; border: 1px solid #eef2f5; border-radius: 10px; padding: .9rem; }
+
+    /* Progresos: color suave cuando OK, degradado cuando DÉFICIT */
+    #modalErrorDotacion .progress-bar.bg-danger { background: linear-gradient(90deg,#f08a8f 0%,#c41c3b 100%); }
+    #modalErrorDotacion .progress-bar.bg-success { background: linear-gradient(90deg,#7ad38a 0%,#2ea44a 100%); }
+
+    /* Texto de valores mejor alineado */
+    #modalErrorDotacion .d-flex.justify-content-between.small { font-size: 0.92rem; }
+
+    /* Badge estado más consistente con altura */
+    #modalErrorDotacion .badge { min-width: 64px; text-align: center; }
+
+    /* Hacer más claro el pequeño pie de nota */
+    #modalErrorDotacion .modal-body .text-muted.fst-italic { color: #6b6f76; }
+
+    /* Ajustes móviles: stack más compacto */
+    @media (max-width: 420px) {
+        #modalErrorDotacion .card-body { padding: .7rem; }
+        #modalErrorDotacion .modal-title i { width: 32px; height: 32px; }
+    }
+
+    /* Icono grande superior usado en el modal */
+    #modalErrorDotacion .icon-top {
+        width: 92px;
+        height: 92px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 2.5px solid #e86b76;
+        box-shadow: 0 6px 20px rgba(232,107,118,0.12);
+        background: #fff;
+    }
+    #modalErrorDotacion .icon-top i { color: #e14b52; font-size: 1.9rem; }
 </style>
 
 {% endblock %}
@@ -446,14 +560,17 @@ document.addEventListener('DOMContentLoaded', function() {
             alertaPico = document.createElement('div');
             alertaPico.id = 'alerta-pico';
             alertaPico.className = 'alert alert-danger d-flex align-items-center py-2 px-3 mb-3 d-none';
-            alertaPico.innerHTML = '<i class="bi bi-lightning-fill me-2"></i><div id="texto-pico" class="small fw-bold"></div>';
+            alertaPico.innerHTML = '<div id="texto-pico" class="small fw-bold"></div>';
             // Insertar después del párrafo introductorio
             const pIntro = container.querySelector('p.text-muted');
             pIntro.insertAdjacentElement('afterend', alertaPico);
         }
 
         if (detalles.error_pico && detalles.mensaje) {
-            document.getElementById('texto-pico').textContent = detalles.mensaje;
+            // Eliminar prefijo "Día " o "Dia " al inicio si existe
+            const raw = detalles.mensaje || '';
+            const texto = raw.replace(/^[Dd][íi]a\s+:/, '').replace(/^[Dd][íi]a\s+/, '');
+            document.getElementById('texto-pico').textContent = texto;
             alertaPico.classList.remove('d-none');
         } else {
             alertaPico.classList.add('d-none');
