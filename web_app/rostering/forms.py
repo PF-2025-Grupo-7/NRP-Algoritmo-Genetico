@@ -141,6 +141,12 @@ class NoDisponibilidadForm(BootstrapFormMixin, forms.ModelForm):
             'empleado': SELECT_WIDGET,
             'tipo_turno': SELECT_WIDGET,
         }
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Motivo puede ser opcional desde el formulario (permitir cargar ausencia sin texto)
+        if 'motivo' in self.fields:
+            self.fields['motivo'].required = False
+            self.fields['motivo'].widget.attrs.update({'placeholder': 'Opcional'})
 
 class PreferenciaForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
@@ -408,3 +414,21 @@ class ConfiguracionAvanzadaForm(BootstrapFormMixin, forms.ModelForm):
             'peso_preferencia_turno': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'step': '0.1', 'class': 'form-control'}),
             'factor_alpha_pte': forms.NumberInput(attrs={'type': 'number', 'min': '0', 'max': '1', 'step': '0.01', 'class': 'form-control'}),
         }
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Campos que deben ser obligatorios
+        required_fields = [
+            'nombre', 'tamano_poblacion', 'generaciones', 'prob_cruce', 'prob_mutacion',
+            'estrategia_seleccion', 'estrategia_cruce', 'estrategia_mutacion',
+            'tolerancia_general', 'tolerancia_dificil', 'factor_alpha_pte',
+            'peso_equidad_general', 'peso_equidad_dificil', 'peso_preferencia_dias_libres', 'peso_preferencia_turno'
+        ]
+        for fname in required_fields:
+            if fname in self.fields:
+                self.fields[fname].required = True
+                # Ensure widget has required attribute for client-side HTML5 validation
+                try:
+                    attrs = self.fields[fname].widget.attrs
+                    attrs['required'] = 'required'
+                except Exception:
+                    pass

@@ -27,6 +27,34 @@
                         </div>
                     </form>
                 </div>
+
+                <!-- Publish/Unpublish confirmation modal (same as other cronograma views) -->
+                <div class="modal fade" id="publishConfirmModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+                            <div class="modal-header border-0 pb-0 pt-4 px-4" style="background: white;">
+                                <button type="button" class="btn-close position-absolute" style="top: 16px; right: 16px; opacity: 0.5;" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body text-center px-5 pb-4 pt-2">
+                                <div class="mb-4">
+                                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #0d6efd;">
+                                        <i class="bi bi-exclamation-lg" style="font-size: 2rem; color: #0d6efd;"></i>
+                                    </div>
+                                </div>
+
+                                <h4 class="fw-bold mb-3" style="color: #2f3e4c;">¿Estás seguro?</h4>
+
+                                <div class="mb-3 p-4 text-center" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+                                    <p id="publishModalText" class="mb-0 small text-muted">Estas a punto de publicar/despublicar (según corresponda) este cronograma oficialmente</p>
+                                </div>
+                            </div>
+                            <div class="modal-footer border-0 bg-white justify-content-center gap-2 pb-4">
+                                <button type="button" class="btn btn-light px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 600; border: 1px solid #dee2e6; min-width: 140px;">Cancelar</button>
+                                <button type="button" id="confirmPublishBtn" class="btn btn-primary px-4 py-2" style="border-radius: 10px; font-weight: 600; min-width: 140px;">Confirmar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             {% else %}
                 <button disabled class="btn btn-outline-secondary fw-bold px-3 me-2" title="No se puede exportar un cronograma fallido">
                     <i class="bi bi-file-earmark-pdf-fill me-1"></i>PDF
@@ -372,15 +400,75 @@ document.addEventListener('DOMContentLoaded', function(){
     document.addEventListener('DOMContentLoaded', function(){
         var toggle = document.getElementById('togglePublicado');
         var form = document.getElementById('form-toggle-publicado');
+        var publishModalEl = document.getElementById('publishConfirmModal');
+        var publishModal = publishModalEl ? new bootstrap.Modal(publishModalEl) : null;
+        var publishText = document.getElementById('publishModalText');
+        var confirmPublishBtn = document.getElementById('confirmPublishBtn');
+
         if(!toggle || !form) return;
-        toggle.addEventListener('change', function(){
-            if(this.checked){
-                form.action = "{% url 'cronograma_publish' cronograma.id %}";
-            } else {
-                form.action = "{% url 'cronograma_unpublish' cronograma.id %}";
+
+        var previousChecked = toggle.checked;
+
+        toggle.addEventListener('change', function(e){
+            var willPublish = this.checked;
+            if (publishText) {
+                publishText.textContent = willPublish
+                    ? 'Estas a punto de publicar este cronograma oficialmente'
+                    : 'Estas a punto de despublicar este cronograma oficialmente';
             }
-            form.submit();
+            if (confirmPublishBtn) {
+                confirmPublishBtn.textContent = willPublish ? 'Publicar' : 'Continuar';
+                confirmPublishBtn.classList.remove('btn-danger');
+                confirmPublishBtn.classList.add('btn-primary');
+            }
+
+            if (publishModal) {
+                e.preventDefault();
+                publishModal.show();
+            } else {
+                submitPublish(willPublish);
+            }
         });
+
+        function submitPublish(willPublish){
+            var action = willPublish
+                ? "{% url 'cronograma_publish' cronograma.id %}"
+                : "{% url 'cronograma_unpublish' cronograma.id %}";
+
+            var fd = new FormData(form);
+
+            fetch(action, {
+                method: 'POST',
+                body: fd,
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(function(resp){
+                if (resp.ok) {
+                    previousChecked = toggle.checked;
+                } else {
+                    toggle.checked = previousChecked;
+                    alert('No se pudo completar la acción. Intenta nuevamente.');
+                }
+            }).catch(function(){
+                toggle.checked = previousChecked;
+                alert('Error de red al intentar publicar/despublicar.');
+            });
+        }
+
+        if (confirmPublishBtn) {
+            confirmPublishBtn.addEventListener('click', function(){
+                var desired = toggle.checked;
+                if (publishModal) publishModal.hide();
+                submitPublish(desired);
+            });
+
+            if (publishModalEl) {
+                publishModalEl.addEventListener('hidden.bs.modal', function(){
+                    if (toggle.checked === previousChecked) return;
+                    toggle.checked = previousChecked;
+                });
+            }
+        }
     });
 </script>
 

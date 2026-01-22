@@ -88,7 +88,7 @@
     </style>
     <div class="card border-0" style="border-radius: 14px;">
         <div class="card-body p-4 p-lg-5">
-            <form method="post" id="form-nodisponibilidad" novalidate autocomplete="off">
+            <form method="post" id="form-nodisponibilidad" novalidate autocomplete="off" onsubmit="console.log('INLINE onsubmit triggered'); return true;">
                 {% csrf_token %}
                 <div id="form-warning" class="field-error d-none" style="margin-bottom: 1.5rem;">
                     <i class="bi bi-exclamation-circle"></i>
@@ -132,16 +132,16 @@
                             <!-- Eliminado label duplicado -->
                                 <label class="form-label fw-bold" for="id_tipo_turno">Turno<span class="required-asterisk" aria-hidden="true">*</span></label>
                             <div class="custom-select-wrapper">
-                                <select class="form-select d-none" id="id_tipo_turno" name="tipo_turno" required>
-                                    <option value="" {% if not form.instance.tipo_turno and not form.initial.tipo_turno %}selected{% endif %}></option>
+                                <select class="form-select d-none" id="id_tipo_turno" name="tipo_turno">
+                                    <option value="" {% if not form.instance.tipo_turno and not form.initial.tipo_turno %}selected{% endif %}>Todo el día</option>
                                     {% for turno in form.fields.tipo_turno.queryset.all %}
                                         <option value="{{ turno.pk }}" data-especialidad="{{ turno.especialidad }}" {% if form.instance.tipo_turno and form.instance.tipo_turno.pk == turno.pk %}selected{% endif %}>{{ turno.nombre }}</option>
                                     {% endfor %}
                                 </select>
                                 <div class="custom-dropdown">
-                                    <div class="custom-dropdown-header" tabindex="0">{% if form.instance.tipo_turno %}{{ form.instance.tipo_turno.nombre }}{% elif form.initial.tipo_turno %}{{ form.initial.tipo_turno }}{% else %}Seleccioná un turno{% endif %}</div>
+                                    <div class="custom-dropdown-header" tabindex="0">{% if form.instance.tipo_turno %}{{ form.instance.tipo_turno.nombre }}{% elif form.initial.tipo_turno %}{{ form.initial.tipo_turno }}{% else %}Todo el día{% endif %}</div>
                                     <div class="custom-dropdown-menu">
-                                        <div class="custom-option" data-value="">&nbsp;</div>
+                                            <div class="custom-option" data-value="">Todo el día</div>
                                         {% for turno in form.fields.tipo_turno.queryset.all %}
                                             <div class="custom-option" data-value="{{ turno.pk }}" data-especialidad="{{ turno.especialidad }}">{{ turno.nombre }}</div>
                                         {% endfor %}
@@ -161,7 +161,7 @@
                     <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary fw-bold px-4 me-md-2">
                         Cancelar
                     </a>
-                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                    <button type="submit" class="btn btn-primary fw-bold px-4" onclick="console.log('INLINE submit button clicked')">
                         Guardar Cambios
                     </button>
                 </div>
@@ -181,10 +181,10 @@ function setupCustomDropdown(wrapper){
     const menu = wrapper.querySelector('.custom-dropdown-menu');
     if (!header || !dropdown || !menu || !nativeSelect) return;
 
-    // Inicializar header con el valor seleccionado o placeholder
+    // Inicializar header con el valor seleccionado o placeholder (incluye option vacía)
     try {
         const sel = nativeSelect.options[nativeSelect.selectedIndex];
-        if (sel && sel.textContent && nativeSelect.value) {
+        if (sel && sel.textContent) {
             header.textContent = sel.textContent;
         }
     } catch (e) {}
@@ -225,6 +225,7 @@ document.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
 
     form.addEventListener('submit', function(e) {
+        console.log('DEBUG submit handler triggered');
         // Ocultar warning previo
         const warningDiv = document.getElementById('form-warning');
         const warningText = document.getElementById('form-warning-text');
@@ -238,7 +239,8 @@ document.addEventListener("DOMContentLoaded", function() {
             { field: document.getElementById('id_fecha_inicio'), name: 'Fecha inicio' },
             { field: document.getElementById('id_fecha_fin'), name: 'Fecha fin' }
         ];
-        let emptyFields = requiredFields.filter(item => !item.field.value || item.field.value.trim() === '');
+        let emptyFields = requiredFields.filter(item => !item.field || !item.field.value || item.field.value.trim() === '');
+        console.log('DEBUG requiredFields check', requiredFields.map(r => ({name: r.name, value: r.field ? r.field.value : null})), 'empty:', emptyFields.map(f=>f.name));
 
         // Validar turno: solo marcar como inválido si el select está deshabilitado o no existe (no si es "Todo el día")
         var turnoField = document.getElementById('id_tipo_turno');
@@ -283,28 +285,50 @@ document.addEventListener("DOMContentLoaded", function() {
         // Validar que la fecha fin no sea menor que la fecha inicio
         var fechaInicio = document.getElementById('id_fecha_inicio').value;
         var fechaFin = document.getElementById('id_fecha_fin').value;
+
+        function parseDateInput(s) {
+            if (!s) return null;
+            // ISO format YYYY-MM-DD
+            var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (iso) return new Date(parseInt(iso[1], 10), parseInt(iso[2], 10) - 1, parseInt(iso[3], 10));
+            // Common locale format DD/MM/YYYY
+            var dmy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (dmy) return new Date(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10));
+            // Fallback to Date parser
+            var dt = new Date(s);
+            if (isNaN(dt.getTime())) return null;
+            return dt;
+        }
+
         if (fechaInicio && fechaFin) {
-            var inicioDate = new Date(fechaInicio);
-            var finDate = new Date(fechaFin);
-            if (finDate < inicioDate) {
-                e.preventDefault();
-                if (warningText) warningText.textContent = 'La fecha fin no puede ser anterior a la fecha inicio.';
-                if (warningDiv) {
-                    warningDiv.classList.remove('d-none');
-                    warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            var inicioDate = parseDateInput(fechaInicio);
+            var finDate = parseDateInput(fechaFin);
+            // Si no pudimos parsear, no hacemos la validación estricta aquí
+            if (inicioDate && finDate) {
+                if (finDate.getTime() < inicioDate.getTime()) {
+                    e.preventDefault();
+                    if (warningText) warningText.textContent = 'La fecha fin no puede ser anterior a la fecha inicio.';
+                    if (warningDiv) {
+                        warningDiv.classList.remove('d-none');
+                        warningDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    var finField = document.getElementById('id_fecha_fin');
+                    finField.classList.add('is-invalid');
+                    finField.addEventListener('input', function handler() {
+                        finField.classList.remove('is-invalid');
+                        finField.removeEventListener('input', handler);
+                    });
+                    return;
                 }
-                var finField = document.getElementById('id_fecha_fin');
-                finField.classList.add('is-invalid');
-                finField.addEventListener('input', function handler() {
-                    finField.classList.remove('is-invalid');
-                    finField.removeEventListener('input', handler);
-                });
-                return;
             }
         }
 
-        // Si el select de turno está presente y deshabilitado, o el header muestra 'Seleccioná un turno', marcar como inválido
-        if (turnoField && (turnoField.disabled || (turnoHeader && turnoHeader.textContent.trim() === 'Seleccioná un turno'))) {
+        // Si el select de turno está presente y deshabilitado, o el header muestra el placeholder 'Seleccioná un turno', marcar como inválido
+        // Nota: permitimos 'Todo el día' (valor vacío) así que no lo marcamos como inválido.
+        console.log('DEBUG fechas:', {fechaInicio: fechaInicio, fechaFin: fechaFin});
+        try { console.log('DEBUG parsed:', {inicio: parseDateInput(fechaInicio), fin: parseDateInput(fechaFin)}); } catch (e) {}
+
+        if (turnoField && (turnoField.disabled || (turnoHeader && (turnoHeader.textContent.trim() === 'Seleccioná un turno' || turnoHeader.textContent.trim() === '')))) {
             if (turnoHeader) turnoHeader.classList.add('is-invalid');
             turnoField.classList.add('is-invalid');
             e.preventDefault();

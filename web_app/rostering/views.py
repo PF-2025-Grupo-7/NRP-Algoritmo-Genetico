@@ -17,6 +17,9 @@ from django.views.generic import (
     DetailView, TemplateView, FormView
 )
 from django.contrib.auth.decorators import user_passes_test
+import logging
+
+logger = logging.getLogger(__name__)
 from django.core.exceptions import PermissionDenied
 
 # --- MODELOS ---
@@ -115,7 +118,6 @@ def pagina_generador(request):
     """Renderiza la pantalla para configurar y lanzar una nueva planificación."""
     return render(request, 'rostering/generador.html')
 
-
 @csrf_exempt 
 @login_required
 @require_POST
@@ -123,26 +125,31 @@ def iniciar_planificacion(request):
     try:
         data = json.loads(request.body)
         job_id = iniciar_proceso_optimizacion(data)
+        
+        # Respuesta exitosa estándar
         return JsonResponse({'status': 'started', 'job_id': job_id})
 
     except ValidationError as e:
-        # Si el error trae parámetros (nuestros datos de dotación), los enviamos
+        # CASO A: Error de Negocio con Datos (Dotación insuficiente)
+        # Este bloque soluciona el "reading 'oferta' of undefined" en el frontend
         if hasattr(e, 'params') and e.params:
             return JsonResponse({
-                'error': e.message,
-                'tipo_error': 'FALTA_DOTACION', # Flag para que el JS sepa qué modal abrir
-                'detalles': e.params
-            }, status=422) # 422: Entidad no procesable (Validación de negocio fallida)
+                'error': e.message if hasattr(e, 'message') else 'Error de capacidad',
+                'tipo_error': 'FALTA_DOTACION', # Flag para que el JS active el modal con gráficos
+                'detalles': e.params            # <--- Aquí viaja el objeto {senior:..., junior:...}
+            }, status=422) 
         
-        # Error genérico de validación
-        return JsonResponse({'error': str(e.message)}, status=400)
+        # CASO B: Error Genérico de Validación (Fechas, formatos, etc.)
+        # CORRECCIÓN: Usamos e.messages para evitar AttributeError si e.message no existe
+        mensaje_error = e.messages if hasattr(e, 'messages') else str(e)
+        return JsonResponse({'error': mensaje_error}, status=400)
         
     except ValueError as e:
+        # Errores de parsing JSON o datos faltantes simples
         return JsonResponse({'error': str(e)}, status=400)
-    except Exception as e:
-        print(e)
-        return JsonResponse({'error': "Error interno del servidor"}, status=500)
 
+    except Exception as e:
+        return JsonResponse({'error': "Error interno del servidor. Consulte los logs."}, status=500)
 
 @csrf_exempt
 @require_GET
@@ -185,14 +192,11 @@ def verificar_estado_planificacion(request, job_id):
                 })
             except Exception as e:
                 # Esto imprimirá el error real en tu consola de Docker
-                print("🔴 ERROR CRÍTICO EN POLLING/GUARDADO:")
-                print(traceback.format_exc()) 
                 return JsonResponse({'error': f"Error interno: {str(e)}"}, status=500)
 
         return JsonResponse({'status': 'running'})
 
     except Exception as e:
-        print(f"Error polling: {e}")
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -473,7 +477,6 @@ def config_turnos_edit(request, especialidad):
                 # --- CREACIÓN O ACTUALIZACIÓN ---
                 if not es_edicion:
                     # CASO 1: PRIMERA VEZ (Crear objetos TipoTurno)
-                    print(f"✨ CREACIÓN INICIAL: Generando turnos para {especialidad}")
                     for datos in nuevos_datos:
                         meta = nombres[datos['key']]
                         es_noc_calc = datos['fin'] < datos['inicio']
@@ -490,7 +493,6 @@ def config_turnos_edit(request, especialidad):
 
                 else:
                     # CASO 2: EDICIÓN (Actualizar existentes)
-                    print(f"🔄 ACTUALIZACIÓN: Modificando detalles para {especialidad}")
                     
                     # CORRECCIÓN: Eliminamos activo=True del filtro
                     turnos_existentes = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
@@ -581,6 +583,23 @@ class NoDisponibilidadCreateView(LoginRequiredMixin, CreateView):
     template_name = 'rostering/nodisponibilidad_form.html'
     success_url = reverse_lazy('nodisponibilidad_list')
     extra_context = {'titulo': 'Registrar Ausencia'}
+    def post(self, request, *args, **kwargs):
+        try:
+            logger.info('NoDisponibilidadCreateView POST received. POST data: %s', dict(request.POST))
+        except Exception as e:
+            logger.exception('Error printing POST data: %s', e)
+        return super().post(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        logger.info('NoDisponibilidad create form_valid. cleaned_data keys: %s', list(form.cleaned_data.keys()))
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        try:
+            logger.warning('NoDisponibilidad create form_invalid. Errors: %s', form.errors.as_json())
+        except Exception:
+            logger.warning('NoDisponibilidad create form_invalid. Errors (repr): %s', repr(form.errors))
+        return super().form_invalid(form)
 
 class NoDisponibilidadUpdateView(LoginRequiredMixin, UpdateView):
     model = NoDisponibilidad
@@ -588,6 +607,23 @@ class NoDisponibilidadUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'rostering/nodisponibilidad_form.html'
     success_url = reverse_lazy('nodisponibilidad_list')
     extra_context = {'titulo': 'Editar Ausencia'}
+    def post(self, request, *args, **kwargs):
+        try:
+            logger.info('NoDisponibilidadUpdateView POST received. POST data: %s', dict(request.POST))
+        except Exception as e:
+            logger.exception('Error printing POST data: %s', e)
+        return super().post(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        logger.info('NoDisponibilidad update form_valid. cleaned_data keys: %s', list(form.cleaned_data.keys()))
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        try:
+            logger.warning('NoDisponibilidad update form_invalid. Errors: %s', form.errors.as_json())
+        except Exception:
+            logger.warning('NoDisponibilidad update form_invalid. Errors (repr): %s', repr(form.errors))
+        return super().form_invalid(form)
 
 class NoDisponibilidadDeleteView(LoginRequiredMixin, DeleteView):
     model = NoDisponibilidad
@@ -799,7 +835,19 @@ class ExcepcionCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.plantilla = PlantillaDemanda.objects.get(pk=self.kwargs['plantilla_id'])
-        return super().form_valid(form)
+        try:
+            return super().form_valid(form)
+        except ValidationError as ve:
+            # Mostrar un mensaje amigable al usuario en lugar del traceback
+            try:
+                raw = ve.messages[0] if hasattr(ve, 'messages') and ve.messages else str(ve)
+            except Exception:
+                raw = str(ve)
+            logger.warning('ExcepcionCreateView validation error (raw): %s', raw)
+            # Mensaje solicitado por el usuario
+            message = 'Ya existe una Excepción para esta fecha y turno. Eliminá la excepción existente para poder crear una nueva.'
+            form.add_error(None, message)
+            return self.form_invalid(form)
 
     def get_success_url(self):
         return reverse_lazy('plantilla_detail', kwargs={'pk': self.kwargs['plantilla_id']})
