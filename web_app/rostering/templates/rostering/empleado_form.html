@@ -25,6 +25,9 @@
             
             <form method="post" id="form-empleado" novalidate autocomplete="off">
                 {% csrf_token %}
+                {% if request.GET.next %}
+                    <input type="hidden" name="next" value="{{ request.GET.next }}">
+                {% endif %}
                 
                 <div class="col-12">
                     <div id="form-warning" class="field-error d-none">
@@ -195,9 +198,11 @@
 
                 <!-- Botones de acción -->
                 <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                    <a href="{% url 'empleado_list' %}" class="btn btn-outline-secondary me-md-2 fw-bold px-4">
-                        Cancelar
-                    </a>
+                    {% if request.GET.next %}
+                        <a href="{{ request.GET.next }}" class="btn btn-outline-secondary me-md-2 fw-bold px-4">Cancelar</a>
+                    {% else %}
+                        <a href="{% url 'empleado_list' %}" class="btn btn-outline-secondary me-md-2 fw-bold px-4">Cancelar</a>
+                    {% endif %}
                     <button type="submit" class="btn btn-primary fw-bold px-4">
                         Guardar Cambios
                     </button>

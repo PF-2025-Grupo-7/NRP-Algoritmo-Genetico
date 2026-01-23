@@ -36,19 +36,17 @@
                     <div class="custom-select-wrapper">
                         <select class="form-select d-none" id="especialidad" required>
                             <option value="" selected disabled>Seleccioná una especialidad</option>
-                            <option value="MEDICO">Médico</option>
-                            <option value="ENFERMERO">Enfermero</option>
-                            <option value="ER">Experto en Emergencias</option>
-                            <option value="UCI">Unidad de Cuidados Intensivos</option>
+                            {% for esp in especialidades_disponibles %}
+                                <option value="{{ esp.code }}">{{ esp.label }}</option>
+                            {% endfor %}
                         </select>
                         <div class="custom-dropdown">
                             <div class="custom-dropdown-header" tabindex="0">Seleccioná una especialidad</div>
                             <div class="custom-dropdown-menu">
-                                <div class="custom-option" data-value="">Seleccioná una especialidad</div>
-                                <div class="custom-option" data-value="MEDICO">Médico</div>
-                                <div class="custom-option" data-value="ENFERMERO">Enfermero</div>
-                                <div class="custom-option" data-value="ER">Experto en Emergencias</div>
-                                <div class="custom-option" data-value="UCI">Unidad de Cuidados Intensivos</div>
+                                    <div class="custom-option" data-value="">Seleccioná una especialidad</div>
+                                    {% for esp in especialidades_disponibles %}
+                                        <div class="custom-option" data-value="{{ esp.code }}">{{ esp.label }}</div>
+                                    {% endfor %}
                             </div>
                         </div>
                     </div>

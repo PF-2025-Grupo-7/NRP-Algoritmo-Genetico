@@ -45,7 +45,7 @@ Una vez que la terminal muestra los logs de los servicios corriendo:
 
 | Servicio | Dirección | Descripción |
 | :--- | :--- | :--- |
-| **Web App (Usuario)** | [http://localhost:8080](http://localhost:8080) | Login y Gestión de Turnos |
+| **Web App (Usuario)** | [http://local![alt text](image.png)host:8080](http://localhost:8080) | Login y Gestión de Turnos |
 | **Panel Admin** | [http://localhost:8080/admin](http://localhost:8080/admin) | ABM de Médicos y Configuración |
 | **Documentación API** | [http://localhost:8000/docs](http://localhost:8000/docs) | Swagger/Redoc del Algoritmo |
 

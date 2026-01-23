@@ -116,7 +116,18 @@ def registrar_usuario(request):
 @login_required
 def pagina_generador(request):
     """Renderiza la pantalla para configurar y lanzar una nueva planificación."""
-    return render(request, 'rostering/generador.html')
+    # Mostrar solo especialidades que tengan un esquema de turnos definido
+    try:
+        from .models import Empleado, ConfiguracionTurnos
+        # obtener códigos únicos de especialidad con configuración
+        codigos = list(ConfiguracionTurnos.objects.values_list('especialidad', flat=True).distinct())
+        # mapear código -> etiqueta legible usando las choices del modelo Empleado
+        choices_map = {c[0]: c[1] for c in Empleado.TipoEspecialidad.choices}
+        especialidades = [{'code': c, 'label': choices_map.get(c, c)} for c in codigos]
+    except Exception:
+        especialidades = []
+
+    return render(request, 'rostering/generador.html', {'especialidades_disponibles': especialidades})
 
 @csrf_exempt 
 @login_required
@@ -359,6 +370,13 @@ class EmpleadoUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'rostering/empleado_form.html'
     success_url = reverse_lazy('empleado_list')
     extra_context = {'titulo': 'Editar Empleado'}
+
+    def get_success_url(self):
+        # Preferir el parámetro 'next' si fue pasado (permite volver a filtros y página)
+        next_url = self.request.POST.get('next') or self.request.GET.get('next')
+        if next_url:
+            return next_url
+        return super().get_success_url()
 
 class EmpleadoDeleteView(SuperUserRequiredMixin, DeleteView):
     model = Empleado
@@ -624,6 +642,12 @@ class NoDisponibilidadUpdateView(LoginRequiredMixin, UpdateView):
         except Exception:
             logger.warning('NoDisponibilidad update form_invalid. Errors (repr): %s', repr(form.errors))
         return super().form_invalid(form)
+    
+    def get_success_url(self):
+        next_url = self.request.POST.get('next') or self.request.GET.get('next')
+        if next_url:
+            return next_url
+        return super().get_success_url()
 
 class NoDisponibilidadDeleteView(LoginRequiredMixin, DeleteView):
     model = NoDisponibilidad
@@ -661,6 +685,11 @@ class PreferenciaUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'rostering/preferencia_form.html'
     success_url = reverse_lazy('preferencia_list')
     extra_context = {'titulo': 'Editar Preferencia'}
+    def get_success_url(self):
+        next_url = self.request.POST.get('next') or self.request.GET.get('next')
+        if next_url:
+            return next_url
+        return super().get_success_url()
 
 class PreferenciaDeleteView(LoginRequiredMixin, DeleteView):
     model = Preferencia
@@ -706,7 +735,11 @@ class PlantillaUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'rostering/plantilla_form.html' # Reutilizamos el template de form
     
     def get_success_url(self):
-        # Al guardar, volvemos a la lista de plantillas
+        # Preferir 'next' si viene (permite volver a la lista o detalle desde donde se llamó)
+        next_url = self.request.POST.get('next') or self.request.GET.get('next')
+        if next_url:
+            return next_url
+        # Al guardar, volvemos a la lista de plantillas por defecto
         return reverse_lazy('plantilla_list')
         
     def get_context_data(self, **kwargs):
