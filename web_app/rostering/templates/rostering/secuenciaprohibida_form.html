@@ -10,6 +10,9 @@
                 <div class="card-body p-4">
                     <form method="post">
                         {% csrf_token %}
+                        {% if request.GET.next %}
+                            <input type="hidden" name="next" value="{{ request.GET.next }}">
+                        {% endif %}
                         
                         {% if form.non_field_errors %}
                             <div class="alert alert-danger mb-3">
@@ -33,7 +36,11 @@
 
                         <hr class="my-4">
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                            <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary me-md-2">Cancelar</a>
+                            {% if request.GET.next %}
+                                <a href="{{ request.GET.next }}" class="btn btn-outline-secondary me-md-2">Cancelar</a>
+                            {% else %}
+                                <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary me-md-2">Cancelar</a>
+                            {% endif %}
                             <button type="submit" class="btn btn-danger px-4">Guardar Regla</button>
                         </div>
                     </form>

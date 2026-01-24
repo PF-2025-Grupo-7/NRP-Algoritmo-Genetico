@@ -91,7 +91,7 @@
                             
                             <td class="text-end">
                                 <div class="btn-group" role="group">
-                                    <a href="{% url 'tipoturno_update' turno.pk %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                    <a href="{% url 'tipoturno_update' turno.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-outline-primary" title="Editar">
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     <a href="{% url 'tipoturno_delete' turno.pk %}" class="btn btn-sm btn-outline-danger" title="Eliminar">

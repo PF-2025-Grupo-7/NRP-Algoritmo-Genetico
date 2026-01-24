@@ -72,7 +72,7 @@
                                     class="btn btn-outline-danger btn-sm"
                                     data-bs-toggle="tooltip"
                                     data-bs-title="Eliminar"
-                                    onclick="openPlantillaDeleteModal('{{ p.nombre }}', '{% url 'plantilla_delete' p.pk %}')"
+                                    onclick="openPlantillaDeleteModal('{{ p.nombre }}', '{{ p.get_especialidad_display }}', '{% url 'plantilla_delete' p.pk %}')"
                                     title="Eliminar">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -168,11 +168,15 @@
     </div>
 
     <script>
-        function openPlantillaDeleteModal(nombre, url) {
+        function openPlantillaDeleteModal(nombre, especialidad, url) {
             var modalEl = document.getElementById('deletePlantillaModal');
             var nombreSpan = document.getElementById('deletePlantillaNombre');
             var form = document.getElementById('deletePlantillaForm');
-            if (nombreSpan) nombreSpan.textContent = '"' + nombre + '"';
+            if (nombreSpan) {
+                var text = '"' + nombre + '"';
+                if (especialidad) text += ' - ' + especialidad;
+                nombreSpan.textContent = text;
+            }
             if (form) form.action = url;
             var modal = new bootstrap.Modal(modalEl);
             modal.show();

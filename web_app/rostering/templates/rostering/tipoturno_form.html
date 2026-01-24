@@ -18,6 +18,9 @@
                 <div class="card-body p-4">
                     <form method="post">
                         {% csrf_token %}
+                        {% if request.GET.next %}
+                            <input type="hidden" name="next" value="{{ request.GET.next }}">
+                        {% endif %}
                         
                         {% if form.non_field_errors %}
                             <div class="alert alert-danger mb-4">
@@ -107,9 +110,11 @@
                         <hr class="my-4 opacity-10">
 
                         <div class="d-flex justify-content-end gap-2">
-                            <a href="{% url 'tipoturno_list' %}" class="btn btn-light border text-muted px-4 fw-bold">
-                                Cancelar
-                            </a>
+                            {% if request.GET.next %}
+                                <a href="{{ request.GET.next }}" class="btn btn-light border text-muted px-4 fw-bold">Cancelar</a>
+                            {% else %}
+                                <a href="{% url 'tipoturno_list' %}" class="btn btn-light border text-muted px-4 fw-bold">Cancelar</a>
+                            {% endif %}
                             <button type="submit" class="btn btn-success px-4 fw-bold shadow-sm">
                                 <i class="bi bi-check-lg me-2"></i> Guardar
                             </button>

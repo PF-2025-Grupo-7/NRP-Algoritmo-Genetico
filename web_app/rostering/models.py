@@ -2,6 +2,7 @@ from datetime import datetime, date, timedelta
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.db.models import Q
 
 # ==============================================================================
 # HELPERS / UTILIDADES
@@ -71,7 +72,6 @@ class Empleado(models.Model):
             try:
                 old_instance = Empleado.objects.get(pk=self.pk)
                 if old_instance.especialidad != self.especialidad:
-                    print(f"--- ⚠️ Cambio de Especialidad detectado para {self.nombre_completo}: {old_instance.especialidad} -> {self.especialidad} ---")
                     
                     # 1. Limpiar Preferencias (Turnos específicos incompatibles)
                     # Las preferencias con tipo_turno=None (Franco completo) se conservan.
@@ -84,9 +84,7 @@ class Empleado(models.Model):
                         tipo_turno__especialidad=old_instance.especialidad
                     ).delete()
 
-                    if deleted_prefs > 0 or deleted_nd > 0:
-                        print(f"    🧹 Limpieza realizada: {deleted_prefs} preferencias y {deleted_nd} ausencias eliminadas por inconsistencia.")
-                        
+                      
             except Empleado.DoesNotExist:
                 pass 
 
@@ -313,7 +311,7 @@ class NoDisponibilidad(models.Model):
         TipoTurno, on_delete=models.CASCADE, 
         null=True, blank=True, verbose_name="Turno (Dejar vacío para todo el día)"
     )
-    motivo = models.CharField(max_length=100)
+    motivo = models.CharField(max_length=100, blank=True, default='')
 
     class Meta:
         verbose_name_plural = "No Disponibilidades"
@@ -357,6 +355,27 @@ class NoDisponibilidad(models.Model):
                         f"Contradicción: El empleado pidió 'TRABAJAR' el día {p.fecha} ({p.tipo_turno or 'Día completo'}), "
                         f"no se puede cargar una ausencia para '{turno_msg}'."
                     )
+
+        # 4. Validación: evitar duplicados exactos (mismo empleado, rango que se superpone y mismo turno)
+        # Solo consideramos duplicado si el turno es el mismo (incluye ambos None -> 'Todo el día')
+        if self.empleado_id and self.fecha_inicio and self.fecha_fin:
+            dup_q = Q()
+            if self.tipo_turno_id is None:
+                dup_q = Q(tipo_turno__isnull=True)
+            else:
+                dup_q = Q(tipo_turno_id=self.tipo_turno_id)
+
+            qs_dup = NoDisponibilidad.objects.filter(
+                empleado_id=self.empleado_id,
+                fecha_fin__gte=self.fecha_inicio,
+                fecha_inicio__lte=self.fecha_fin,
+            ).filter(dup_q)
+
+            if self.pk:
+                qs_dup = qs_dup.exclude(pk=self.pk)
+
+            if qs_dup.exists():
+                raise ValidationError('Ya existe una ausencia para este empleado en este período y turno.')
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -409,6 +428,22 @@ class Preferencia(models.Model):
                             'deseo': f"Contradicción: Ya existe una preferencia opuesta ('{p.get_deseo_display()}') para este día/turno."
                         })
 
+            # 2.b Validación: evitar duplicados exactos (mismo deseo y mismo turno o ambos sin turno)
+            dup_q = Preferencia.objects.filter(
+                empleado=self.empleado,
+                fecha=self.fecha,
+                deseo=self.deseo,
+            )
+            # Filtrar por igualdad de turno (incluye ambos null)
+            if self.tipo_turno is None:
+                dup_q = dup_q.filter(tipo_turno__isnull=True)
+            else:
+                dup_q = dup_q.filter(tipo_turno_id=self.tipo_turno_id)
+            if self.pk:
+                dup_q = dup_q.exclude(pk=self.pk)
+            if dup_q.exists():
+                raise ValidationError('Ya existe una preferencia idéntica para este empleado en esta fecha.')
+
             # 3. Validación: No pedir "TRABAJAR" si estoy Ausente (NoDisponibilidad)
             if self.deseo == self.Deseo.TRABAJAR:
                 # Buscamos si hay alguna ausencia que cubra esta fecha
@@ -427,9 +462,7 @@ class Preferencia(models.Model):
                     )
                     
                     if hay_superposicion:
-                        raise ValidationError(
-                            f"Imposible solicitar 'TRABAJAR': El empleado tiene una ausencia registrada para esta fecha ({aus.motivo})."
-                        )
+                        raise ValidationError("El empleado ya tiene registrada otra ausencia para esta fecha.")
 
     def save(self, *args, **kwargs):
         self.full_clean()
