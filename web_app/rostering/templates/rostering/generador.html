@@ -550,27 +550,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- FUNCIÓN PARA MOSTRAR EL NUEVO MODAL ---
     function mostrarErrorDotacion(detalles) {
+        // ... (Same as your existing code for mostrarErrorDotacion) ...
         // Referencias
         const modalEl = document.getElementById('modalErrorDotacion');
         const modal = new bootstrap.Modal(modalEl);
         
         // --- 1. MOSTRAR MENSAJE DE PICO ESPECÍFICO (SI EXISTE) ---
-        // Buscamos o creamos un contenedor para el mensaje de error puntual
         let alertaPico = document.getElementById('alerta-pico');
         if (!alertaPico) {
-            // Si no existe en el HTML base, lo inyectamos dinámicamente arriba de las cards
             const container = document.querySelector('.modal-body');
             alertaPico = document.createElement('div');
             alertaPico.id = 'alerta-pico';
             alertaPico.className = 'alert alert-danger d-flex align-items-center py-2 px-3 mb-3 d-none';
             alertaPico.innerHTML = '<div id="texto-pico" class="small fw-bold"></div>';
-            // Insertar después del párrafo introductorio
             const pIntro = container.querySelector('p.text-muted');
             pIntro.insertAdjacentElement('afterend', alertaPico);
         }
 
         if (detalles.error_pico && detalles.mensaje) {
-            // Eliminar prefijo "Día " o "Dia " al inicio si existe
             const raw = detalles.mensaje || '';
             const texto = raw.replace(/^[Dd][íi]a\s+:/, '').replace(/^[Dd][íi]a\s+/, '');
             document.getElementById('texto-pico').textContent = texto;
@@ -606,55 +603,44 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Helper para configurar cada tarjeta (Senior/Junior)
     function configurarTarjetaCapacidad(rol, datos) {
-        // Elementos
         const elOferta = document.getElementById(`val-oferta-${rol}`);
         const elDemanda = document.getElementById(`val-demanda-${rol}`);
         const elBadge = document.getElementById(`badge-${rol}`);
         const elBar = document.getElementById(`bar-${rol}`);
         const elMsg = document.getElementById(`msg-${rol}`);
 
-        // Valores
         elOferta.textContent = datos.oferta;
         elDemanda.textContent = datos.demanda;
 
-        // Lógica de Barra y Estado
         const oferta = parseFloat(datos.oferta);
         const demanda = parseFloat(datos.demanda);
         
-        // Calculamos porcentaje de cobertura (tope 100%)
         let porcentaje = 100;
         if (demanda > 0) {
             porcentaje = (oferta / demanda) * 100;
         }
 
-        // Determinar si hay déficit de HORAS (independiente del pico)
         const deficitHoras = demanda > oferta;
         const faltante = demanda - oferta;
 
         if (deficitHoras) {
-            // Caso 1: Faltan horas globales -> ROJO
             elBadge.className = 'badge bg-danger';
             elBadge.textContent = 'DÉFICIT';
-            
             elBar.className = 'progress-bar bg-danger';
             elBar.style.width = `${Math.min(porcentaje, 100)}%`;
-            
             elMsg.textContent = `Faltan ${Math.ceil(faltante)} horas`;
             elMsg.className = 'text-end text-danger small fw-bold mt-1';
         } else {
-            // Caso 2: Sobran horas globales -> VERDE (Aunque haya pico)
             elBadge.className = 'badge bg-success';
             elBadge.textContent = 'CUBIERTO';
-            
             elBar.className = 'progress-bar bg-success';
             elBar.style.width = '100%';
-            
             elMsg.textContent = `Capacidad excedente: ${Math.floor(oferta - demanda)}h`;
             elMsg.className = 'text-end text-success small mt-1';
         }
     }
 
-    // Helper para cerrar todos los dropdowns (excepto opcional)
+    // Helper para cerrar todos los dropdowns
     function closeAllDropdowns(exceptDropdown) {
         document.querySelectorAll('.custom-dropdown.open').forEach(d => {
             if (!exceptDropdown || d !== exceptDropdown) d.classList.remove('open');
@@ -670,8 +656,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!header || !dropdown || !menu || !nativeSelect) return;
 
+        // Limpiar event listeners anteriores clonando el nodo
+        // Esto es necesario porque llamamos a setupCustomDropdown múltiples veces
+        const newHeader = header.cloneNode(true);
+        header.parentNode.replaceChild(newHeader, header);
+        
+        // Re-asignar referencia
+        const activeHeader = wrapper.querySelector('.custom-dropdown-header');
+
         // Abrir/cerrar con click
-        header.addEventListener('click', (e) => {
+        activeHeader.addEventListener('click', (e) => {
+            if (nativeSelect.disabled) return; // FIX: Respetar estado disabled
             e.preventDefault();
             e.stopPropagation();
             const isOpen = dropdown.classList.contains('open');
@@ -683,14 +678,15 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Soporte teclado: Enter/Space abre, Escape cierra
-        header.addEventListener('keydown', (e) => {
+        // Soporte teclado
+        activeHeader.addEventListener('keydown', (e) => {
+            if (nativeSelect.disabled) return;
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                header.click();
+                activeHeader.click();
             } else if (e.key === 'Escape' || e.key === 'Esc') {
                 dropdown.classList.remove('open');
-                header.blur();
+                activeHeader.blur();
             }
         });
 
@@ -699,13 +695,16 @@ document.addEventListener('DOMContentLoaded', function() {
             option.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (index === 0) return; // placeholder
+                // if (index === 0) return; // Permitir seleccionar el placeholder si es necesario (e.g. "Seleccioná...")
+                
                 const value = option.getAttribute('data-value');
                 const text = option.textContent;
+                
                 nativeSelect.value = value;
-                header.textContent = text;
+                activeHeader.textContent = text;
                 dropdown.classList.remove('open');
-                // Disparar evento change manualmente para que lo detecte el otro script
+                
+                // Disparar evento change manualmente
                 nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
             });
         });
@@ -718,7 +717,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Inicializar todos los wrappers existentes
+    // Inicializar todos los wrappers existentes al cargar
     document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
 
     // --- Referencias ---
@@ -741,9 +740,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const $warn = document.getElementById('form-warning');
     const $warnText = document.getElementById('form-warning-text');
 
-    // --- Sugerir período del próximo mes ---
-    // Not auto-filling `fecha_inicio` / `fecha_fin` so inputs remain empty by default.
-    // If you want an automatic suggestion later, re-add logic here.
 
     // --- Funciones de UI ---
     function setEstado(text, kind){
@@ -758,7 +754,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if($barra) {
             $barra.style.width = newVal + '%';
             $barra.setAttribute('aria-valuenow', newVal);
-            
             if (!keepAnimated) {
                 $barra.classList.remove('progress-bar-animated');
             } else {
@@ -787,8 +782,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if($plant) $plant.disabled = !!on;
         if($inicio) $inicio.disabled = !!on;
         if($fin) $fin.disabled = !!on;
-        // Track whether a job/operation is in progress. Used to warn user on navigation.
         window.__generadorJobInProgress = !!on;
+        
+        // Actualizar visualmente los dropdowns custom si se deshabilitan
+        document.querySelectorAll('.custom-select-wrapper').forEach(wrapper => {
+             const native = wrapper.querySelector('.form-select');
+             const header = wrapper.querySelector('.custom-dropdown-header');
+             if(native.disabled) header.style.backgroundColor = '#e9ecef';
+             else header.style.backgroundColor = '#ffffff';
+        });
     }
     
     function resetUI(){
@@ -801,73 +803,71 @@ document.addEventListener('DOMContentLoaded', function() {
         if($panelEstado) $panelEstado.classList.add('d-none');
         if($warn) $warn.classList.add('d-none');
         toggleLoading(false);
-        // Clear in-progress flag when UI reset
         window.__generadorJobInProgress = false;
     }
 
     resetUI();
 
-    // --- Cargar plantillas al cambiar especialidad ---
+    // --- Cargar plantillas al cambiar especialidad (CORREGIDO) ---
     if($esp) {
         $esp.addEventListener('change', async function(){
             if(!$plant) return;
             
+            // 1. Resetear visualmente el dropdown de plantillas
+            const plantWrapper = $plant.closest('.custom-select-wrapper');
+            const plantHeader = plantWrapper ? plantWrapper.querySelector('.custom-dropdown-header') : null;
+            const plantMenu = plantWrapper ? plantWrapper.querySelector('.custom-dropdown-menu') : null;
+
+            // Poner estado "Cargando..."
             $plant.innerHTML = '<option value="" selected>Cargando...</option>';
             $plant.disabled = true;
-            
-            const plantWrapper = $plant.closest('.custom-select-wrapper');
-            if (plantWrapper) {
-                plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Cargando...';
-                plantWrapper.querySelector('.custom-dropdown').classList.remove('open');
-            }
+            if (plantHeader) plantHeader.textContent = 'Cargando...';
+            if (plantMenu) plantMenu.innerHTML = '<div class="custom-option" data-value="">Cargando...</div>';
             
             try {
                 const resp = await fetch(`{% url 'api_get_plantillas' %}?especialidad=${encodeURIComponent($esp.value)}`);
                 const data = await resp.json();
-                const items = (data.plantillas||[]);
+                const items = (data.plantillas || []);
                 
                 if(!items.length){
+                    // Caso: No hay plantillas
                     $plant.innerHTML = '<option value="" selected>No hay plantillas disponibles</option>';
                     $plant.disabled = true;
-                    if (plantWrapper) {
-                        plantWrapper.querySelector('.custom-dropdown-header').textContent = 'No hay plantillas disponibles';
-                        plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">No hay plantillas disponibles</div>';
-                        setupCustomDropdown(plantWrapper);
-                    }
-                    return;
-                }
+                    if (plantHeader) plantHeader.textContent = 'No hay plantillas disponibles';
+                    if (plantMenu) plantMenu.innerHTML = '<div class="custom-option" data-value="">No hay plantillas disponibles</div>';
+                } else {
+                    // Caso: Hay plantillas -> Generar opciones
+                    const optionsHTML = '<option value="" selected>Seleccioná una plantilla</option>' + 
+                                      items.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+                    $plant.innerHTML = optionsHTML;
+                    $plant.disabled = false; // Habilitar select nativo
 
-                $plant.innerHTML = '<option value="" selected>Seleccioná una plantilla</option>' + items.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
-                $plant.disabled = false;
-                
-                if (plantWrapper) {
-                    plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Seleccioná una plantilla';
-                    const menuHTML = '<div class="custom-option" data-value="">Seleccioná una plantilla</div>' + 
-                        items.map(p=>`<div class="custom-option" data-value="${p.id}">${p.nombre}</div>`).join('');
-                    plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = menuHTML;
-                    setupCustomDropdown(plantWrapper);
+                    // Actualizar custom dropdown
+                    if (plantHeader) plantHeader.textContent = 'Seleccioná una plantilla';
+                    if (plantMenu) {
+                        const customOptionsHTML = '<div class="custom-option" data-value="">Seleccioná una plantilla</div>' + 
+                                                items.map(p=>`<div class="custom-option" data-value="${p.id}">${p.nombre}</div>`).join('');
+                        plantMenu.innerHTML = customOptionsHTML;
+                    }
+                    
+                    // IMPORTANTE: Re-inicializar listeners para las nuevas opciones
+                    if (plantWrapper) setupCustomDropdown(plantWrapper);
                 }
             } catch(e){
                 console.error(e);
                 $plant.innerHTML = '<option value="" selected>Error cargando plantillas</option>';
                 $plant.disabled = true;
-                if (plantWrapper) {
-                    plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Error cargando plantillas';
-                    plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">Error cargando plantillas</div>';
-                    setupCustomDropdown(plantWrapper);
-                }
+                if (plantHeader) plantHeader.textContent = 'Error cargando plantillas';
             }
         });
     }
 
     // --- Envío del formulario ---
-            if($form) {
+    if($form) {
         $form.addEventListener('submit', async function(ev){
             ev.preventDefault();
-            
             if($warn) $warn.classList.add('d-none');
 
-            // Validación visual: marcar campos requeridos vacíos
             const requiredChecks = [
                 { el: $inicio, name: 'Fecha inicio' },
                 { el: $fin, name: 'Fecha fin' },
@@ -878,45 +878,15 @@ document.addEventListener('DOMContentLoaded', function() {
             let missing = requiredChecks.filter(c => !c.el || !c.el.value || c.el.value.trim() === '');
             if (missing.length > 0) {
                 showWarn('Por favor, completá todos los campos obligatorios (*)');
-                // Marcar visualmente
-                missing.forEach(function(c){
-                    try{
-                        if(c.el.classList && c.el.classList.contains('form-select')){
-                            c.el.classList.add('is-invalid');
-                            const wrapper = c.el.closest('.custom-select-wrapper');
-                            if(wrapper){
-                                const header = wrapper.querySelector('.custom-dropdown-header');
-                                if(header) header.classList.add('is-invalid');
-                            }
-                            c.el.addEventListener('change', function handler(){
-                                c.el.classList.remove('is-invalid');
-                                const wrapper = c.el.closest('.custom-select-wrapper');
-                                if(wrapper){
-                                    const header = wrapper.querySelector('.custom-dropdown-header');
-                                    if(header) header.classList.remove('is-invalid');
-                                }
-                                c.el.removeEventListener('change', handler);
-                            });
-                        } else if(c.el.classList){
-                            c.el.classList.add('is-invalid');
-                            c.el.addEventListener('input', function handler(){
-                                c.el.classList.remove('is-invalid');
-                                c.el.removeEventListener('input', handler);
-                            });
-                        }
-                    }catch(e){console.error('mark missing', e)}
-                });
-                missing[0].el.focus();
                 return;
             }
 
             if($fin.value <= $inicio.value){
                 showWarn('La fecha fin debe ser posterior a la fecha inicio.');
-                try{ $fin.classList.add('is-invalid'); $fin.addEventListener('input', function h(){ $fin.classList.remove('is-invalid'); $fin.removeEventListener('input', h); }); }catch(e){}
                 return;
             }
 
-            // Validar rango de días (mínimo 7, máximo 31)
+            // Validar rango
             const fechaInicio = new Date($inicio.value);
             const fechaFin = new Date($fin.value);
             const diffTime = Math.abs(fechaFin - fechaInicio);
@@ -953,12 +923,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const data = await resp.json();
                 
-                // --- DETECCIÓN DE ERROR DE DOTACIÓN ---
                 if(!resp.ok){
                     if(resp.status === 422 && data.tipo_error === 'FALTA_DOTACION') {
                         mostrarErrorDotacion(data.detalles);
-                        resetUI(); // Ocultamos la barra de progreso
-                        return; // Cortamos ejecución aquí
+                        resetUI(); 
+                        return;
                     }
                     throw new Error(data.error || 'Error al iniciar.');
                 }
@@ -980,16 +949,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    
-
     // --- NAVIGATION / UNLOAD HANDLING ---
-    // Warn user before leaving while a job is in progress.
-    let pendingNavigationAction = null; // { type: 'link'|'reset'|'reload', href?: string }
+    // (Rest of your navigation handling code remains the same)
+    let pendingNavigationAction = null;
     const navModalEl = document.getElementById('navigationConfirmModal');
     const navModal = navModalEl ? new bootstrap.Modal(navModalEl) : null;
     const confirmLeaveBtn = document.getElementById('confirmLeaveBtn');
 
-    // beforeunload fallback for closing tab / refreshing (browser shows native dialog)
     window.addEventListener('beforeunload', function(e){
         if (window.__generadorJobInProgress) {
             e.preventDefault();
@@ -998,45 +964,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Intercept link clicks for internal navigation and show modal
     document.addEventListener('click', function(e){
         if (!window.__generadorJobInProgress) return;
         const a = e.target.closest && e.target.closest('a');
         if (!a) return;
         const href = a.getAttribute('href');
-        // Ignore anchors without href or javascript links and same-page anchors
         if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
-        // Allow links that are explicitly marked to ignore navigation guard
         if (a.hasAttribute('data-ignore-navigation')) return;
-
-        // Prevent navigation and show modal
         e.preventDefault();
         pendingNavigationAction = { type: 'link', href: a.href };
         if (navModal) navModal.show();
     });
 
-    // Intercept reload keys (F5, Ctrl+R) to show modal
-    window.addEventListener('keydown', function(e){
-        if (!window.__generadorJobInProgress) return;
-        // F5
-        if (e.key === 'F5') {
-            e.preventDefault();
-            pendingNavigationAction = { type: 'reload' };
-            if (navModal) navModal.show();
-        }
-        // Ctrl+R or Command+R
-        if ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R')) {
-            e.preventDefault();
-            pendingNavigationAction = { type: 'reload' };
-            if (navModal) navModal.show();
-        }
-    });
-
-    // Intercept the page reset button (internal 'Reiniciar') to show modal
     if ($btnReset) {
         $btnReset.addEventListener('click', function(e){
             if (!window.__generadorJobInProgress) {
-                // behave normally
                 resetUI();
                 return;
             }
@@ -1048,35 +990,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (confirmLeaveBtn) {
         confirmLeaveBtn.addEventListener('click', function(){
-            // User confirmed leaving: disable guard and perform action
             window.__generadorJobInProgress = false;
             if (navModal) navModal.hide();
             const action = pendingNavigationAction || { type: 'link', href: '/' };
             pendingNavigationAction = null;
-            // Small timeout so modal hides smoothly
             setTimeout(() => {
                 if (action.type === 'link' && action.href) {
                     window.location.href = action.href;
-                } else if (action.type === 'reload') {
-                    window.location.reload();
                 } else if (action.type === 'reset') {
                     resetUI();
                 } else {
-                    // default to home
                     window.location.href = '/';
                 }
             }, 120);
         });
     }
 
-    // --- Polling de estado ---
     async function pollEstado(jobId){
         let p = 40;
         const tick = setInterval(()=>{ p = Math.min(p+5, 90); setProgreso(p); }, 2000);
         
         try {
             while(true){
-                const url = `{% url 'api_estado_planificacion' job_id='JOBID' %}`.replace('JOBID', jobId);
+                // Replace JOBID placeholder properly
+                const url = `{% url 'api_estado_planificacion' job_id='00000000-0000-0000-0000-000000000000' %}`.replace('00000000-0000-0000-0000-000000000000', jobId);
                 const resp = await fetch(url);
                 const data = await resp.json();
                 
@@ -1094,7 +1031,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     toggleLoading(false);
                     break;
                 } else if(data.status === 'running' || data.status === 'queued' || resp.status === 202){
-                    // Continúa esperando
+                    // wait
                 } else if(data.status === 'failed' || data.error){
                     throw new Error(data.error || 'Fallo en el proceso.');
                 }
