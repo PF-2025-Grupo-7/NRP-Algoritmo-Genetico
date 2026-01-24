@@ -90,6 +90,9 @@
         <div class="card-body p-4 p-lg-5">
             <form method="post" id="form-nodisponibilidad" novalidate autocomplete="off" onsubmit="console.log('INLINE onsubmit triggered'); return true;">
                 {% csrf_token %}
+                {% if request.GET.next %}
+                    <input type="hidden" name="next" value="{{ request.GET.next }}">
+                {% endif %}
                 <div id="form-warning" class="field-error d-none" style="margin-bottom: 1.5rem;">
                     <i class="bi bi-exclamation-circle"></i>
                     <span id="form-warning-text"></span>
@@ -158,9 +161,11 @@
                     </div>
                 </div>
                 <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                    <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary fw-bold px-4 me-md-2">
-                        Cancelar
-                    </a>
+                    {% if request.GET.next %}
+                        <a href="{{ request.GET.next }}" class="btn btn-outline-secondary fw-bold px-4 me-md-2">Cancelar</a>
+                    {% else %}
+                        <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary fw-bold px-4 me-md-2">Cancelar</a>
+                    {% endif %}
                     <button type="submit" class="btn btn-primary fw-bold px-4" onclick="console.log('INLINE submit button clicked')">
                         Guardar Cambios
                     </button>
@@ -194,8 +199,8 @@ function setupCustomDropdown(wrapper){
         e.stopPropagation();
         // don't open if native select is disabled
         if (nativeSelect.disabled) return;
-        document.querySelectorAll('.custom-dropdown.open').forEach(d => { if(d !== dropdown) d.classList.remove('open'); });
-        dropdown.classList.toggle('open');
+        const isOpen = dropdown.classList.contains('open');
+        if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
     };
 
     menu.querySelectorAll('.custom-option').forEach((option, index) => {
@@ -515,7 +520,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (sel && $turno.value) {
                     turnoHeader.textContent = sel.textContent;
                 } else {
-                    turnoHeader.textContent = '';
+                    turnoHeader.textContent = 'Todo el día';
                 }
             }
         }
@@ -548,11 +553,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const turnoHeaderInit = turnoWrapperInit ? turnoWrapperInit.querySelector('.custom-dropdown-header') : null;
         const selectedOption = $turno ? $turno.options[$turno.selectedIndex] : null;
         if (turnoHeaderInit) {
-            if ($turno && $turno.value && selectedOption && selectedOption.style.display !== 'none') {
+            if (selectedOption && selectedOption.style.display !== 'none') {
                 turnoHeaderInit.textContent = selectedOption.textContent;
             } else {
-                // If no selection, leave header empty (user can choose 'Todo el día' from menu)
-                turnoHeaderInit.textContent = '';
+                // Mostrar 'Todo el día' cuando no haya selección concreta
+                turnoHeaderInit.textContent = 'Todo el día';
             }
         }
     } catch (e) { console.error('init turno header error', e); }
@@ -568,7 +573,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Inicializar header con el valor seleccionado o placeholder
         try {
             const sel = nativeSelect.options[nativeSelect.selectedIndex];
-            if (sel && sel.textContent && nativeSelect.value) {
+            if (sel && sel.textContent) {
                 header.textContent = sel.textContent;
             }
         } catch (e) {}
@@ -578,8 +583,8 @@ document.addEventListener('DOMContentLoaded', function() {
             e.stopPropagation();
             // don't open if native select is disabled
             if (nativeSelect.disabled) return;
-            document.querySelectorAll('.custom-dropdown.open').forEach(d => { if(d !== dropdown) d.classList.remove('open'); });
-            dropdown.classList.toggle('open');
+            const isOpen = dropdown.classList.contains('open');
+            if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
         };
 
         menu.querySelectorAll('.custom-option').forEach((option, index) => {

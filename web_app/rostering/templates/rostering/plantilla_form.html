@@ -201,8 +201,8 @@
 
         header.onclick = (e) => {
             e.preventDefault(); e.stopPropagation();
-            document.querySelectorAll('.custom-dropdown.open').forEach(d => { if (d !== dropdown) d.classList.remove('open'); });
-            dropdown.classList.toggle('open');
+            const isOpen = dropdown.classList.contains('open');
+            if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
         };
 
         menu.querySelectorAll('.custom-option').forEach((option) => {

@@ -45,7 +45,8 @@
                                 <h4 class="fw-bold mb-3" style="color: #2f3e4c;">¿Estás seguro?</h4>
 
                                 <div class="mb-3 p-4 text-center" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
-                                    <p id="publishModalText" class="mb-0 small text-muted">Estas a punto de publicar/despublicar (según corresponda) este cronograma oficialmente</p>
+                                    <p id="publishModalText" class="mb-2 fw-bold" style="color:#2f3e4c;">Estas a punto de publicar/despublicar (según corresponda) este cronograma oficialmente</p>
+                                    <p id="publishModalNote" class="mb-0 small" style="color:#6c757d;">La nueva regla se aplicará y la anterior se sobreescribirá.</p>
                                 </div>
                             </div>
                             <div class="modal-footer border-0 bg-white justify-content-center gap-2 pb-4">
@@ -127,8 +128,8 @@
                         <div class="text-danger mb-2 animate__animated animate__tada animate__infinite">
                             <i class="bi bi-x-circle-fill" style="font-size: 2.25rem;"></i>
                         </div>
-                        <div class="kpi-status-title fw-bold text-danger">Cantidad insuficiente de Seniors</div>
-                        <small class="text-muted">Varios turnos sin profesionales Seniors asignados.</small>
+                        <div class="kpi-status-title fw-bold text-danger">{% if cronograma.estado == 'FALLIDO' %}Insuficiente{% else %}Cantidad insuficiente de Seniors{% endif %}</div>
+                        <small class="text-muted">Varios turnos sin profesionales asignados.</small>
                     {% elif violaciones_duras.deficit_cobertura %}
                         <div class="text-warning mb-2">
                             <i class="bi bi-exclamation-triangle-fill" style="font-size: 2.25rem;"></i>

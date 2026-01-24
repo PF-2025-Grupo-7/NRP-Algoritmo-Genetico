@@ -428,6 +428,22 @@ class Preferencia(models.Model):
                             'deseo': f"Contradicción: Ya existe una preferencia opuesta ('{p.get_deseo_display()}') para este día/turno."
                         })
 
+            # 2.b Validación: evitar duplicados exactos (mismo deseo y mismo turno o ambos sin turno)
+            dup_q = Preferencia.objects.filter(
+                empleado=self.empleado,
+                fecha=self.fecha,
+                deseo=self.deseo,
+            )
+            # Filtrar por igualdad de turno (incluye ambos null)
+            if self.tipo_turno is None:
+                dup_q = dup_q.filter(tipo_turno__isnull=True)
+            else:
+                dup_q = dup_q.filter(tipo_turno_id=self.tipo_turno_id)
+            if self.pk:
+                dup_q = dup_q.exclude(pk=self.pk)
+            if dup_q.exists():
+                raise ValidationError('Ya existe una preferencia idéntica para este empleado en esta fecha.')
+
             # 3. Validación: No pedir "TRABAJAR" si estoy Ausente (NoDisponibilidad)
             if self.deseo == self.Deseo.TRABAJAR:
                 # Buscamos si hay alguna ausencia que cubra esta fecha
@@ -446,9 +462,7 @@ class Preferencia(models.Model):
                     )
                     
                     if hay_superposicion:
-                        raise ValidationError(
-                            f"Imposible solicitar 'TRABAJAR': El empleado tiene una ausencia registrada para esta fecha ({aus.motivo})."
-                        )
+                        raise ValidationError("El empleado ya tiene registrada otra ausencia para esta fecha.")
 
     def save(self, *args, **kwargs):
         self.full_clean()

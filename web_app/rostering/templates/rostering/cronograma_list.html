@@ -219,30 +219,32 @@
             {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode|cut:'page=' }}">
-                        <i class="bi bi-chevron-left"></i> Anterior
+                        <i class="bi bi-chevron-left"></i>
                     </a>
                 </li>
             {% else %}
                 <li class="page-item disabled">
-                    <span class="page-link"><i class="bi bi-chevron-left"></i> Anterior</span>
+                    <span class="page-link"><i class="bi bi-chevron-left"></i></span>
                 </li>
             {% endif %}
 
-            <li class="page-item active">
-                <span class="page-link fw-semibold">
-                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-                </span>
-            </li>
+            {% for num in page_obj.paginator.page_range %}
+                {% if num == page_obj.number %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% else %}
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}&{{ request.GET.urlencode|cut:'page=' }}">{{ num }}</a></li>
+                {% endif %}
+            {% endfor %}
 
             {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode|cut:'page=' }}">
-                        Siguiente <i class="bi bi-chevron-right"></i>
+                        <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
             {% else %}
                 <li class="page-item disabled">
-                    <span class="page-link">Siguiente <i class="bi bi-chevron-right"></i></span>
+                    <span class="page-link"><i class="bi bi-chevron-right"></i></span>
                 </li>
             {% endif %}
         </ul>
@@ -735,7 +737,8 @@
         header.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropdown.classList.toggle('open');
+            const isOpen = dropdown.classList.contains('open');
+            if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
         };
 
         // Selección

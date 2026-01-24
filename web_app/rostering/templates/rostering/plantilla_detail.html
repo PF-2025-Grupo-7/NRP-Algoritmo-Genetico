@@ -111,10 +111,10 @@
                                         </div>
                                     </td>
                                     <td class="text-center col-group-info">
-                                        <input type="number" id="inputSenior" class="form-control form-control-sm custom-input-number" min="0" max="999" value="0" style="width: 70px; margin: 0 auto;">
+                                        <input type="number" id="inputSenior" class="form-control form-control-sm custom-input-number" min="1" max="999" value="" style="width: 70px; margin: 0 auto;">
                                     </td>
                                     <td class="text-center col-group-info">
-                                        <input type="number" id="inputJunior" class="form-control form-control-sm custom-input-number" min="0" max="999" value="0" style="width: 70px; margin: 0 auto;">
+                                        <input type="number" id="inputJunior" class="form-control form-control-sm custom-input-number" min="1" max="999" value="" style="width: 70px; margin: 0 auto;">
                                     </td>
                                     <!-- Días con checkboxes -->
                                     {% for dia_num in "0123456" %}
@@ -255,49 +255,67 @@
                         const modalEl = document.getElementById('conflictConfirmModal');
                         if (!modalEl) { resolve(false); return; }
 
-                        const modalBody = modalEl.querySelector('.conflict-body-content');
-                        const infoCard = modalEl.querySelector('.conflict-info-card');
+                        // Buscar contenedor razonable para el texto; usar fallback seguro
+                        const modalBody = modalEl.querySelector('.conflict-body-content') || modalEl.querySelector('.modal-body') || modalEl;
                         const confirmBtn = modalEl.querySelector('#btnConfirmConflict');
                         const cancelBtn = modalEl.querySelector('#btnCancelConflict');
                         const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
 
-                        // Construir contenido: extraer solo la primera línea (sin emoji) y mostrarla en la card blanca
-                        const firstLine = (message.split('\n')[0] || message).replace(/^\s*⚠️\s*/, '');
-                        const cardTextEl = document.getElementById('conflictCardText');
-                        if (cardTextEl) {
-                            cardTextEl.textContent = firstLine;
-                        } else {
-                            // Si por algún motivo no existe, rellenar el contenedor directo
-                            modalBody.innerHTML = `<p class="mb-1 fw-bold" style="color:#2f3e4c;">${firstLine}</p>`;
+                        // Construir contenido: extraer solo la primera línea (sin emoji)
+                        const firstLine = (String(message).split('\n')[0] || message).replace(/^\s*⚠️\s*/, '');
+                        const cardTextEl = modalEl.querySelector('#conflictCardText');
+                        const noteEl = modalEl.querySelector('#conflictModalNote');
+                        try {
+                            if (cardTextEl) {
+                                cardTextEl.textContent = firstLine;
+                                if (noteEl) {
+                                    noteEl.textContent = 'La nueva regla se aplicará y la anterior se sobreescribirá.';
+                                }
+                            } else if (modalBody) {
+                                // Si no existe el elemento card, reconstruir el bloque incluyendo la nota
+                                modalBody.innerHTML = `\n                            <div class="conflict-info-card p-4" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">\n                                <p id="conflictCardText" class="mb-1 fw-bold" style="color:#2f3e4c; font-size: 1rem;">${firstLine}</p>\n                                <p id="conflictModalNote" class="mb-0 small" style="color:#6c757d;">La nueva regla se aplicará y la anterior se sobreescribirá.</p>\n                            </div>`;
+                            }
+                        } catch (e) {
+                            // No queremos que un error de renderizado impida la promesa
+                            console.warn('showConflictModal render warning', e);
                         }
 
                         const onConfirm = () => { cleanup(); resolve(true); };
                         const onCancel = () => { cleanup(); resolve(false); };
 
                         function cleanup(){
-                            confirmBtn.removeEventListener('click', onConfirm);
-                            cancelBtn.removeEventListener('click', onCancel);
-                            bsModal.hide();
+                            if (confirmBtn) confirmBtn.removeEventListener('click', onConfirm);
+                            if (cancelBtn) cancelBtn.removeEventListener('click', onCancel);
+                            try { bsModal.hide(); } catch(e){}
                         }
 
-                        confirmBtn.addEventListener('click', onConfirm);
-                        cancelBtn.addEventListener('click', onCancel);
+                        if (confirmBtn && cancelBtn) {
+                            confirmBtn.addEventListener('click', onConfirm);
+                            cancelBtn.addEventListener('click', onCancel);
+                        } else {
+                            // Fallback: si no hay botones, cerrar modal resolverá false al ocultarse
+                            modalEl.addEventListener('hidden.bs.modal', function onHidden(){
+                                modalEl.removeEventListener('hidden.bs.modal', onHidden);
+                                resolve(false);
+                            });
+                        }
 
                         bsModal.show();
                     });
                 }
 
                 // Mostrar modal de validación simple (faltan campos)
-                function showValidationModal(message) {
+                function showValidationModal() {
                     return new Promise((resolve) => {
                         const modalEl = document.getElementById('validationModal');
-                        if (!modalEl) { alert(message); resolve(false); return; }
+                        if (!modalEl) { alert('Por favor, completá los campos requeridos'); resolve(false); return; }
 
                         const textEl = modalEl.querySelector('#validationModalText');
                         const acceptBtn = modalEl.querySelector('.modal-footer button');
                         const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
 
-                        textEl.textContent = message;
+                        // Mensaje fijo solicitado por UI
+                        textEl.textContent = 'Por favor, completá los campos requeridos';
 
                         const onAccept = () => {
                             acceptBtn.removeEventListener('click', onAccept);
@@ -385,10 +403,10 @@
                             </div>
                         </td>
                         <td class="text-center col-group-info">
-                            <input type="number" class="form-control form-control-sm custom-input-number edit-senior" min="0" max="999" value="${seniors}" style="width: 70px; margin: 0 auto;">
+                            <input type="number" class="form-control form-control-sm custom-input-number edit-senior" min="1" max="999" value="${seniors}" style="width: 70px; margin: 0 auto;">
                         </td>
                         <td class="text-center col-group-info">
-                            <input type="number" class="form-control form-control-sm custom-input-number edit-junior" min="0" max="999" value="${juniors}" style="width: 70px; margin: 0 auto;">
+                            <input type="number" class="form-control form-control-sm custom-input-number edit-junior" min="1" max="999" value="${juniors}" style="width: 70px; margin: 0 auto;">
                         </td>`;
                     
                     // Añadir checkboxes de días
@@ -422,6 +440,8 @@
                         const wrapper = fila.querySelector('.custom-select-wrapper');
                         if (wrapper) {
                             setupCustomDropdownEdit(wrapper, turnoId);
+                            // Enlazar listeners para quitar errores cuando el usuario corrija en esta fila
+                            bindValidationListenersForEditRow(fila);
                         }
                     }, 0);
                 }
@@ -431,17 +451,25 @@
                     if (!fila) return;
 
                     const turnoId = fila.querySelector('.edit-turno-select').value;
-                    const seniors = parseInt(fila.querySelector('.edit-senior').value) || 0;
-                    const juniors = parseInt(fila.querySelector('.edit-junior').value) || 0;
+                    const editSeniorEl = fila.querySelector('.edit-senior');
+                    const editJuniorEl = fila.querySelector('.edit-junior');
+                    const seniorsRaw = editSeniorEl && editSeniorEl.value ? editSeniorEl.value.trim() : '';
+                    const juniorsRaw = editJuniorEl && editJuniorEl.value ? editJuniorEl.value.trim() : '';
                     const diasSeleccionados = [];
                     fila.querySelectorAll('.edit-dia-checkbox:checked').forEach(checkbox => {
                         diasSeleccionados.push(parseInt(checkbox.value));
                     });
 
-                    // Validación: turno y al menos un día
+                    // Validación: turno, jr/sr y al menos un día
                     const header = fila.querySelector('.edit-turno-header');
-                    const diaCheckboxes = fila.querySelectorAll('.edit-dia-checkbox');
                     let missing = false;
+
+                    // Limpiar marcas previas
+                    if (header) header.classList.remove('is-invalid');
+                    fila.querySelectorAll('.col-group-dias').forEach(td => td.classList.remove('invalid-dia-container'));
+                    if (editSeniorEl) editSeniorEl.classList.remove('is-invalid');
+                    if (editJuniorEl) editJuniorEl.classList.remove('is-invalid');
+
                     if (!turnoId) {
                         if (header) header.classList.add('is-invalid');
                         missing = true;
@@ -452,13 +480,28 @@
                         dayTds.forEach(td => td.classList.add('invalid-dia-container'));
                         missing = true;
                     }
+                    const seniorsVal = parseInt(seniorsRaw, 10);
+                    const juniorsVal = parseInt(juniorsRaw, 10);
+                    if (isNaN(seniorsVal) || seniorsVal < 1) {
+                        if (editSeniorEl) editSeniorEl.classList.add('is-invalid');
+                        missing = true;
+                    }
+                    if (isNaN(juniorsVal) || juniorsVal < 1) {
+                        if (editJuniorEl) editJuniorEl.classList.add('is-invalid');
+                        missing = true;
+                    }
                     if (missing) {
-                        await showValidationModal('Selecciona un turno y al menos un día');
+                        await showValidationModal();
                         // Devolver foco al control faltante (mantener la marcación hasta corrección)
                         if (!turnoId && header) { header.focus(); }
+                        else if ((isNaN(seniorsVal) || seniorsVal < 1) && editSeniorEl) { editSeniorEl.focus(); }
+                        else if ((isNaN(juniorsVal) || juniorsVal < 1) && editJuniorEl) { editJuniorEl.focus(); }
                         else if (diasSeleccionados.length === 0) { const firstCheckbox = fila.querySelector('.edit-dia-checkbox'); if (firstCheckbox) firstCheckbox.focus(); }
                         return;
                     }
+
+                    const seniors = parseInt(seniorsRaw, 10) || 0;
+                    const juniors = parseInt(juniorsRaw, 10) || 0;
 
                     // Detectar conflictos
                     const nombresDesDias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -533,18 +576,26 @@
 
                 async function guardarRegla() {
                     const turnoId = document.getElementById('selectTurno').value;
-                    const seniors = parseInt(document.getElementById('inputSenior').value) || 0;
-                    const juniors = parseInt(document.getElementById('inputJunior').value) || 0;
+                    const inputSeniorEl = document.getElementById('inputSenior');
+                    const inputJuniorEl = document.getElementById('inputJunior');
+                    const seniorsRaw = (inputSeniorEl && inputSeniorEl.value) ? inputSeniorEl.value.trim() : '';
+                    const juniorsRaw = (inputJuniorEl && inputJuniorEl.value) ? inputJuniorEl.value.trim() : '';
 
                     const diasSeleccionados = [];
                     document.querySelectorAll('.dia-checkbox:checked').forEach(checkbox => {
                         diasSeleccionados.push(parseInt(checkbox.value));
                     });
 
-                    // Validación: turno y al menos un día
+                    // Validación: turno, jr/sr y al menos un día
                     const header = document.getElementById('selectTurno_header');
-                    const diaCheckboxes = document.querySelectorAll('.dia-checkbox');
                     let missing = false;
+
+                    // Limpiar marcas previas
+                    if (header) header.classList.remove('is-invalid');
+                    document.querySelectorAll('#filaEdicion .col-group-dias').forEach(td => td.classList.remove('invalid-dia-container'));
+                    if (inputSeniorEl) inputSeniorEl.classList.remove('is-invalid');
+                    if (inputJuniorEl) inputJuniorEl.classList.remove('is-invalid');
+
                     if (!turnoId) {
                         if (header) header.classList.add('is-invalid');
                         missing = true;
@@ -554,13 +605,28 @@
                         dayTds.forEach(td => td.classList.add('invalid-dia-container'));
                         missing = true;
                     }
+                    const seniorsVal = parseInt(seniorsRaw, 10);
+                    const juniorsVal = parseInt(juniorsRaw, 10);
+                    if (isNaN(seniorsVal) || seniorsVal < 1) {
+                        if (inputSeniorEl) inputSeniorEl.classList.add('is-invalid');
+                        missing = true;
+                    }
+                    if (isNaN(juniorsVal) || juniorsVal < 1) {
+                        if (inputJuniorEl) inputJuniorEl.classList.add('is-invalid');
+                        missing = true;
+                    }
                     if (missing) {
-                        await showValidationModal('Selecciona un turno y al menos un día');
-                        // Devolver foco al control faltante (mantener marcación hasta corrección)
+                        await showValidationModal();
+                        // Devolver foco al control faltante (mantener la marcación hasta corrección)
                         if (!turnoId && header) { header.focus(); }
+                        else if ((isNaN(seniorsVal) || seniorsVal < 1) && inputSeniorEl) { inputSeniorEl.focus(); }
+                        else if ((isNaN(juniorsVal) || juniorsVal < 1) && inputJuniorEl) { inputJuniorEl.focus(); }
                         else if (diasSeleccionados.length === 0) { const firstCheckbox = document.querySelector('#filaEdicion .dia-checkbox'); if (firstCheckbox) firstCheckbox.focus(); }
                         return;
                     }
+
+                    const seniors = parseInt(seniorsRaw, 10) || 0;
+                    const juniors = parseInt(juniorsRaw, 10) || 0;
 
                     // Detectar conflictos con otras reglas del mismo turno
                     const nombresDesDias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -736,10 +802,18 @@
                     const header = document.getElementById('selectTurno_header');
                     if (header) {
                         header.textContent = 'Seleccionar Turno';
+                        header.classList.remove('is-invalid');
                     }
                     
-                    document.getElementById('inputSenior').value = '0';
-                    document.getElementById('inputJunior').value = '0';
+                    document.getElementById('inputSenior').value = '';
+                    document.getElementById('inputJunior').value = '';
+                    // Quitar marcas de validación previas
+                    const inSenior = document.getElementById('inputSenior');
+                    const inJunior = document.getElementById('inputJunior');
+                    if (inSenior) inSenior.classList.remove('is-invalid');
+                    if (inJunior) inJunior.classList.remove('is-invalid');
+                    // Quitar marcas visuales de días
+                    document.querySelectorAll('#filaEdicion .col-group-dias').forEach(td => td.classList.remove('invalid-dia-container'));
                     
                     document.querySelectorAll('.dia-checkbox').forEach(checkbox => {
                         checkbox.checked = false;
@@ -769,7 +843,8 @@
                     header.onclick = (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        dropdown.classList.toggle('open');
+                        const isOpen = dropdown.classList.contains('open');
+                        if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
                     };
 
                     // Selección
@@ -800,6 +875,7 @@
                             
                             // Actualizar el header
                             header.textContent = value === '' ? placeholderText : text;
+                            header.classList.remove('is-invalid');
                             
                             // Cerrar el dropdown
                             dropdown.classList.remove('open');
@@ -814,6 +890,30 @@
                         if (!wrapper.contains(e.target)) {
                             dropdown.classList.remove('open');
                         }
+                    });
+                }
+
+                // Quitar marcas de validación cuando el usuario corrija campos en la fila nueva
+                function bindValidationListenersForNewRow(){
+                    const inSenior = document.getElementById('inputSenior');
+                    const inJunior = document.getElementById('inputJunior');
+                    if (inSenior) {
+                        inSenior.addEventListener('input', () => { inSenior.classList.remove('is-invalid'); });
+                        inSenior.addEventListener('change', () => { inSenior.classList.remove('is-invalid'); });
+                    }
+                    if (inJunior) {
+                        inJunior.addEventListener('input', () => { inJunior.classList.remove('is-invalid'); });
+                        inJunior.addEventListener('change', () => { inJunior.classList.remove('is-invalid'); });
+                    }
+
+                    const diaCheckboxes = document.querySelectorAll('#filaEdicion .dia-checkbox');
+                    diaCheckboxes.forEach(cb => {
+                        cb.addEventListener('change', () => {
+                            const anyChecked = Array.from(document.querySelectorAll('#filaEdicion .dia-checkbox')).some(c => c.checked);
+                            if (anyChecked) {
+                                document.querySelectorAll('#filaEdicion .col-group-dias').forEach(td => td.classList.remove('invalid-dia-container'));
+                            }
+                        });
                     });
                 }
 
@@ -843,7 +943,8 @@
                     header.onclick = (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        dropdown.classList.toggle('open');
+                        const isOpen = dropdown.classList.contains('open');
+                        if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
                     };
 
                     // Selección
@@ -874,6 +975,7 @@
                             
                             // Actualizar el header
                             header.textContent = value === '' ? placeholderText : text;
+                            header.classList.remove('is-invalid');
                             
                             // Cerrar el dropdown
                             dropdown.classList.remove('open');
@@ -891,6 +993,31 @@
                     });
                 }
 
+                // Quitar marcas de validación para una fila en modo edición
+                function bindValidationListenersForEditRow(row){
+                    if (!row) return;
+                    const editSenior = row.querySelector('.edit-senior');
+                    const editJunior = row.querySelector('.edit-junior');
+                    if (editSenior) {
+                        editSenior.addEventListener('input', () => { editSenior.classList.remove('is-invalid'); });
+                        editSenior.addEventListener('change', () => { editSenior.classList.remove('is-invalid'); });
+                    }
+                    if (editJunior) {
+                        editJunior.addEventListener('input', () => { editJunior.classList.remove('is-invalid'); });
+                        editJunior.addEventListener('change', () => { editJunior.classList.remove('is-invalid'); });
+                    }
+
+                    const diaCheckboxes = row.querySelectorAll('.edit-dia-checkbox');
+                    diaCheckboxes.forEach(cb => {
+                        cb.addEventListener('change', () => {
+                            const anyChecked = Array.from(row.querySelectorAll('.edit-dia-checkbox')).some(c => c.checked);
+                            if (anyChecked) {
+                                row.querySelectorAll('.col-group-dias').forEach(td => td.classList.remove('invalid-dia-container'));
+                            }
+                        });
+                    });
+                }
+
                 // Inicializar dropdown cuando se muestre la fila
                 const originalAgregarFilaRegla = agregarFilaRegla;
                 agregarFilaRegla = function() {
@@ -899,6 +1026,8 @@
                         const wrapper = document.querySelector('#filaEdicion .custom-select-wrapper');
                         if (wrapper) {
                             setupCustomDropdown(wrapper);
+                            // Enlazar listeners para quitar errores cuando el usuario corrija
+                            bindValidationListenersForNewRow();
                         }
                     }, 0);
                 };
@@ -921,7 +1050,7 @@
                     </div>
                 </div>
                 <h5 class="fw-bold mb-2" style="color: #2f3e4c;">Faltan datos</h5>
-                <p id="validationModalText" class="mb-0 small text-muted">Selecciona un turno y al menos un día.</p>
+                <p id="validationModalText" class="mb-0 small text-muted">Por favor, completá los campos requeridos</p>
             </div>
             <div class="modal-footer border-0 bg-white justify-content-center gap-2 pb-3">
                 <button type="button" class="btn btn-primary px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 600; min-width: 120px;">Aceptar</button>
@@ -945,6 +1074,12 @@
                 </div>
 
                 <h4 class="fw-bold mb-3" style="color: #2f3e4c;">¿Estás seguro?</h4>
+                <div class="conflict-body-content mb-3">
+                    <div class="conflict-info-card p-4" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                        <p id="conflictCardText" class="mb-1 fw-bold" style="color:#2f3e4c; font-size: 1rem;">Contenido</p>
+                        <p id="conflictModalNote" class="mb-0 small" style="color:#6c757d;">La nueva regla se aplicará y la anterior se sobreescribirá.</p>
+                    </div>
+                </div>
                     <div class="modal-footer border-0 px-4 pb-4 pt-0">
                         <button type="button" id="btnCancelConflict" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancelar</button>
                         <button id="btnConfirmConflict" type="button" class="btn btn-primary">Continuar</button>
@@ -1230,6 +1365,15 @@
 
     /* Validation error styles for select and days */
     .custom-dropdown-header.is-invalid {
+        border-color: #dc3545 !important;
+        box-shadow: 0 0 0 0.2rem rgba(220,53,69,0.12) !important;
+        background-color: #fff5f5 !important;
+    }
+
+    /* Validation error styles for numeric inputs (jr/sr) */
+    #filaEdicion .form-control.is-invalid,
+    tr.editing-mode .form-control.is-invalid,
+    .custom-input-number.is-invalid {
         border-color: #dc3545 !important;
         box-shadow: 0 0 0 0.2rem rgba(220,53,69,0.12) !important;
         background-color: #fff5f5 !important;

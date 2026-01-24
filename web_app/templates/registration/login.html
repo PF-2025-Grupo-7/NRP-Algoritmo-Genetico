@@ -38,13 +38,10 @@
                             {% endif %}
                         </div>
 
-                        <!-- Olvidaste tu contraseña -->
-                        <div class="text-center mt-5 mb-4">
-                            <a href="{% url 'password_reset' %}" class="forgot-link">¿Olvidaste tu contraseña?</a>
-                        </div>
+                        <!-- Olvidaste tu contraseña (eliminado) -->
 
                         <!-- Botón de envío -->
-                        <div class="text-center">
+                        <div class="text-center login-button-wrapper">
                             <button type="submit" class="btn btn-primary fw-bold login-btn">Iniciar Sesión</button>
                         </div>
                     </form>
@@ -231,6 +228,9 @@
         transform: translateY(0);
         box-shadow: 0 0.5rem 1rem rgba(13, 110, 253, 0.15);
     }
+
+    /* Separación extra para el botón de login respecto al campo de contraseña */
+    .login-button-wrapper { margin-top: 5rem; }
 
     /* === ACCESIBILIDAD === */
     @media (prefers-reduced-motion: reduce) {
