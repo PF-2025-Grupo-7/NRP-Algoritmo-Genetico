@@ -199,8 +199,8 @@ function setupCustomDropdown(wrapper){
         e.stopPropagation();
         // don't open if native select is disabled
         if (nativeSelect.disabled) return;
-        document.querySelectorAll('.custom-dropdown.open').forEach(d => { if(d !== dropdown) d.classList.remove('open'); });
-        dropdown.classList.toggle('open');
+        const isOpen = dropdown.classList.contains('open');
+        if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
     };
 
     menu.querySelectorAll('.custom-option').forEach((option, index) => {
@@ -583,8 +583,8 @@ document.addEventListener('DOMContentLoaded', function() {
             e.stopPropagation();
             // don't open if native select is disabled
             if (nativeSelect.disabled) return;
-            document.querySelectorAll('.custom-dropdown.open').forEach(d => { if(d !== dropdown) d.classList.remove('open'); });
-            dropdown.classList.toggle('open');
+            const isOpen = dropdown.classList.contains('open');
+            if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
         };
 
         menu.querySelectorAll('.custom-option').forEach((option, index) => {

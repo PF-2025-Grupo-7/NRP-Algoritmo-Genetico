@@ -737,7 +737,8 @@
         header.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropdown.classList.toggle('open');
+            const isOpen = dropdown.classList.contains('open');
+            if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
         };
 
         // Selección

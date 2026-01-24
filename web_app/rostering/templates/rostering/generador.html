@@ -310,6 +310,7 @@
         margin-top: 0;
         padding: 0;
         animation: fadeInDown 0.3s ease;
+        -webkit-overflow-scrolling: touch;
     }
     
     @keyframes fadeInDown {
@@ -325,11 +326,15 @@
     
     /* Abrir menú cuando el wrapper tiene la clase 'open' */
     .custom-dropdown.open .custom-dropdown-menu {
+        /* Limitar alto y permitir scroll cuando hay muchas opciones */
         max-height: 300px;
+        max-height: min(300px, calc(100vh - 180px));
         pointer-events: auto;
         opacity: 1;
         margin-top: 0.5rem;
         padding: 0.5rem 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
     
     .custom-option {
@@ -649,6 +654,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Helper para cerrar todos los dropdowns (excepto opcional)
+    function closeAllDropdowns(exceptDropdown) {
+        document.querySelectorAll('.custom-dropdown.open').forEach(d => {
+            if (!exceptDropdown || d !== exceptDropdown) d.classList.remove('open');
+        });
+    }
+
     // Helpers: configurar un wrapper de dropdown personalizado
     function setupCustomDropdown(wrapper){
         const nativeSelect = wrapper.querySelector('.form-select');
@@ -658,20 +670,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!header || !dropdown || !menu || !nativeSelect) return;
 
-        // Abrir/cerrar
-        header.onclick = (e) => {
+        // Abrir/cerrar con click
+        header.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            // Cierra otros dropdowns abiertos si hubiera
-            document.querySelectorAll('.custom-dropdown.open').forEach(d => {
-                if(d !== dropdown) d.classList.remove('open');
-            });
-            dropdown.classList.toggle('open');
-        };
+            const isOpen = dropdown.classList.contains('open');
+            if (!isOpen) {
+                closeAllDropdowns(dropdown);
+                dropdown.classList.add('open');
+            } else {
+                dropdown.classList.remove('open');
+            }
+        });
+
+        // Soporte teclado: Enter/Space abre, Escape cierra
+        header.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                header.click();
+            } else if (e.key === 'Escape' || e.key === 'Esc') {
+                dropdown.classList.remove('open');
+                header.blur();
+            }
+        });
 
         // Selección
         menu.querySelectorAll('.custom-option').forEach((option, index) => {
-            option.onclick = (e) => {
+            option.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 if (index === 0) return; // placeholder
@@ -682,7 +707,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 dropdown.classList.remove('open');
                 // Disparar evento change manualmente para que lo detecte el otro script
                 nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-            };
+            });
         });
 
         // Cerrar al hacer click fuera
