@@ -42,6 +42,7 @@
                             <label class="form-label fw-bold">Esquema Horario<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
                             <div class="custom-select-wrapper">
                                 <select class="form-select d-none" id="{{ form.esquema.id_for_label }}" name="esquema">
+                                    <option value="" {% if not form.esquema.value %}selected{% endif %}>Selecciona un Esquema Horario</option>
                                     {% for value, label in form.esquema.field.choices %}
                                         {% if value %}
                                             <option value="{{ value }}" {% if form.esquema.value == value %}selected{% endif %}>{{ label|cut:'('|cut:')'|cut:'Total 24hs' }}</option>
@@ -49,7 +50,7 @@
                                     {% endfor %}
                                 </select>
                                 <div class="custom-dropdown">
-                                    <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná un esquema"
+                                     <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná un Esquema Horario"
                                          {% if es_edicion %}style="background-color: #e9ecef; pointer-events: none; color: #6c757d;"{% endif %}>
                                         
                                         {% if form.esquema.value %}
@@ -57,7 +58,7 @@
                                                 {% if value == form.esquema.value %}{{ label|cut:'('|cut:')'|cut:'Total 24hs' }}{% endif %}
                                             {% endfor %}
                                         {% else %}
-                                            Seleccioná un esquema
+                                            Seleccioná un Esquema Horario
                                         {% endif %}
                                     </div>
                                     <div class="custom-dropdown-menu">
@@ -76,16 +77,17 @@
                             <label class="form-label fw-bold">Hora Inicio<span class="required-asterisk" aria-hidden="true" style="color: #dc3545; margin-left: 0.25rem; font-weight: 700;">*</span></label>
                             <div class="custom-select-wrapper">
                                 <select class="form-select d-none" id="{{ form.hora_inicio_base.id_for_label }}" name="hora_inicio_base">
+                                    <option value="">Seleccioná una hora de Inicio</option>
                                     {% for hora in horas %}
                                         <option value="{{ hora }}" {% if form.hora_inicio_base.value|time:"H:i" == hora %}selected{% endif %}>{{ hora }}</option>
                                     {% endfor %}
                                 </select>
                                 <div class="custom-dropdown">
-                                    <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná una hora">
+                                    <div class="custom-dropdown-header" tabindex="0" data-placeholder="Seleccioná una hora de Inicio">
                                         {% if form.hora_inicio_base.value %}
                                             {{ form.hora_inicio_base.value|time:"H:i" }}
                                         {% else %}
-                                            Seleccioná una hora
+                                            Seleccioná una hora de Inicio
                                         {% endif %}
                                     </div>
                                     <div class="custom-dropdown-menu">
@@ -373,8 +375,9 @@
                 // Si está deshabilitado visualmente (edición), no abrir
                 if (getComputedStyle(header).pointerEvents === 'none') return;
 
-                e.stopPropagation();
-                dropdown.classList.toggle('open');
+                    e.stopPropagation();
+                    const isOpen = dropdown.classList.contains('open');
+                    if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
             });
 
             // Cerrar al hacer clic fuera
@@ -411,6 +414,29 @@
         document.querySelectorAll('.custom-select-wrapper').forEach(wrapper => {
             setupCustomDropdown(wrapper);
         });
+
+        // Forzar placeholder en el header del select 'esquema' cuando estamos creando (no es edición)
+        try {
+            {% if not es_edicion %}
+                const esquemaSelect = document.getElementById('{{ form.esquema.id_for_label }}');
+                if (esquemaSelect) {
+                    // Forzar la opción vacía como valor seleccionado para mostrar el placeholder
+                    try {
+                        esquemaSelect.value = '';
+                        esquemaSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    } catch (e) { console.error('force esquema empty value', e); }
+
+                    const esquemaWrapper = esquemaSelect.closest('.custom-select-wrapper');
+                    if (esquemaWrapper) {
+                        const esquemaHeader = esquemaWrapper.querySelector('.custom-dropdown-header');
+                        if (esquemaHeader) {
+                            const ph = esquemaHeader.getAttribute('data-placeholder') || 'Seleccioná un Esquema Horario';
+                            esquemaHeader.textContent = ph;
+                        }
+                    }
+                }
+            {% endif %}
+        } catch (e) { console.error('force esquema placeholder', e); }
     });
 </script>
 

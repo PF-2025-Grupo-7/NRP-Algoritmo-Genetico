@@ -84,15 +84,13 @@ class EmpleadoFilter(django_filters.FilterSet):
 
 class CronogramaFilter(django_filters.FilterSet):
     fecha_desde = django_filters.DateFilter(
-        field_name='fecha_inicio', 
-        lookup_expr='gte',
-        label='Desde',
+        label='Fecha inicio (período dentro de planificado)',
+        method='filter_periodo',
         widget=WIDGET_DATE
     )
     fecha_hasta = django_filters.DateFilter(
-        field_name='fecha_inicio', 
-        lookup_expr='lte',
-        label='Hasta',
+        label='Fecha fin (período dentro de planificado)',
+        method='filter_periodo',
         widget=WIDGET_DATE
     )
     
@@ -117,6 +115,34 @@ class CronogramaFilter(django_filters.FilterSet):
         model = Cronograma
         fields = ['especialidad', 'estado', 'fecha_desde', 'fecha_hasta']
 
+    def filter_periodo(self, queryset, name, value):
+        """Filtra cronogramas cuyo período planificado incluya el período buscado.
+
+        Reglas:
+        - Si ambos `fecha_desde` y `fecha_hasta` están presentes en los datos de filtro,
+          devolvemos cronogramas donde fecha_inicio <= fecha_desde AND fecha_fin >= fecha_hasta.
+        - Si solo se pasa `fecha_desde`, devolvemos cronogramas donde fecha_inicio <= fecha_desde <= fecha_fin.
+        - Si solo se pasa `fecha_hasta`, devolvemos cronogramas donde fecha_inicio <= fecha_hasta <= fecha_fin.
+        """
+        # Acceder a los valores crudos de los filtros
+        data = self.data
+        fdesde = data.get('fecha_desde')
+        fhasta = data.get('fecha_hasta')
+
+        # Si ambos vienen y no están vacíos
+        if fdesde and fhasta:
+            return queryset.filter(fecha_inicio__lte=fdesde, fecha_fin__gte=fhasta)
+
+        # Solo fecha_desde
+        if fdesde:
+            return queryset.filter(fecha_inicio__lte=fdesde, fecha_fin__gte=fdesde)
+
+        # Solo fecha_hasta
+        if fhasta:
+            return queryset.filter(fecha_inicio__lte=fhasta, fecha_fin__gte=fhasta)
+
+        return queryset
+
 
 # ==============================================================================
 # FILTROS DE NOVEDADES Y PREFERENCIAS
@@ -130,9 +156,8 @@ class NoDisponibilidadFilter(django_filters.FilterSet):
         widget=WIDGET_TEXT
     )
     fecha = django_filters.DateFilter(
-        field_name='fecha_inicio', 
-        lookup_expr='gte', 
-        label='A partir de (Fecha)', 
+        label='Fecha (incluida en período)',
+        method='filter_fecha',
         widget=WIDGET_DATE
     )
     especialidad = django_filters.ChoiceFilter(
@@ -145,6 +170,12 @@ class NoDisponibilidadFilter(django_filters.FilterSet):
     class Meta:
         model = NoDisponibilidad
         fields = ['empleado', 'fecha', 'especialidad']
+
+    def filter_fecha(self, queryset, name, value):
+        """Filtra ausencias cuyo período [fecha_inicio, fecha_fin] incluya la fecha dada."""
+        if not value:
+            return queryset
+        return queryset.filter(fecha_inicio__lte=value, fecha_fin__gte=value)
 
 
 class PreferenciaFilter(django_filters.FilterSet):

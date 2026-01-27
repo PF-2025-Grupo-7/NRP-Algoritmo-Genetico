@@ -71,8 +71,8 @@
 
                             <td class="text-end pe-4">
                                 <div class="btn-group">
-                                    <a href="{% url 'secuencia_update' s.pk %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
-                                    <a href="{% url 'secuencia_delete' s.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
+                                    <a href="{% url 'secuencia_update' s.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></a>
+                                    <a href="{% url 'secuencia_delete' s.pk %}?next={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></a>
                                 </div>
                             </td>
                         </tr>

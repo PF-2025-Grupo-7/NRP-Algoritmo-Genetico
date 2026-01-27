@@ -20,16 +20,26 @@
 
             <form method="post" id="form-preferencia" novalidate autocomplete="off">
                 {% csrf_token %}
+                    {% if request.GET.next %}
+                        <input type="hidden" name="next" value="{{ request.GET.next }}">
+                    {% endif %}
                 <div class="col-12">
                     <div id="form-warning" class="field-error d-none" style="color: #c41c3b; font-size: 0.97rem; font-weight: 500; margin-bottom: 1.2rem;">
                         <i class="bi bi-exclamation-circle" style="font-size: 1.1rem;"></i>
                         <span id="form-warning-text">Por favor, completá todos los campos obligatorios (*) antes de guardar.</span>
                     </div>
                 </div>
-                {% if form.non_field_errors %}
+                {% if form.errors %}
                     <div id="server-errors" class="field-error mb-4">
                         <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                        <span>{{ form.non_field_errors|join:", " }}</span>
+                        <span>
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                    {{ error }}{% if not forloop.last %}<br>{% endif %}
+                                {% endfor %}
+                                {% if not forloop.last %}<br>{% endif %}
+                            {% endfor %}
+                        </span>
                     </div>
                 {% endif %}
 
@@ -120,12 +130,14 @@
                     </div>
                 </div>
                 <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                    <a href="#" onclick="window.history.back(); return false;" class="btn btn-outline-secondary me-md-2 fw-bold px-4">
-                        Cancelar
-                    </a>
                     <button type="submit" class="btn btn-primary fw-bold px-4">
                         Guardar Cambios
                     </button>
+                    {% if request.GET.next %}
+                        <a href="{{ request.GET.next }}" class="btn btn-outline-secondary me-md-2 fw-bold px-4">Cancelar</a>
+                    {% else %}
+                        <a href="{% url 'preferencia_list' %}" class="btn btn-outline-secondary me-md-2 fw-bold px-4">Cancelar</a>
+                    {% endif %}
                 </div>
             </form>
         </div>
@@ -252,8 +264,8 @@ function setupCustomDropdown(wrapper){
     header.onclick = (e) => {
         e.preventDefault(); e.stopPropagation();
         if (nativeSelect.disabled) return;
-        document.querySelectorAll('.custom-dropdown.open').forEach(d => { if(d !== dropdown) d.classList.remove('open'); });
-        dropdown.classList.toggle('open');
+        const isOpen = dropdown.classList.contains('open');
+        if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
     };
 
     menu.querySelectorAll('.custom-option').forEach((option, index) => {

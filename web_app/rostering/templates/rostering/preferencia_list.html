@@ -87,8 +87,8 @@
                             <th class="text-center">Empleado</th>
                             <th class="text-center">Especialidad</th>
                             <th class="text-center">Fecha</th>
-                            <th class="text-center">Deseo</th>
                             <th class="text-center">Turno</th>
+                            <th class="text-center">Deseo</th>
                             <th class="text-center">Comentario</th>
                             <th class="text-center">Acciones</th>
                         </tr>
@@ -113,18 +113,18 @@
                             </td>
 
                             <td class="text-center">
-                                {% if p.deseo == 'TRABAJAR' %}
-                                    <span class="badge badge-status bg-success-subtle-custom">Trabajar</span>
-                                {% else %}
-                                    <span class="badge badge-status bg-danger-subtle-custom">Descansar</span>
-                                {% endif %}
-                            </td>
-
-                            <td class="text-center">
                                 {% if p.tipo_turno %}
                                     <span class="text-muted">{{ p.tipo_turno }}</span>
                                 {% else %}
                                     <span class="text-muted">Cualquiera</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="text-center">
+                                {% if p.deseo == 'TRABAJAR' %}
+                                    <span class="badge badge-status bg-success-subtle-custom">Trabajar</span>
+                                {% else %}
+                                    <span class="badge badge-status bg-danger-subtle-custom">Descansar</span>
                                 {% endif %}
                             </td>
 
@@ -134,17 +134,17 @@
 
                             <td class="text-center">
                                 <div class="action-buttons">
-                                    <a href="{% url 'preferencia_update' p.pk %}" 
+                                                <a href="{% url 'preferencia_update' p.pk %}?next={{ request.get_full_path|urlencode }}" 
                                        class="btn btn-sm btn-action btn-action-edit" 
                                        data-bs-toggle="tooltip" 
                                        data-bs-title="Editar">
                                         <i class="bi bi-pencil-fill"></i>
                                     </a>
-                                    <button type="button"
-                                       class="btn btn-sm btn-action btn-action-delete" 
-                                       data-bs-toggle="tooltip" 
-                                       data-bs-title="Eliminar"
-                                       onclick="openDeleteModal('{{ p.empleado.nombre_completo }}', '{{ p.fecha|date:"d/m/Y" }}', '{{ p.get_deseo_display }}', '{% url 'preferencia_delete' p.pk %}')">
+                                                <button type="button"
+                                                    class="btn btn-sm btn-action btn-action-delete" 
+                                                    data-bs-toggle="tooltip" 
+                                                    data-bs-title="Eliminar"
+                                                    onclick="openDeleteModal('{{ p.empleado.nombre_completo }}', '{{ p.empleado.legajo }}', '{% if p.tipo_turno %}{{ p.tipo_turno }}{% else %}Cualquiera{% endif %}', '{{ p.fecha|date:"d/m/Y" }}', '{{ p.get_deseo_display }}', '{% url 'preferencia_delete' p.pk %}')">
                                         <i class="bi bi-trash-fill"></i>
                                     </button>
                                 </div>
@@ -185,30 +185,32 @@
             {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode|cut:'page=' }}">
-                        <i class="bi bi-chevron-left"></i> Anterior
+                        <i class="bi bi-chevron-left"></i>
                     </a>
                 </li>
             {% else %}
                 <li class="page-item disabled">
-                    <span class="page-link"><i class="bi bi-chevron-left"></i> Anterior</span>
+                    <span class="page-link"><i class="bi bi-chevron-left"></i></span>
                 </li>
             {% endif %}
 
-            <li class="page-item active">
-                <span class="page-link fw-semibold">
-                    Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-                </span>
-            </li>
+            {% for num in page_obj.paginator.page_range %}
+                {% if num == page_obj.number %}
+                    <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% else %}
+                    <li class="page-item"><a class="page-link" href="?page={{ num }}&{{ request.GET.urlencode|cut:'page=' }}">{{ num }}</a></li>
+                {% endif %}
+            {% endfor %}
 
             {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode|cut:'page=' }}">
-                        Siguiente <i class="bi bi-chevron-right"></i>
+                        <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
             {% else %}
                 <li class="page-item disabled">
-                    <span class="page-link">Siguiente <i class="bi bi-chevron-right"></i></span>
+                    <span class="page-link"><i class="bi bi-chevron-right"></i></span>
                 </li>
             {% endif %}
         </ul>
@@ -237,8 +239,8 @@
                 <!-- Información de la preferencia -->
                 <div class="mb-3 p-4" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
                     <p class="mb-2 small text-muted">Estás a punto de eliminar la preferencia de:</p>
-                    <p class="mb-1 fw-bold" style="color: #2f3e4c; font-size: 1.1rem;"><span id="deleteEmpleado"></span></p>
-                    <p class="mb-0 fw-bold" style="color: #2f3e4c;"><span id="deleteFecha"></span> - <span id="deleteDeseo"></span></p>
+                    <p class="mb-1 fw-bold" style="color: #2f3e4c; font-size: 1.1rem;"><span id="deleteHeader"></span></p>
+                    <p class="mb-0 fw-bold" style="color: #2f3e4c;" id="deletePeriodo"></p>
                 </div>
                 
                 <!-- Mensaje de advertencia -->
@@ -753,7 +755,8 @@
         header.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropdown.classList.toggle('open');
+            const isOpen = dropdown.classList.contains('open');
+            if (!isOpen) { if (window.closeAllDropdowns) window.closeAllDropdowns(dropdown); dropdown.classList.add('open'); } else { dropdown.classList.remove('open'); }
         };
 
         // Selección
@@ -802,8 +805,8 @@
         // Limpiar texto del turno (extraer solo Mañana, Tarde, Noche, etc.)
         document.querySelectorAll('tbody tr').forEach(row => {
             const cells = row.querySelectorAll('td');
-            if (cells.length > 5) {
-                const turnoCell = cells[5]; // Columna de Turno
+            if (cells.length > 4) {
+                const turnoCell = cells[4]; // Ahora la columna de Turno es la 4
                 const turnoSpan = turnoCell.querySelector('.text-muted');
                 if (turnoSpan && turnoSpan.textContent.trim() !== 'Cualquiera' && turnoSpan.textContent.trim() !== '-') {
                     let text = turnoSpan.textContent.trim();
@@ -870,11 +873,12 @@
     });
     
     // Función para abrir el modal de eliminación
-    function openDeleteModal(empleado, fecha, deseo, deleteUrl) {
+    function openDeleteModal(empleado, legajo, turno, fecha, deseo, deleteUrl) {
         // Actualizar los datos en el modal
-        document.getElementById('deleteEmpleado').textContent = empleado;
-        document.getElementById('deleteFecha').textContent = fecha;
-        document.getElementById('deleteDeseo').textContent = deseo;
+        const header = '#' + legajo + ' - ' + empleado;
+        document.getElementById('deleteHeader').textContent = header;
+        const periodo = fecha + ' - ' + (turno ? turno : 'Cualquiera') + (deseo ? ' (' + deseo + ')' : '');
+        document.getElementById('deletePeriodo').textContent = periodo;
         
         // Actualizar la acción del formulario
         const deleteForm = document.getElementById('deleteForm');

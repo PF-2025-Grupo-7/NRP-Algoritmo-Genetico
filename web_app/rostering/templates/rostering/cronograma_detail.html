@@ -32,6 +32,35 @@
 
 {# Modal de publicación eliminado: usamos switch para publicar/despublicar #}
 
+<!-- Publish/Unpublish confirmation modal -->
+<div class="modal fade" id="publishConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4" style="background: white;">
+                <button type="button" class="btn-close position-absolute" style="top: 16px; right: 16px; opacity: 0.5;" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center px-5 pb-4 pt-2">
+                <div class="mb-4">
+                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #0d6efd;">
+                        <i class="bi bi-exclamation-lg" style="font-size: 2rem; color: #0d6efd;"></i>
+                    </div>
+                </div>
+
+                <h4 class="fw-bold mb-3" style="color: #2f3e4c;">¿Estás seguro?</h4>
+
+                <div class="mb-3 p-4 text-center" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+                    <p id="publishModalText" class="mb-2 fw-bold" style="color:#2f3e4c;">Estas a punto de publicar/despublicar (según corresponda) este cronograma oficialmente</p>
+                    <p id="publishModalNote" class="mb-0 small" style="color:#6c757d;">La nueva regla se aplicará y la anterior se sobreescribirá.</p>
+                </div>
+            </div>
+            <div class="modal-footer border-0 bg-white justify-content-center gap-2 pb-4">
+                <button type="button" class="btn btn-light px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 600; border: 1px solid #dee2e6; min-width: 140px;">Cancelar</button>
+                <button type="button" id="confirmPublishBtn" class="btn btn-primary px-4 py-2" style="border-radius: 10px; font-weight: 600; min-width: 140px;">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 <div class="card shadow-sm border-0">
     <div class="card-body p-0">
@@ -295,15 +324,89 @@
     document.addEventListener('DOMContentLoaded', function(){
         var toggle = document.getElementById('togglePublicado');
         var form = document.getElementById('form-toggle-publicado');
+        var silentInput = document.getElementById('silent_toggle');
+        var publishModalEl = document.getElementById('publishConfirmModal');
+        var publishModal = publishModalEl ? new bootstrap.Modal(publishModalEl) : null;
+        var publishText = document.getElementById('publishModalText');
+        var confirmPublishBtn = document.getElementById('confirmPublishBtn');
+
         if(!toggle || !form) return;
-        toggle.addEventListener('change', function(){
-            if(this.checked){
-                form.action = "{% url 'cronograma_publish' cronograma.id %}";
-            } else {
-                form.action = "{% url 'cronograma_unpublish' cronograma.id %}";
+
+        // Keep previous state to revert if user cancels
+        var previousChecked = toggle.checked;
+
+        toggle.addEventListener('change', function(e){
+            var willPublish = this.checked;
+            // Update modal text and confirm button depending on action
+            if (publishText) {
+                publishText.textContent = willPublish
+                    ? 'Estas a punto de publicar este cronograma oficialmente'
+                    : 'Estas a punto de despublicar este cronograma oficialmente';
             }
-            form.submit();
+            if (confirmPublishBtn) {
+                // Publish -> show 'Publicar'; Unpublish -> show 'Continuar' (both blue)
+                confirmPublishBtn.textContent = willPublish ? 'Publicar' : 'Continuar';
+                confirmPublishBtn.classList.remove('btn-danger');
+                confirmPublishBtn.classList.add('btn-primary');
+            }
+
+            // Show modal and wait for confirmation
+            if (publishModal) {
+                // prevent immediate submit
+                e.preventDefault();
+                publishModal.show();
+            } else {
+                // Fallback: submit directly
+                submitPublish(willPublish);
+            }
         });
+
+        function submitPublish(willPublish){
+            var action = willPublish
+                ? "{% url 'cronograma_publish' cronograma.id %}"
+                : "{% url 'cronograma_unpublish' cronograma.id %}";
+
+            var fd = new FormData(form);
+
+            fetch(action, {
+                method: 'POST',
+                body: fd,
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(function(resp){
+                if (resp.ok) {
+                    // stay on the same page; preserve silent behavior
+                    previousChecked = toggle.checked;
+                } else {
+                    toggle.checked = previousChecked;
+                    alert('No se pudo completar la acción. Intenta nuevamente.');
+                }
+            }).catch(function(){
+                toggle.checked = previousChecked;
+                alert('Error de red al intentar publicar/despublicar.');
+            });
+        }
+
+        if (confirmPublishBtn) {
+            confirmPublishBtn.addEventListener('click', function(){
+                // Read desired state from the checkbox
+                var desired = toggle.checked;
+                // Hide modal and submit
+                if (publishModal) publishModal.hide();
+                submitPublish(desired);
+            });
+
+            // If modal dismissed, revert the toggle to previous state
+            if (publishModalEl) {
+                publishModalEl.addEventListener('hidden.bs.modal', function(){
+                    // If form didn't submit, revert visual toggle to previous state
+                    // We assume that when modal is hidden without confirm, user cancelled
+                    if (toggle.checked === previousChecked) return; // no change
+                    // revert
+                    toggle.checked = previousChecked;
+                });
+            }
+        }
 
         // No automatic coloring of body cells for weekends: headers only
     });

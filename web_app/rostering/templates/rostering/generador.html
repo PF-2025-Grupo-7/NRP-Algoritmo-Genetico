@@ -36,19 +36,17 @@
                     <div class="custom-select-wrapper">
                         <select class="form-select d-none" id="especialidad" required>
                             <option value="" selected disabled>Seleccioná una especialidad</option>
-                            <option value="MEDICO">Médico</option>
-                            <option value="ENFERMERO">Enfermero</option>
-                            <option value="ER">Experto en Emergencias</option>
-                            <option value="UCI">Unidad de Cuidados Intensivos</option>
+                            {% for esp in especialidades_disponibles %}
+                                <option value="{{ esp.code }}">{{ esp.label }}</option>
+                            {% endfor %}
                         </select>
                         <div class="custom-dropdown">
                             <div class="custom-dropdown-header" tabindex="0">Seleccioná una especialidad</div>
                             <div class="custom-dropdown-menu">
-                                <div class="custom-option" data-value="">Seleccioná una especialidad</div>
-                                <div class="custom-option" data-value="MEDICO">Médico</div>
-                                <div class="custom-option" data-value="ENFERMERO">Enfermero</div>
-                                <div class="custom-option" data-value="ER">Experto en Emergencias</div>
-                                <div class="custom-option" data-value="UCI">Unidad de Cuidados Intensivos</div>
+                                    <div class="custom-option" data-value="">Seleccioná una especialidad</div>
+                                    {% for esp in especialidades_disponibles %}
+                                        <div class="custom-option" data-value="{{ esp.code }}">{{ esp.label }}</div>
+                                    {% endfor %}
                             </div>
                         </div>
                     </div>
@@ -131,17 +129,21 @@
         <div class="modal-content border-0 shadow-lg">
             
             <div class="modal-header bg-white border-bottom-0 pb-0">
-                <h5 class="modal-title fw-bold text-danger">
-                    <i class="bi bi-x-circle-fill me-2"></i>Dotación Insuficiente
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
 
-            <div class="modal-body pt-2">
-                <p class="text-muted small mb-4">
-                    La planificación no puede iniciarse. La capacidad operativa actual (descontando ausencias) 
-                    no cubre la demanda requerida más el margen de seguridad.
-                </p>
+                    <div class="modal-body pt-2">
+                        <div class="text-center mb-3">
+                            <div class="icon-top mx-auto mb-3">
+                                <i class="bi bi-x-lg"></i>
+                            </div>
+                            <h4 class="fw-bold mb-2" style="color: #2f3e4c;">Dotación insuficiente</h4>
+                        </div>
+
+                        <p class="text-muted small mb-4 modal-explain">
+                            La planificación no puede iniciarse. La capacidad operativa actual
+                            no cubre la demanda requerida más el margen de seguridad.
+                        </p>
 
                 <div class="card mb-3 border-0 bg-light" id="card-senior">
                     <div class="card-body py-2 px-3">
@@ -193,7 +195,38 @@
             </div>
 
             <div class="modal-footer border-top-0 pt-0">
-                <button type="button" class="btn btn-outline-secondary w-100" data-bs-dismiss="modal">Entendido, revisaré la dotación</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Entendido</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation confirm modal (warn when job in progress) -->
+<!-- Navigation confirm modal (styled like plantilla_detail conflict modal) -->
+<div class="modal fade" id="navigationConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header border-0 pb-0 pt-4 px-4" style="background: white;">
+                <button type="button" class="btn-close position-absolute" style="top: 16px; right: 16px; opacity: 0.5;" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center px-5 pb-4 pt-2">
+                <div class="mb-4">
+                    <div class="d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid #0d6efd;">
+                        <i class="bi bi-exclamation-lg" style="font-size: 2rem; color: #0d6efd;"></i>
+                    </div>
+                </div>
+
+                <h4 class="fw-bold mb-3" style="color: #2f3e4c;">¿Estás seguro?</h4>
+
+                <div class="mb-3 p-4 text-center" style="background-color: #ffffff; border-radius: 10px; border: 1px solid #e0e5ec; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);">
+                    <p class="mb-2 small text-muted">La optimización está en ejecución. Si salís ahora, se perderá el progreso y no podrá recuperarse.</p>
+                </div>
+
+                <!-- informational line removed as requested -->
+            </div>
+            <div class="modal-footer border-0 bg-white justify-content-center gap-2 pb-4">
+                <button type="button" class="btn btn-light px-4 py-2" data-bs-dismiss="modal" style="border-radius: 10px; font-weight: 600; border: 1px solid #dee2e6; min-width: 160px;">Permanecer aquí</button>
+                <button type="button" id="confirmLeaveBtn" class="btn btn-primary px-4 py-2" style="border-radius: 10px; font-weight: 600; min-width: 160px;">Salir y perder progreso</button>
             </div>
         </div>
     </div>
@@ -277,6 +310,7 @@
         margin-top: 0;
         padding: 0;
         animation: fadeInDown 0.3s ease;
+        -webkit-overflow-scrolling: touch;
     }
     
     @keyframes fadeInDown {
@@ -292,11 +326,15 @@
     
     /* Abrir menú cuando el wrapper tiene la clase 'open' */
     .custom-dropdown.open .custom-dropdown-menu {
+        /* Limitar alto y permitir scroll cuando hay muchas opciones */
         max-height: 300px;
+        max-height: min(300px, calc(100vh - 180px));
         pointer-events: auto;
         opacity: 1;
         margin-top: 0.5rem;
         padding: 0.5rem 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
     
     .custom-option {
@@ -392,6 +430,116 @@
     @media (max-width: 575px){
         .icon-circle{ width: 56px; height: 56px; }
     }
+
+    /* --- Estilos específicos para el modal de Dotación Insuficiente --- */
+    #modalErrorDotacion .modal-content { border-radius: 16px; overflow: hidden; box-shadow: 0 8px 30px rgba(15, 23, 42, 0.12); }
+    #modalErrorDotacion .modal-header { background: #ffffff; border-bottom: 0; padding: 1rem 1.25rem; }
+    #modalErrorDotacion .modal-title { color: #c41c3b; font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem; }
+    #modalErrorDotacion .modal-title i { font-size: 1.25rem; }
+
+    #modalErrorDotacion .modal-body { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+    /* Estilo del párrafo explicativo: más grande y centrado */
+    #modalErrorDotacion .modal-body p.text-muted.modal-explain { color: #6c757d; font-size: 0.95rem; margin-bottom: .8rem; font-style: normal; text-align: center; line-height: 1.35; }
+
+    /* Aviso puntual (pico) estilo tarjeta rosada) */
+    #alerta-pico { background-color: #fdecea; border: 1px solid #f5c6cb; color: #8a1f2d; border-radius: 10px; }
+    #alerta-pico i { color: #c41c3b; font-size: 1.15rem; }
+    #alerta-pico #texto-pico { font-size: 0.95rem; }
+
+    /* Tarjetas internas: seniors / juniors */
+    #modalErrorDotacion .card { border-radius: 10px; box-shadow: none; border: 1px solid #eef0f3; background: #ffffff; }
+    #modalErrorDotacion .card-body { padding: 0.7rem 0.9rem; }
+    #modalErrorDotacion .card .fw-bold.text-uppercase { letter-spacing: .6px; }
+
+    /* Badges más visibles y redondeados */
+    #modalErrorDotacion .badge { font-weight: 700; border-radius: 999px; padding: .38rem .65rem; font-size: 0.78rem; }
+    /* Ocultar el texto de la badge cuando está en estado de DÉFICIT (bg-danger) */
+    #modalErrorDotacion .badge.bg-danger { color: transparent; text-shadow: none; }
+    /* Quitar la mancha roja (badge) visualmente dentro del modal */
+    #modalErrorDotacion .badge.bg-danger { display: none !important; }
+
+    /* Barras de progreso redondeadas y más altas */
+    #modalErrorDotacion .progress { height: 8px; background-color: #f3f5f7; border-radius: 999px; overflow: hidden; }
+    #modalErrorDotacion .progress .progress-bar { border-radius: 999px; transition: width .4s ease; }
+
+    /* Mensajes de déficit/ exceso */
+    #modalErrorDotacion .text-end.small { font-size: 0.78rem; }
+
+    #modalErrorDotacion #msg-senior, #modalErrorDotacion #msg-junior { font-size: 0.82rem; }
+
+    /* Alert de ausencias */
+    #modalErrorDotacion #alerta-ausencias { border-radius: 10px; font-size: 0.9rem; }
+
+    /* Footer y botón */
+    #modalErrorDotacion .modal-footer { background: #ffffff; border-top: 0; padding: 1rem; display: flex; justify-content: center; }
+    /* Borde del botón un poco más gris para mejor contraste */
+    #modalErrorDotacion .modal-footer .btn { border-radius: 10px; font-weight: 600; min-width: 140px; padding: .45rem .8rem; border: 1px solid #bfc6cc; color: #495057; }
+
+    /* Ajustes responsivos */
+    @media (max-width: 575px){
+        #modalErrorDotacion .modal-dialog { max-width: 95%; }
+        #modalErrorDotacion .modal-title { font-size: 0.98rem; }
+        #modalErrorDotacion .modal-footer .btn { min-width: 100%; }
+    }
+
+    /* --- Overrides para un look más pulido (ej.: icono circulado, sombras y gradientes) --- */
+    /* Icono circular rojo en el título */
+    #modalErrorDotacion .modal-title i {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(180deg, #e86b76 0%, #c41c3b 100%);
+        color: #fff;
+        border-radius: 50%;
+        box-shadow: 0 4px 12px rgba(196, 28, 59, 0.18);
+        font-size: 1rem;
+    }
+
+    /* Titular más prominente */
+    #modalErrorDotacion .modal-title { font-size: 1.15rem; letter-spacing: .2px; }
+
+    /* Alerta pico estilo tarjeta con sombra sutil y borde interior */
+    #alerta-pico { padding: .7rem .9rem; box-shadow: 0 6px 18px rgba(200,30,50,0.06); border-left: 4px solid #f5c6cb; }
+    #alerta-pico i { background: transparent; color: #941827; font-size: 1.05rem; }
+
+    /* Cards: fondo gris claro y contenido en caja blanca (efecto tarjeta interna) */
+    #modalErrorDotacion .card { background: transparent; border: none; }
+    #modalErrorDotacion .card-body { background: #ffffff; border: 1px solid #eef2f5; border-radius: 10px; padding: .9rem; }
+
+    /* Progresos: color suave cuando OK, degradado cuando DÉFICIT */
+    #modalErrorDotacion .progress-bar.bg-danger { background: linear-gradient(90deg,#f08a8f 0%,#c41c3b 100%); }
+    #modalErrorDotacion .progress-bar.bg-success { background: linear-gradient(90deg,#7ad38a 0%,#2ea44a 100%); }
+
+    /* Texto de valores mejor alineado */
+    #modalErrorDotacion .d-flex.justify-content-between.small { font-size: 0.92rem; }
+
+    /* Badge estado más consistente con altura */
+    #modalErrorDotacion .badge { min-width: 64px; text-align: center; }
+
+    /* Hacer más claro el pequeño pie de nota */
+    #modalErrorDotacion .modal-body .text-muted.fst-italic { color: #6b6f76; }
+
+    /* Ajustes móviles: stack más compacto */
+    @media (max-width: 420px) {
+        #modalErrorDotacion .card-body { padding: .7rem; }
+        #modalErrorDotacion .modal-title i { width: 32px; height: 32px; }
+    }
+
+    /* Icono grande superior usado en el modal */
+    #modalErrorDotacion .icon-top {
+        width: 92px;
+        height: 92px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 2.5px solid #e86b76;
+        box-shadow: 0 6px 20px rgba(232,107,118,0.12);
+        background: #fff;
+    }
+    #modalErrorDotacion .icon-top i { color: #e14b52; font-size: 1.9rem; }
 </style>
 
 {% endblock %}
@@ -402,61 +550,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- FUNCIÓN PARA MOSTRAR EL NUEVO MODAL ---
     function mostrarErrorDotacion(detalles) {
+        // ... (Same as your existing code for mostrarErrorDotacion) ...
         // Referencias
         const modalEl = document.getElementById('modalErrorDotacion');
         const modal = new bootstrap.Modal(modalEl);
         
-        // --- SENIORS ---
+        // --- 1. MOSTRAR MENSAJE DE PICO ESPECÍFICO (SI EXISTE) ---
+        let alertaPico = document.getElementById('alerta-pico');
+        if (!alertaPico) {
+            const container = document.querySelector('.modal-body');
+            alertaPico = document.createElement('div');
+            alertaPico.id = 'alerta-pico';
+            alertaPico.className = 'alert alert-danger d-flex align-items-center py-2 px-3 mb-3 d-none';
+            alertaPico.innerHTML = '<div id="texto-pico" class="small fw-bold"></div>';
+            const pIntro = container.querySelector('p.text-muted');
+            pIntro.insertAdjacentElement('afterend', alertaPico);
+        }
+
+        if (detalles.error_pico && detalles.mensaje) {
+            const raw = detalles.mensaje || '';
+            const texto = raw.replace(/^[Dd][íi]a\s+:/, '').replace(/^[Dd][íi]a\s+/, '');
+            document.getElementById('texto-pico').textContent = texto;
+            alertaPico.classList.remove('d-none');
+        } else {
+            alertaPico.classList.add('d-none');
+        }
+
+        // --- 2. SENIORS ---
         const s = detalles.senior;
-        document.getElementById('val-oferta-senior').textContent = s.oferta;
-        document.getElementById('val-demanda-senior').textContent = s.demanda;
-        
-        const badgeSen = document.getElementById('badge-senior');
-        const barSen = document.getElementById('bar-senior');
-        const msgSen = document.getElementById('msg-senior');
-        
-        let pctSen = s.demanda > 0 ? (s.oferta / s.demanda) * 100 : 100;
-        
-        if (s.estado === 'CRITICO') {
-            badgeSen.className = 'badge bg-danger';
-            badgeSen.textContent = 'DÉFICIT';
-            barSen.className = 'progress-bar bg-danger';
-            barSen.style.width = Math.min(pctSen, 100) + '%';
-            msgSen.textContent = `Faltan ${Math.abs(s.balance)} horas`;
-        } else {
-            badgeSen.className = 'badge bg-success';
-            badgeSen.textContent = 'CUBIERTO';
-            barSen.className = 'progress-bar bg-success';
-            barSen.style.width = '100%';
-            msgSen.textContent = '';
-        }
+        configurarTarjetaCapacidad('senior', s);
 
-        // --- JUNIORS ---
+        // --- 3. JUNIORS ---
         const j = detalles.junior;
-        document.getElementById('val-oferta-junior').textContent = j.oferta;
-        document.getElementById('val-demanda-junior').textContent = j.demanda;
-        
-        const badgeJun = document.getElementById('badge-junior');
-        const barJun = document.getElementById('bar-junior');
-        const msgJun = document.getElementById('msg-junior');
-        
-        let pctJun = j.demanda > 0 ? (j.oferta / j.demanda) * 100 : 100;
-        
-        if (j.estado === 'CRITICO') {
-            badgeJun.className = 'badge bg-danger';
-            badgeJun.textContent = 'DÉFICIT';
-            barJun.className = 'progress-bar bg-danger';
-            barJun.style.width = Math.min(pctJun, 100) + '%';
-            msgJun.textContent = `Faltan ${Math.abs(j.balance)} horas`;
-        } else {
-            badgeJun.className = 'badge bg-success';
-            badgeJun.textContent = 'CUBIERTO';
-            barJun.className = 'progress-bar bg-success';
-            barJun.style.width = '100%';
-            msgJun.textContent = '';
-        }
+        configurarTarjetaCapacidad('junior', j);
 
-        // --- GLOBALES ---
+        // --- 4. GLOBALES ---
         const g = detalles.global || {};
         const alertaAus = document.getElementById('alerta-ausencias');
         
@@ -473,6 +601,52 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
     }
 
+    // Helper para configurar cada tarjeta (Senior/Junior)
+    function configurarTarjetaCapacidad(rol, datos) {
+        const elOferta = document.getElementById(`val-oferta-${rol}`);
+        const elDemanda = document.getElementById(`val-demanda-${rol}`);
+        const elBadge = document.getElementById(`badge-${rol}`);
+        const elBar = document.getElementById(`bar-${rol}`);
+        const elMsg = document.getElementById(`msg-${rol}`);
+
+        elOferta.textContent = datos.oferta;
+        elDemanda.textContent = datos.demanda;
+
+        const oferta = parseFloat(datos.oferta);
+        const demanda = parseFloat(datos.demanda);
+        
+        let porcentaje = 100;
+        if (demanda > 0) {
+            porcentaje = (oferta / demanda) * 100;
+        }
+
+        const deficitHoras = demanda > oferta;
+        const faltante = demanda - oferta;
+
+        if (deficitHoras) {
+            elBadge.className = 'badge bg-danger';
+            elBadge.textContent = 'DÉFICIT';
+            elBar.className = 'progress-bar bg-danger';
+            elBar.style.width = `${Math.min(porcentaje, 100)}%`;
+            elMsg.textContent = `Faltan ${Math.ceil(faltante)} horas`;
+            elMsg.className = 'text-end text-danger small fw-bold mt-1';
+        } else {
+            elBadge.className = 'badge bg-success';
+            elBadge.textContent = 'CUBIERTO';
+            elBar.className = 'progress-bar bg-success';
+            elBar.style.width = '100%';
+            elMsg.textContent = `Capacidad excedente: ${Math.floor(oferta - demanda)}h`;
+            elMsg.className = 'text-end text-success small mt-1';
+        }
+    }
+
+    // Helper para cerrar todos los dropdowns
+    function closeAllDropdowns(exceptDropdown) {
+        document.querySelectorAll('.custom-dropdown.open').forEach(d => {
+            if (!exceptDropdown || d !== exceptDropdown) d.classList.remove('open');
+        });
+    }
+
     // Helpers: configurar un wrapper de dropdown personalizado
     function setupCustomDropdown(wrapper){
         const nativeSelect = wrapper.querySelector('.form-select');
@@ -482,31 +656,57 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!header || !dropdown || !menu || !nativeSelect) return;
 
-        // Abrir/cerrar
-        header.onclick = (e) => {
+        // Limpiar event listeners anteriores clonando el nodo
+        // Esto es necesario porque llamamos a setupCustomDropdown múltiples veces
+        const newHeader = header.cloneNode(true);
+        header.parentNode.replaceChild(newHeader, header);
+        
+        // Re-asignar referencia
+        const activeHeader = wrapper.querySelector('.custom-dropdown-header');
+
+        // Abrir/cerrar con click
+        activeHeader.addEventListener('click', (e) => {
+            if (nativeSelect.disabled) return; // FIX: Respetar estado disabled
             e.preventDefault();
             e.stopPropagation();
-            // Cierra otros dropdowns abiertos si hubiera
-            document.querySelectorAll('.custom-dropdown.open').forEach(d => {
-                if(d !== dropdown) d.classList.remove('open');
-            });
-            dropdown.classList.toggle('open');
-        };
+            const isOpen = dropdown.classList.contains('open');
+            if (!isOpen) {
+                closeAllDropdowns(dropdown);
+                dropdown.classList.add('open');
+            } else {
+                dropdown.classList.remove('open');
+            }
+        });
+
+        // Soporte teclado
+        activeHeader.addEventListener('keydown', (e) => {
+            if (nativeSelect.disabled) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                activeHeader.click();
+            } else if (e.key === 'Escape' || e.key === 'Esc') {
+                dropdown.classList.remove('open');
+                activeHeader.blur();
+            }
+        });
 
         // Selección
         menu.querySelectorAll('.custom-option').forEach((option, index) => {
-            option.onclick = (e) => {
+            option.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (index === 0) return; // placeholder
+                // if (index === 0) return; // Permitir seleccionar el placeholder si es necesario (e.g. "Seleccioná...")
+                
                 const value = option.getAttribute('data-value');
                 const text = option.textContent;
+                
                 nativeSelect.value = value;
-                header.textContent = text;
+                activeHeader.textContent = text;
                 dropdown.classList.remove('open');
-                // Disparar evento change manualmente para que lo detecte el otro script
+                
+                // Disparar evento change manualmente
                 nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-            };
+            });
         });
 
         // Cerrar al hacer click fuera
@@ -517,7 +717,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Inicializar todos los wrappers existentes
+    // Inicializar todos los wrappers existentes al cargar
     document.querySelectorAll('.custom-select-wrapper').forEach(setupCustomDropdown);
 
     // --- Referencias ---
@@ -540,17 +740,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const $warn = document.getElementById('form-warning');
     const $warnText = document.getElementById('form-warning-text');
 
-    // --- Sugerir período del próximo mes ---
-    try {
-        const hoy = new Date();
-        const y = hoy.getFullYear();
-        const m = hoy.getMonth();
-        const start = new Date(y, m + 1, 1);
-        const end = new Date(y, m + 2, 0);
-        
-        if($inicio) $inicio.value = start.toISOString().slice(0,10);
-        if($fin) $fin.value = end.toISOString().slice(0,10);
-    } catch(e) {}
 
     // --- Funciones de UI ---
     function setEstado(text, kind){
@@ -565,7 +754,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if($barra) {
             $barra.style.width = newVal + '%';
             $barra.setAttribute('aria-valuenow', newVal);
-            
             if (!keepAnimated) {
                 $barra.classList.remove('progress-bar-animated');
             } else {
@@ -594,6 +782,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if($plant) $plant.disabled = !!on;
         if($inicio) $inicio.disabled = !!on;
         if($fin) $fin.disabled = !!on;
+        window.__generadorJobInProgress = !!on;
+        
+        // Actualizar visualmente los dropdowns custom si se deshabilitan
+        document.querySelectorAll('.custom-select-wrapper').forEach(wrapper => {
+             const native = wrapper.querySelector('.form-select');
+             const header = wrapper.querySelector('.custom-dropdown-header');
+             if(native.disabled) header.style.backgroundColor = '#e9ecef';
+             else header.style.backgroundColor = '#ffffff';
+        });
     }
     
     function resetUI(){
@@ -606,71 +803,71 @@ document.addEventListener('DOMContentLoaded', function() {
         if($panelEstado) $panelEstado.classList.add('d-none');
         if($warn) $warn.classList.add('d-none');
         toggleLoading(false);
+        window.__generadorJobInProgress = false;
     }
 
     resetUI();
 
-    // --- Cargar plantillas al cambiar especialidad ---
+    // --- Cargar plantillas al cambiar especialidad (CORREGIDO) ---
     if($esp) {
         $esp.addEventListener('change', async function(){
             if(!$plant) return;
             
+            // 1. Resetear visualmente el dropdown de plantillas
+            const plantWrapper = $plant.closest('.custom-select-wrapper');
+            const plantHeader = plantWrapper ? plantWrapper.querySelector('.custom-dropdown-header') : null;
+            const plantMenu = plantWrapper ? plantWrapper.querySelector('.custom-dropdown-menu') : null;
+
+            // Poner estado "Cargando..."
             $plant.innerHTML = '<option value="" selected>Cargando...</option>';
             $plant.disabled = true;
-            
-            const plantWrapper = $plant.closest('.custom-select-wrapper');
-            if (plantWrapper) {
-                plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Cargando...';
-                plantWrapper.querySelector('.custom-dropdown').classList.remove('open');
-            }
+            if (plantHeader) plantHeader.textContent = 'Cargando...';
+            if (plantMenu) plantMenu.innerHTML = '<div class="custom-option" data-value="">Cargando...</div>';
             
             try {
                 const resp = await fetch(`{% url 'api_get_plantillas' %}?especialidad=${encodeURIComponent($esp.value)}`);
                 const data = await resp.json();
-                const items = (data.plantillas||[]);
+                const items = (data.plantillas || []);
                 
                 if(!items.length){
+                    // Caso: No hay plantillas
                     $plant.innerHTML = '<option value="" selected>No hay plantillas disponibles</option>';
                     $plant.disabled = true;
-                    if (plantWrapper) {
-                        plantWrapper.querySelector('.custom-dropdown-header').textContent = 'No hay plantillas disponibles';
-                        plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">No hay plantillas disponibles</div>';
-                        setupCustomDropdown(plantWrapper);
-                    }
-                    return;
-                }
+                    if (plantHeader) plantHeader.textContent = 'No hay plantillas disponibles';
+                    if (plantMenu) plantMenu.innerHTML = '<div class="custom-option" data-value="">No hay plantillas disponibles</div>';
+                } else {
+                    // Caso: Hay plantillas -> Generar opciones
+                    const optionsHTML = '<option value="" selected>Seleccioná una plantilla</option>' + 
+                                      items.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+                    $plant.innerHTML = optionsHTML;
+                    $plant.disabled = false; // Habilitar select nativo
 
-                $plant.innerHTML = '<option value="" selected>Seleccioná una plantilla</option>' + items.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
-                $plant.disabled = false;
-                
-                if (plantWrapper) {
-                    plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Seleccioná una plantilla';
-                    const menuHTML = '<div class="custom-option" data-value="">Seleccioná una plantilla</div>' + 
-                        items.map(p=>`<div class="custom-option" data-value="${p.id}">${p.nombre}</div>`).join('');
-                    plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = menuHTML;
-                    setupCustomDropdown(plantWrapper);
+                    // Actualizar custom dropdown
+                    if (plantHeader) plantHeader.textContent = 'Seleccioná una plantilla';
+                    if (plantMenu) {
+                        const customOptionsHTML = '<div class="custom-option" data-value="">Seleccioná una plantilla</div>' + 
+                                                items.map(p=>`<div class="custom-option" data-value="${p.id}">${p.nombre}</div>`).join('');
+                        plantMenu.innerHTML = customOptionsHTML;
+                    }
+                    
+                    // IMPORTANTE: Re-inicializar listeners para las nuevas opciones
+                    if (plantWrapper) setupCustomDropdown(plantWrapper);
                 }
             } catch(e){
                 console.error(e);
                 $plant.innerHTML = '<option value="" selected>Error cargando plantillas</option>';
                 $plant.disabled = true;
-                if (plantWrapper) {
-                    plantWrapper.querySelector('.custom-dropdown-header').textContent = 'Error cargando plantillas';
-                    plantWrapper.querySelector('.custom-dropdown-menu').innerHTML = '<div class="custom-option" data-value="">Error cargando plantillas</div>';
-                    setupCustomDropdown(plantWrapper);
-                }
+                if (plantHeader) plantHeader.textContent = 'Error cargando plantillas';
             }
         });
     }
 
     // --- Envío del formulario ---
-            if($form) {
+    if($form) {
         $form.addEventListener('submit', async function(ev){
             ev.preventDefault();
-            
             if($warn) $warn.classList.add('d-none');
 
-            // Validación visual: marcar campos requeridos vacíos
             const requiredChecks = [
                 { el: $inicio, name: 'Fecha inicio' },
                 { el: $fin, name: 'Fecha fin' },
@@ -681,45 +878,15 @@ document.addEventListener('DOMContentLoaded', function() {
             let missing = requiredChecks.filter(c => !c.el || !c.el.value || c.el.value.trim() === '');
             if (missing.length > 0) {
                 showWarn('Por favor, completá todos los campos obligatorios (*)');
-                // Marcar visualmente
-                missing.forEach(function(c){
-                    try{
-                        if(c.el.classList && c.el.classList.contains('form-select')){
-                            c.el.classList.add('is-invalid');
-                            const wrapper = c.el.closest('.custom-select-wrapper');
-                            if(wrapper){
-                                const header = wrapper.querySelector('.custom-dropdown-header');
-                                if(header) header.classList.add('is-invalid');
-                            }
-                            c.el.addEventListener('change', function handler(){
-                                c.el.classList.remove('is-invalid');
-                                const wrapper = c.el.closest('.custom-select-wrapper');
-                                if(wrapper){
-                                    const header = wrapper.querySelector('.custom-dropdown-header');
-                                    if(header) header.classList.remove('is-invalid');
-                                }
-                                c.el.removeEventListener('change', handler);
-                            });
-                        } else if(c.el.classList){
-                            c.el.classList.add('is-invalid');
-                            c.el.addEventListener('input', function handler(){
-                                c.el.classList.remove('is-invalid');
-                                c.el.removeEventListener('input', handler);
-                            });
-                        }
-                    }catch(e){console.error('mark missing', e)}
-                });
-                missing[0].el.focus();
                 return;
             }
 
             if($fin.value <= $inicio.value){
                 showWarn('La fecha fin debe ser posterior a la fecha inicio.');
-                try{ $fin.classList.add('is-invalid'); $fin.addEventListener('input', function h(){ $fin.classList.remove('is-invalid'); $fin.removeEventListener('input', h); }); }catch(e){}
                 return;
             }
 
-            // Validar rango de días (mínimo 7, máximo 31)
+            // Validar rango
             const fechaInicio = new Date($inicio.value);
             const fechaFin = new Date($fin.value);
             const diffTime = Math.abs(fechaFin - fechaInicio);
@@ -756,12 +923,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const data = await resp.json();
                 
-                // --- DETECCIÓN DE ERROR DE DOTACIÓN ---
                 if(!resp.ok){
                     if(resp.status === 422 && data.tipo_error === 'FALTA_DOTACION') {
                         mostrarErrorDotacion(data.detalles);
-                        resetUI(); // Ocultamos la barra de progreso
-                        return; // Cortamos ejecución aquí
+                        resetUI(); 
+                        return;
                     }
                     throw new Error(data.error || 'Error al iniciar.');
                 }
@@ -783,20 +949,71 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if($btnReset) {
-        $btnReset.addEventListener('click', () => {
-            resetUI();
+    // --- NAVIGATION / UNLOAD HANDLING ---
+    // (Rest of your navigation handling code remains the same)
+    let pendingNavigationAction = null;
+    const navModalEl = document.getElementById('navigationConfirmModal');
+    const navModal = navModalEl ? new bootstrap.Modal(navModalEl) : null;
+    const confirmLeaveBtn = document.getElementById('confirmLeaveBtn');
+
+    window.addEventListener('beforeunload', function(e){
+        if (window.__generadorJobInProgress) {
+            e.preventDefault();
+            e.returnValue = '';
+            return '';
+        }
+    });
+
+    document.addEventListener('click', function(e){
+        if (!window.__generadorJobInProgress) return;
+        const a = e.target.closest && e.target.closest('a');
+        if (!a) return;
+        const href = a.getAttribute('href');
+        if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+        if (a.hasAttribute('data-ignore-navigation')) return;
+        e.preventDefault();
+        pendingNavigationAction = { type: 'link', href: a.href };
+        if (navModal) navModal.show();
+    });
+
+    if ($btnReset) {
+        $btnReset.addEventListener('click', function(e){
+            if (!window.__generadorJobInProgress) {
+                resetUI();
+                return;
+            }
+            e.preventDefault();
+            pendingNavigationAction = { type: 'reset' };
+            if (navModal) navModal.show();
         });
     }
 
-    // --- Polling de estado ---
+    if (confirmLeaveBtn) {
+        confirmLeaveBtn.addEventListener('click', function(){
+            window.__generadorJobInProgress = false;
+            if (navModal) navModal.hide();
+            const action = pendingNavigationAction || { type: 'link', href: '/' };
+            pendingNavigationAction = null;
+            setTimeout(() => {
+                if (action.type === 'link' && action.href) {
+                    window.location.href = action.href;
+                } else if (action.type === 'reset') {
+                    resetUI();
+                } else {
+                    window.location.href = '/';
+                }
+            }, 120);
+        });
+    }
+
     async function pollEstado(jobId){
         let p = 40;
         const tick = setInterval(()=>{ p = Math.min(p+5, 90); setProgreso(p); }, 2000);
         
         try {
             while(true){
-                const url = `{% url 'api_estado_planificacion' job_id='JOBID' %}`.replace('JOBID', jobId);
+                // Replace JOBID placeholder properly
+                const url = `{% url 'api_estado_planificacion' job_id='00000000-0000-0000-0000-000000000000' %}`.replace('00000000-0000-0000-0000-000000000000', jobId);
                 const resp = await fetch(url);
                 const data = await resp.json();
                 
@@ -814,7 +1031,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     toggleLoading(false);
                     break;
                 } else if(data.status === 'running' || data.status === 'queued' || resp.status === 202){
-                    // Continúa esperando
+                    // wait
                 } else if(data.status === 'failed' || data.error){
                     throw new Error(data.error || 'Fallo en el proceso.');
                 }
