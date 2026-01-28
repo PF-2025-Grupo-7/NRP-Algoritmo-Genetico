@@ -47,12 +47,12 @@
             /* Cells colored to fill entire TD for PDF: avoid border-radius/padding that overflow in WeasyPrint */
             td.shift-cell { font-weight: 700; padding: 0; overflow: hidden; vertical-align: middle; text-align: center; }
 
-            /* Darkened background tones for better contrast (PDF) - apply directly to TD */
-            td.bg-0.shift-cell { background-color: #fff3cd; color: #7a5b00; } /* amarillo */
-            td.bg-1.shift-cell { background-color: #b4ebd2; color: #0f6b46; } /* verde */
-            td.bg-2.shift-cell { background-color: #ffdce0; color: #8b1e29; } /* rojo (noche) */
-            td.bg-G.shift-cell { background-color: #d2e4ff; color: #0d6efd; }
-            td.bg-X.shift-cell { background-color: #ebebeb; color: #495057; }
+            /* Blue palette (mapped by index) */
+            td.bg-0.shift-cell { background-color: #CBE7F3; color: #0D3558; } /* light celeste */
+            td.bg-1.shift-cell { background-color: #6EA8E8; color: #0D3558; } /* medium blue */
+            td.bg-2.shift-cell { background-color: #2C6FB0; color: #ffffff; } /* dark blue */
+            td.bg-G.shift-cell { background-color: #D2E4FF; color: #0D47A1; }
+            td.bg-X.shift-cell { background-color: #EBEBEB; color: #495057; }
 
         /* Subtle background tones and text colors to match on-screen (fallback classes) */
         .bg-M { background-color: #fff8e1; color: #997404; }
@@ -70,11 +70,11 @@
         .refs { display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; align-items:center; }
 
         /* Legend badge colors mapped to index-based classes (same palette as table cells) */
-        .ref-badge.bg-0 { background-color: #fff3cd; color: #7a5b00; }
-        .ref-badge.bg-1 { background-color: #b4ebd2; color: #0f6b46; }
-        .ref-badge.bg-2 { background-color: #ffdce0; color: #8b1e29; }
-        .ref-badge.bg-G { background-color: #d2e4ff; color: #0d6efd; }
-        .ref-badge.bg-X { background-color: #ebebeb; color: #495057; }
+        .ref-badge.bg-0 { background-color: #CBE7F3; color: #0D3558; }
+        .ref-badge.bg-1 { background-color: #6EA8E8; color: #0D3558; }
+        .ref-badge.bg-2 { background-color: #2C6FB0; color: #ffffff; }
+        .ref-badge.bg-G { background-color: #D2E4FF; color: #0D47A1; }
+        .ref-badge.bg-X { background-color: #EBEBEB; color: #495057; }
     </style>
 </head>
 <body>
