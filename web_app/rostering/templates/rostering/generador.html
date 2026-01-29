@@ -134,57 +134,49 @@
 
                     <div class="modal-body pt-2">
                         <div class="text-center mb-3">
-                            <div class="icon-top mx-auto mb-3">
-                                <i class="bi bi-x-lg"></i>
+                                <div class="icon-top mx-auto mb-3">
+                                    <i class="bi bi-x-lg"></i>
+                                </div>
+                                <h4 class="fw-bold mb-2" style="color: #2f3e4c;">Dotación insuficiente</h4>
                             </div>
-                            <h4 class="fw-bold mb-2" style="color: #2f3e4c;">Dotación insuficiente</h4>
-                        </div>
 
-                        <p class="text-muted small mb-4 modal-explain">
-                            La planificación no puede iniciarse. La capacidad operativa actual
-                            no cubre la demanda requerida más el margen de seguridad.
-                        </p>
-
-                <div class="card mb-3 border-0 bg-light" id="card-senior">
-                    <div class="card-body py-2 px-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="fw-bold text-uppercase small text-muted">Seniors</span>
-                            <span class="badge" id="badge-senior">OK</span>
+                    <div class="card mb-3 border-0 bg-light" id="card-senior">
+                        <div class="card-body py-2 px-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold text-uppercase small text-muted">Seniors</span>
+                                <span class="badge" id="badge-senior">OK</span>
+                            </div>
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span>Oferta: <strong id="val-oferta-senior">0</strong>h</span>
+                                <span>Demanda: <strong id="val-demanda-senior">0</strong>h</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div id="bar-senior" class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div id="msg-senior" class="text-end text-danger small fw-bold mt-1" style="font-size: 0.75rem;"></div>
                         </div>
-                        <div class="d-flex justify-content-between small mb-1">
-                            <span>Oferta: <strong id="val-oferta-senior">0</strong>h</span>
-                            <span>Demanda: <strong id="val-demanda-senior">0</strong>h</span>
-                        </div>
-                        <div class="progress" style="height: 6px;">
-                            <div id="bar-senior" class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
-                        </div>
-                        <div id="msg-senior" class="text-end text-danger small fw-bold mt-1" style="font-size: 0.75rem;"></div>
                     </div>
-                </div>
 
-                <div class="card mb-3 border-0 bg-light" id="card-junior">
-                    <div class="card-body py-2 px-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="fw-bold text-uppercase small text-muted">Juniors</span>
-                            <span class="badge" id="badge-junior">OK</span>
+                    <div class="card mb-3 border-0 bg-light" id="card-junior">
+                        <div class="card-body py-2 px-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold text-uppercase small text-muted">Juniors</span>
+                                <span class="badge" id="badge-junior">OK</span>
+                            </div>
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span>Oferta: <strong id="val-oferta-junior">0</strong>h</span>
+                                <span>Demanda: <strong id="val-demanda-junior">0</strong>h</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div id="bar-junior" class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div id="msg-junior" class="text-end text-danger small fw-bold mt-1" style="font-size: 0.75rem;"></div>
                         </div>
-                        <div class="d-flex justify-content-between small mb-1">
-                            <span>Oferta: <strong id="val-oferta-junior">0</strong>h</span>
-                            <span>Demanda: <strong id="val-demanda-junior">0</strong>h</span>
-                        </div>
-                        <div class="progress" style="height: 6px;">
-                            <div id="bar-junior" class="progress-bar bg-secondary" role="progressbar" style="width: 0%"></div>
-                        </div>
-                        <div id="msg-junior" class="text-end text-danger small fw-bold mt-1" style="font-size: 0.75rem;"></div>
                     </div>
-                </div>
 
                 <div id="alerta-ausencias" class="alert alert-warning d-flex align-items-center py-2 px-3 d-none">
                     <i class="bi bi-exclamation-triangle me-2"></i>
-                    <div class="small lh-sm">
-                        <strong>Impacto de Ausencias:</strong> Se descontaron <span id="val-ausencias">0</span> horas 
-                        por licencias o bloqueos en este período.
-                    </div>
+                    <div class="small lh-sm">Se descontaron <strong id="val-ausencias">0</strong> horas por ausencias durante este período, reduciendo la capacidad disponible para cubrir la demanda.</div>
                 </div>
 
                 <div class="text-center mt-3">
@@ -195,7 +187,8 @@
             </div>
 
             <div class="modal-footer border-top-0 pt-0">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Entendido</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <a id="btn-ver-detalle" href="#" class="btn btn-primary d-none">Gestionar Empleados</a>
             </div>
         </div>
     </div>
@@ -472,8 +465,10 @@
 
     /* Footer y botón */
     #modalErrorDotacion .modal-footer { background: #ffffff; border-top: 0; padding: 1rem; display: flex; justify-content: center; }
-    /* Borde del botón un poco más gris para mejor contraste */
-    #modalErrorDotacion .modal-footer .btn { border-radius: 10px; font-weight: 600; min-width: 140px; padding: .45rem .8rem; border: 1px solid #bfc6cc; color: #495057; }
+    /* Estilo general de botones en el footer (no sobreescribir btn-primary) */
+    #modalErrorDotacion .modal-footer .btn { border-radius: 10px; font-weight: 600; min-width: 140px; padding: .45rem .8rem; }
+    /* Aplicar borde y color solo a botones secundarios (outline) para mantener consistencia) */
+    #modalErrorDotacion .modal-footer .btn.btn-outline-secondary { border: 1px solid #bfc6cc; color: #495057; background-color: transparent; }
 
     /* Ajustes responsivos */
     @media (max-width: 575px){
@@ -481,6 +476,10 @@
         #modalErrorDotacion .modal-title { font-size: 0.98rem; }
         #modalErrorDotacion .modal-footer .btn { min-width: 100%; }
     }
+
+    /* Aumentar ancho del modal para mejor lectura del contenido */
+    #modalErrorDotacion .modal-dialog { max-width: 900px; }
+    #modalErrorDotacion .modal-body { padding-top: 0.75rem; padding-bottom: 0.75rem; }
 
     /* --- Overrides para un look más pulido (ej.: icono circulado, sombras y gradientes) --- */
     /* Icono circular rojo en el título */
@@ -558,13 +557,20 @@ document.addEventListener('DOMContentLoaded', function() {
         // --- 1. MOSTRAR MENSAJE DE PICO ESPECÍFICO (SI EXISTE) ---
         let alertaPico = document.getElementById('alerta-pico');
         if (!alertaPico) {
-            const container = document.querySelector('.modal-body');
-            alertaPico = document.createElement('div');
-            alertaPico.id = 'alerta-pico';
-            alertaPico.className = 'alert alert-danger d-flex align-items-center py-2 px-3 mb-3 d-none';
-            alertaPico.innerHTML = '<div id="texto-pico" class="small fw-bold"></div>';
-            const pIntro = container.querySelector('p.text-muted');
-            pIntro.insertAdjacentElement('afterend', alertaPico);
+            const modalBody = modalEl.querySelector('.modal-body') || modalEl;
+            if (modalBody) {
+                alertaPico = document.createElement('div');
+                alertaPico.id = 'alerta-pico';
+                alertaPico.className = 'alert alert-danger d-flex align-items-center py-2 px-3 mb-3 d-none';
+                alertaPico.innerHTML = '<div id="texto-pico" class="small fw-bold"></div>';
+                const pIntro = modalBody.querySelector('p.text-muted');
+                if (pIntro && typeof pIntro.insertAdjacentElement === 'function') {
+                    pIntro.insertAdjacentElement('afterend', alertaPico);
+                } else {
+                    // fallback: prepend to modal body
+                    modalBody.insertBefore(alertaPico, modalBody.firstChild);
+                }
+            }
         }
 
         if (detalles.error_pico && detalles.mensaje) {
@@ -583,6 +589,90 @@ document.addEventListener('DOMContentLoaded', function() {
         // --- 3. JUNIORS ---
         const j = detalles.junior;
         configurarTarjetaCapacidad('junior', j);
+
+        // --- 3.5 Calcular estimado de profesionales faltantes (solo para la especialidad actual) ---
+        (function(){
+            try {
+                // Obtener horas faltantes por rol
+                const ofertaS = parseFloat(s.oferta || 0);
+                const demandaS = parseFloat(s.demanda || 0);
+                const faltS = Math.max(0, demandaS - ofertaS);
+
+                const ofertaJ = parseFloat(j.oferta || 0);
+                const demandaJ = parseFloat(j.demanda || 0);
+                const faltJ = Math.max(0, demandaJ - ofertaJ);
+
+                const totalFaltHoras = Math.ceil((faltS || 0) + (faltJ || 0));
+
+                // Periodo en días: preferimos valor enviado por la UI, fallback a cálculo desde inputs
+                let periodDays = window.__generador_period_days || 0;
+                if (!periodDays || periodDays <= 0) {
+                    const inicioVal = document.getElementById('fecha_inicio')?.value;
+                    const finVal = document.getElementById('fecha_fin')?.value;
+                    if (inicioVal && finVal) {
+                        const a = new Date(inicioVal);
+                        const b = new Date(finVal);
+                        const diffTime = Math.abs(b - a);
+                        periodDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                    }
+                }
+
+                // Jornada promedio por semana (configurable aquí); se escala al período
+                const DEFAULT_WEEK_HOURS = 38; // puedes cambiar esto o pasar desde settings
+                const jornadaPeriodo = (DEFAULT_WEEK_HOURS / 7) * Math.max(1, periodDays);
+
+                let profesionalesEstimados = 0;
+                if (jornadaPeriodo > 0) {
+                    profesionalesEstimados = Math.ceil(totalFaltHoras / jornadaPeriodo);
+                }
+
+                // Crear / actualizar bloque de estimado en el modal
+                const modalBody = document.querySelector('#modalErrorDotacion .modal-body');
+                    if (modalBody) {
+                    let estimEl = modalBody.querySelector('#estimado-profesionales');
+                    if (!estimEl) {
+                        estimEl = document.createElement('div');
+                        estimEl.id = 'estimado-profesionales';
+                        estimEl.className = 'text-center mb-3';
+                        const titleNode = modalBody.querySelector('.text-center.mb-3');
+                        if (titleNode && typeof titleNode.insertAdjacentElement === 'function') {
+                            titleNode.insertAdjacentElement('afterend', estimEl);
+                        } else {
+                            modalBody.insertBefore(estimEl, modalBody.querySelector('.card') || modalBody.firstChild);
+                        }
+                    }
+
+                                if (totalFaltHoras > 0) {
+                                    const faltSInt = Math.ceil(faltS || 0);
+                                    const faltJInt = Math.ceil(faltJ || 0);
+                                    const totalProfs = Math.max(1, profesionalesEstimados || Math.ceil(totalFaltHoras / Math.max(1, jornadaPeriodo)));
+                                    let experiencia = '';
+                                    if (faltSInt > 0 && faltJInt > 0) experiencia = '(senior y junior)';
+                                    else if (faltSInt > 0) experiencia = '(senior)';
+                                    else if (faltJInt > 0) experiencia = '(junior)';
+
+                                    const mensaje = `Faltan aproximadamente ${totalProfs} profesionales ${experiencia} para cubrir la demanda.`;
+                                    estimEl.innerHTML = `<div class="fw-bold text-danger" style="font-size:1rem;">${mensaje}</div>`;
+                        // Mostrar botón detalle
+                        const btnDetalle = document.getElementById('btn-ver-detalle');
+                        if (btnDetalle) {
+                            const espVal = document.getElementById('especialidad')?.value || '';
+                            const inicioVal = document.getElementById('fecha_inicio')?.value || '';
+                            const finVal = document.getElementById('fecha_fin')?.value || '';
+                            const empleadoListBase = "{% url 'empleado_list' %}";
+                            btnDetalle.href = empleadoListBase + `?especialidad=${encodeURIComponent(espVal)}`;
+                            btnDetalle.classList.remove('d-none');
+                        }
+                    } else {
+                        estimEl.innerHTML = `<div class="fw-bold text-secondary" style="font-size:0.95rem;">Estimado: no es posible calcular profesionales faltantes con los datos disponibles.</div>`;
+                        const btnDetalle = document.getElementById('btn-ver-detalle');
+                        if (btnDetalle) btnDetalle.classList.add('d-none');
+                    }
+                }
+            } catch (e) {
+                console.error('Error calculando estimado profesionales:', e);
+            }
+        })();
 
         // --- 4. GLOBALES ---
         const g = detalles.global || {};
@@ -900,6 +990,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 showWarn('El período a planificar no puede superar los 31 días.');
                 return;
             }
+
+            // Guardar duración del período para cálculos posteriores (estimados)
+            window.__generador_period_days = diffDays;
 
             if($panelEstado) $panelEstado.classList.remove('d-none');
             toggleLoading(true);

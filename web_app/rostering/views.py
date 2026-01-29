@@ -71,7 +71,7 @@ def landing(request):
 
 def dashboard(request):
     """Vista principal: KPIs, accesos rápidos y estado actual del sistema."""
-    total_empleados = Empleado.objects.count()
+    total_empleados = Empleado.objects.filter(activo=True).count()
     total_ausencias = NoDisponibilidad.objects.count()
     total_preferencias = Preferencia.objects.count()
     recientes = Cronograma.objects.all().order_by('-fecha_creacion')[:5]

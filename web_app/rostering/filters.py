@@ -155,9 +155,14 @@ class NoDisponibilidadFilter(django_filters.FilterSet):
         label='Empleado',
         widget=WIDGET_TEXT
     )
-    fecha = django_filters.DateFilter(
-        label='Fecha (incluida en período)',
-        method='filter_fecha',
+    fecha_inicio = django_filters.DateFilter(
+        label='Fecha inicio (período que contiene)',
+        method='filter_period',
+        widget=WIDGET_DATE
+    )
+    fecha_fin = django_filters.DateFilter(
+        label='Fecha fin (período que contiene)',
+        method='filter_period',
         widget=WIDGET_DATE
     )
     especialidad = django_filters.ChoiceFilter(
@@ -169,13 +174,31 @@ class NoDisponibilidadFilter(django_filters.FilterSet):
 
     class Meta:
         model = NoDisponibilidad
-        fields = ['empleado', 'fecha', 'especialidad']
+        fields = ['empleado', 'fecha_inicio', 'fecha_fin', 'especialidad']
 
-    def filter_fecha(self, queryset, name, value):
-        """Filtra ausencias cuyo período [fecha_inicio, fecha_fin] incluya la fecha dada."""
-        if not value:
-            return queryset
-        return queryset.filter(fecha_inicio__lte=value, fecha_fin__gte=value)
+    def filter_period(self, queryset, name, value):
+        """Filtra ausencias cuyo período [fecha_inicio, fecha_fin] contenga el período dado en filtros.
+
+        Reglas:
+        - Si ambos `fecha_inicio` y `fecha_fin` están presentes, devolvemos registros donde
+          fecha_inicio <= fecha_inicio_filtro AND fecha_fin >= fecha_fin_filtro.
+        - Si solo se pasa `fecha_inicio`, devolvemos registros donde fecha_inicio <= fecha_inicio_filtro <= fecha_fin.
+        - Si solo se pasa `fecha_fin`, devolvemos registros donde fecha_inicio <= fecha_fin_filtro <= fecha_fin.
+        """
+        data = self.data
+        fdesde = data.get('fecha_inicio')
+        fhasta = data.get('fecha_fin')
+
+        if fdesde and fhasta:
+            return queryset.filter(fecha_inicio__lte=fdesde, fecha_fin__gte=fhasta)
+
+        if fdesde:
+            return queryset.filter(fecha_inicio__lte=fdesde, fecha_fin__gte=fdesde)
+
+        if fhasta:
+            return queryset.filter(fecha_inicio__lte=fhasta, fecha_fin__gte=fhasta)
+
+        return queryset
 
 
 class PreferenciaFilter(django_filters.FilterSet):

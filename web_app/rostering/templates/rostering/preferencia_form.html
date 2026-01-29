@@ -69,16 +69,15 @@
                             <label class="form-label fw-bold" for="id_tipo_turno">Turno</label>
                             <div class="custom-select-wrapper">
                                 <select class="form-select d-none" id="id_tipo_turno" name="tipo_turno" required>
-                                    <option value="" {% if not form.instance.tipo_turno and not form.initial.tipo_turno %}selected{% endif %}></option>
+                                    <option value="" {% if not form.instance.tipo_turno and not form.initial.tipo_turno %}selected{% endif %}>Cualquiera</option>
                                     {% for turno in form.fields.tipo_turno.queryset.all %}
                                         <option value="{{ turno.pk }}" data-especialidad="{{ turno.especialidad }}" {% if form.instance.tipo_turno and form.instance.tipo_turno.pk == turno.pk %}selected{% endif %}>{{ turno.nombre }}</option>
                                     {% endfor %}
                                 </select>
                                 <div class="custom-dropdown">
-                                    <div class="custom-dropdown-header" tabindex="0">{% if form.instance.tipo_turno %}{{ form.instance.tipo_turno.nombre }}{% elif form.initial.tipo_turno %}{{ form.initial.tipo_turno }}{% else %}Seleccioná un turno{% endif %}</div>
+                                    <div class="custom-dropdown-header" tabindex="0">{% if form.instance.tipo_turno %}{{ form.instance.tipo_turno.nombre }}{% elif form.initial.tipo_turno %}{{ form.initial.tipo_turno }}{% else %}Cualquiera{% endif %}</div>
                                     <div class="custom-dropdown-menu">
-                                        <div class="custom-option" data-value=""></div>
-                                            <div class="custom-option" data-value="">&nbsp;</div>
+                                        <div class="custom-option" data-value="">Cualquiera</div>
                                         {% for turno in form.fields.tipo_turno.queryset.all %}
                                             <div class="custom-option" data-value="{{ turno.pk }}" data-especialidad="{{ turno.especialidad }}">{{ turno.nombre }}</div>
                                         {% endfor %}
@@ -313,7 +312,7 @@ function setupLegajoAutocomplete(inputId, onSelected) {
             const option = document.createElement('div'); option.className = 'autocomplete-option';
             option.textContent = `#${emp.legajo} - ${emp.nombre} (${emp.especialidad})`;
             option.style.padding = '0.5rem 1rem'; option.style.cursor='pointer';
-            option.onmousedown = e => { e.preventDefault(); onSelected(emp); closeDropdown(); };
+            option.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); onSelected(emp); closeDropdown(); try{ input.blur(); }catch(ex){} });
             dropdown.appendChild(option);
         });
         input.parentNode.appendChild(dropdown);
