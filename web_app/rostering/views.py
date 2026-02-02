@@ -71,7 +71,7 @@ def landing(request):
 
 def dashboard(request):
     """Vista principal: KPIs, accesos rápidos y estado actual del sistema."""
-    total_empleados = Empleado.objects.count()
+    total_empleados = Empleado.objects.filter(activo=True).count()
     total_ausencias = NoDisponibilidad.objects.count()
     total_preferencias = Preferencia.objects.count()
     recientes = Cronograma.objects.all().order_by('-fecha_creacion')[:5]
@@ -1108,13 +1108,14 @@ def exportar_cronograma_excel(request, cronograma_id):
     border_thin = Border(left=Side(style='thin'), right=Side(style='thin'), 
                          top=Side(style='thin'), bottom=Side(style='thin'))
     
-    # Colores de fondo (Fills) - tonos ligeramente más oscuros para mejor contraste
-    fill_manana = PatternFill(start_color="FFE082", end_color="FFE082", fill_type="solid") # Amarillo
-    fill_tarde = PatternFill(start_color="AEEACB", end_color="AEEACB", fill_type="solid")  # Verde/menta
-    fill_noche = PatternFill(start_color="FFD6D9", end_color="FFD6D9", fill_type="solid")  # Rosado claro
-    fill_guardia = PatternFill(start_color="CFE4FF", end_color="CFE4FF", fill_type="solid") # Celeste claro
-    fill_enfermeria = PatternFill(start_color="EADCFF", end_color="EADCFF", fill_type="solid") # Violeta claro
-    fill_franco = PatternFill(start_color="EEEEEE", end_color="EEEEEE", fill_type="solid") # Gris claro
+    # Colores de fondo (Fills) - nueva paleta azul (coincide con la vista web)
+    # Index mapping: 0 -> light, 1 -> medium, 2 -> dark
+    fill_manana = PatternFill(start_color="CBE7F3", end_color="CBE7F3", fill_type="solid")  # light celeste
+    fill_tarde = PatternFill(start_color="6EA8E8", end_color="6EA8E8", fill_type="solid")   # medium blue
+    fill_noche = PatternFill(start_color="2C6FB0", end_color="2C6FB0", fill_type="solid")   # dark blue
+    fill_guardia = PatternFill(start_color="D2E4FF", end_color="D2E4FF", fill_type="solid")  # soft blue for other types
+    fill_enfermeria = PatternFill(start_color="EBF0FF", end_color="EBF0FF", fill_type="solid") # pale violet-blue
+    fill_franco = PatternFill(start_color="EEEEEE", end_color="EEEEEE", fill_type="solid")     # Gris claro (sin cambio)
     
     # 2. Encabezado Principal: usar mismo título y subtítulo que el PDF
     titulo_plan = "Planificación de Guardias"
@@ -1180,20 +1181,20 @@ def exportar_cronograma_excel(request, cronograma_id):
     # Construir mapa tipo_turno.id -> (fill, font_color, sigla)
     fills_by_tipo = {}
     if len(tipos_turno_usados) == 3:
-        # 3 turnos: amarillo, verde, rojo (índices 0,1,2)
+        # 3 turnos: mapear a la paleta azul (índices 0,1,2)
         palette = [
-            (fill_manana, '7A5B00'),
-            (fill_tarde, '0F6B46'),
-            (fill_noche, '8B1E29'),
+            (fill_manana, '0D3558'),
+            (fill_tarde, '0D3558'),
+            (fill_noche, 'FFFFFF'),
         ]
         for idx, t in enumerate(tipos_turno_usados):
             sigla = (t.abreviatura or t.nombre[:1]).upper()
             fills_by_tipo[t.id] = {'fill': palette[idx][0], 'font': palette[idx][1], 'sigla': sigla}
     elif len(tipos_turno_usados) == 2:
-        # 2 turnos: verde, rojo (índices 0,1)
+        # 2 turnos: mapear a dos tonos azules (índices 0,1)
         palette = [
-            (fill_tarde, '0F6B46'),
-            (fill_noche, '8B1E29'),
+            (fill_tarde, '0D3558'),
+            (fill_noche, 'FFFFFF'),
         ]
         for idx, t in enumerate(tipos_turno_usados):
             sigla = (t.abreviatura or t.nombre[:1]).upper()

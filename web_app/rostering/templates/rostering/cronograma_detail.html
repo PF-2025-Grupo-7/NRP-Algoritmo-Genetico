@@ -69,27 +69,23 @@
                 {% for turno in tipos_turno %}
                     {% with ab=turno.abreviatura %}
                         <div class="legend-item d-inline-flex align-items-center" title="{{ turno.nombre }}">
-                            {% if tipos_turno|length == 2 %}
-                                {# Force first = green, second = red when exactly two turnos defined #}
+                                {% if tipos_turno|length == 2 %}
+                                {# Force first = shift-1 (blue light), second = shift-3 (blue dark) when exactly two turnos defined #}
                                 {% if forloop.counter0 == 0 %}
-                                    <div class="legend-swatch bg-success bg-opacity-10 text-success" aria-hidden="true">{{ ab }}</div>
+                                    <div class="legend-swatch shift-1" aria-hidden="true">{{ ab }}</div>
                                 {% else %}
-                                    <div class="legend-swatch bg-danger bg-opacity-10 text-danger" aria-hidden="true">{{ ab }}</div>
+                                    <div class="legend-swatch shift-3" aria-hidden="true">{{ ab }}</div>
                                 {% endif %}
                             {% else %}
-                                {# Use same mapping as table cells: N->danger, M->warning, T->success, nocturno->danger, hora<12->warning, else success #}
-                                {% if ab == 'N' %}
-                                    <div class="legend-swatch bg-danger bg-opacity-10 text-danger" aria-hidden="true">{{ ab }}</div>
-                                {% elif ab == 'M' %}
-                                    <div class="legend-swatch bg-warning bg-opacity-10 text-warning" aria-hidden="true">{{ ab }}</div>
-                                {% elif ab == 'T' %}
-                                    <div class="legend-swatch bg-success bg-opacity-10 text-success" aria-hidden="true">{{ ab }}</div>
-                                {% elif turno.es_nocturno %}
-                                    <div class="legend-swatch bg-danger bg-opacity-10 text-danger" aria-hidden="true">{{ ab }}</div>
-                                {% elif turno.hora_inicio.hour < 12 %}
-                                    <div class="legend-swatch bg-warning bg-opacity-10 text-warning" aria-hidden="true">{{ ab }}</div>
+                                {# Assign distinct shift colors by index in tipos_turno to ensure uniqueness #}
+                                {% if forloop.counter0 == 0 %}
+                                    <div class="legend-swatch shift-1" aria-hidden="true">{{ ab }}</div>
+                                {% elif forloop.counter0 == 1 %}
+                                    <div class="legend-swatch shift-2" aria-hidden="true">{{ ab }}</div>
+                                {% elif forloop.counter0 == 2 %}
+                                    <div class="legend-swatch shift-3" aria-hidden="true">{{ ab }}</div>
                                 {% else %}
-                                    <div class="legend-swatch bg-success bg-opacity-10 text-success" aria-hidden="true">{{ ab }}</div>
+                                    <div class="legend-swatch shift-1" aria-hidden="true">{{ ab }}</div>
                                 {% endif %}
                             {% endif %}
                             <div class="legend-label small text-muted ms-2">{{ turno.nombre }}</div>
@@ -138,11 +134,11 @@
                                 {# If the specialty has exactly 2 turnos, force cell colors to match legend mapping (first=green, second=red) #}
                                 {% if tipos_turno|length == 2 %}
                                     {% if celda.turno.id == tipos_turno.0.id %}
-                                        <td class="p-1 text-center align-middle bg-success bg-opacity-10 text-success">
+                                        <td class="p-1 text-center align-middle shift-1">
                                             <span class="fw-bold">{{ celda.turno.abreviatura }}</span>
                                         </td>
                                     {% elif celda.turno.id == tipos_turno.1.id %}
-                                        <td class="p-1 text-center align-middle bg-danger bg-opacity-10 text-danger">
+                                        <td class="p-1 text-center align-middle shift-3">
                                             <span class="fw-bold">{{ celda.turno.abreviatura }}</span>
                                         </td>
                                     {% else %}
@@ -151,22 +147,22 @@
                                         </td>
                                     {% endif %}
                                 {% else %}
-                                    {# Default mapping used previously #}
-                                    {% if celda.turno.abreviatura == 'N' %}
-                                        <td class="p-1 text-center align-middle bg-danger bg-opacity-10 text-danger">
-                                    {% elif celda.turno.abreviatura == 'M' %}
-                                        <td class="p-1 text-center align-middle bg-warning bg-opacity-10 text-warning">
-                                    {% elif celda.turno.abreviatura == 'T' %}
-                                        <td class="p-1 text-center align-middle bg-success bg-opacity-10 text-success">
-                                    {% elif celda.turno.es_nocturno %}
-                                        <td class="p-1 text-center align-middle bg-danger bg-opacity-10 text-danger">
-                                    {% elif celda.turno.hora_inicio.hour < 12 %}
-                                        <td class="p-1 text-center align-middle bg-warning bg-opacity-10 text-warning">
-                                    {% else %}
-                                        <td class="p-1 text-center align-middle bg-success bg-opacity-10 text-success">
-                                    {% endif %}
-                                            <span class="fw-bold">{{ celda.turno.abreviatura }}</span>
-                                        </td>
+                                    {# Map the cell color by matching celda.turno against tipos_turno list to ensure unique colors per turno #}
+                                    {% for t in tipos_turno %}
+                                        {% if celda.turno.id == t.id %}
+                                            {% if forloop.counter0 == 0 %}
+                                                <td class="p-1 text-center align-middle shift-1">
+                                            {% elif forloop.counter0 == 1 %}
+                                                <td class="p-1 text-center align-middle shift-2">
+                                            {% elif forloop.counter0 == 2 %}
+                                                <td class="p-1 text-center align-middle shift-3">
+                                            {% else %}
+                                                <td class="p-1 text-center align-middle shift-1">
+                                            {% endif %}
+                                                    <span class="fw-bold">{{ celda.turno.abreviatura }}</span>
+                                                </td>
+                                        {% endif %}
+                                    {% endfor %}
                                 {% endif %}
                             {% else %}
                                 <td class="p-1 bg-light text-center align-middle">
@@ -188,6 +184,10 @@
         --muted-ink: #5a5c69;
         --card-radius: 12px;
         --shift-yellow: #ffd43b;
+        /* Blue shift palette: distinct dark, medium, light blues */
+        --shift-3-color: #2c6fb0; /* softened dark blue - shift 3 */
+        --shift-2-color: #6ea8e8; /* softened medium blue - shift 2 */
+        --shift-1-color: #CBE7F3; /* light blue - shift 1 (user-specified) */
     }
 
     .sticky-col-start {
@@ -224,8 +224,8 @@
     td.bg-success.bg-opacity-10 { background-color: rgba(34, 167, 109, 0.318) !important; }
     td.bg-danger.bg-opacity-10 { background-color: rgba(220, 53, 70, 0.256) !important; }
 
-    /* Weekend / difícil day styling (blue/celeste) - header only */
-    th.weekend-col { background-color: rgba(200,230,242,0.95); color: #5a5c69 !important; }
+    /* Weekend / difícil day styling (header only) - slightly darker light gray for weekends */
+    th.weekend-col { background-color: #e6e9ec; color: #5a5c69 !important; }
     /* Keep body cells white unless a shift color is applied; header numbers remain muted */
     th.weekend-col .small { color: #5a5c69 !important; }
 
@@ -283,6 +283,19 @@
 
     .bg-success-subtle-custom { background-color: #d1e7dd !important; color: #678d7b !important; }
     .bg-warning-subtle-custom { background-color: #fff3cd !important; color: #928560 !important; }
+
+    /* Shift (blue) palette classes */
+    .legend-swatch.shift-1 { background-color: var(--shift-1-color); color: var(--shift-3-color); }
+    .legend-swatch.shift-2 { background-color: var(--shift-2-color); color: #08314b; }
+    .legend-swatch.shift-3 { background-color: var(--shift-3-color); color: #ffffff; }
+
+    /* Table cell styles for shifts: use the same colors as the header swatches */
+    td.shift-3 { background-color: var(--shift-3-color) !important; color: #ffffff !important; }
+    td.shift-2 { background-color: var(--shift-2-color) !important; color: #08314b !important; }
+    td.shift-1 { background-color: var(--shift-1-color) !important; color: var(--shift-3-color) !important; }
+
+    /* Emphasize bold letters moderately on darker cells */
+    td.shift-3 span.fw-bold { font-weight: 700; }
 
     /* Table color harmonization with dashboard */
     .table tbody td { color: #6c757d; }

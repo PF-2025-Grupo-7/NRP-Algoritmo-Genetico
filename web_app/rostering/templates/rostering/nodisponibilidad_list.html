@@ -50,12 +50,19 @@
                         </div>
                     </div>
 
-                    <div class="date-input-wrapper">
-                        <input type="date" name="fecha" value="{{ filter_form.data.fecha }}" class="form-control form-control-sm date-input" aria-label="Fecha" data-placeholder="Fecha">
+                    <div class="col-auto">
+                        <div class="date-input-wrapper">
+                            <input type="date" name="fecha_inicio" value="{{ filter_form.data.fecha_inicio }}" class="form-control form-control-sm date-input" aria-label="Fecha inicio" data-placeholder="Fecha inicio">
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="date-input-wrapper">
+                            <input type="date" name="fecha_fin" value="{{ filter_form.data.fecha_fin }}" class="form-control form-control-sm date-input" aria-label="Fecha fin" data-placeholder="Fecha fin">
+                        </div>
                     </div>
 
                     <div class="filter-buttons-wrapper">
-                        {% if filter_form.data.search or filter_form.data.especialidad or filter_form.data.fecha %}
+                        {% if filter_form.data.search or filter_form.data.especialidad or filter_form.data.fecha_inicio or filter_form.data.fecha_fin %}
                             <a href="{% url 'nodisponibilidad_list' %}" class="btn btn-outline-secondary btn-sm fw-semibold filter-btn">
                                 Limpiar
                             </a>
@@ -513,6 +520,7 @@
         min-width: 220px;
     }
 
+        .date-input-wrapper { position: relative; }
     .custom-select-wrapper.select-wide .custom-dropdown-header {
         min-width: 260px;
     }
@@ -804,15 +812,19 @@
             const wrapper = input.closest('.date-input-wrapper');
             const placeholder = input.dataset.placeholder;
             
-            if (wrapper && placeholder) {
-                // Crear elemento de placeholder
-                const placeholderEl = document.createElement('span');
-                placeholderEl.className = 'date-placeholder';
-                placeholderEl.textContent = placeholder;
-                wrapper.appendChild(placeholderEl);
-                
+            if (wrapper) {
+                // Reusar placeholder si ya existe (evita duplicados) o usar el data-placeholder si no
+                let placeholderEl = wrapper.querySelector('.date-placeholder');
+                if (!placeholderEl && placeholder) {
+                    placeholderEl = document.createElement('span');
+                    placeholderEl.className = 'date-placeholder';
+                    placeholderEl.textContent = placeholder;
+                    wrapper.appendChild(placeholderEl);
+                }
+
                 // Función para mostrar/ocultar placeholder
                 const updatePlaceholder = () => {
+                    if (!placeholderEl) return;
                     if (input.value) {
                         placeholderEl.style.display = 'none';
                         input.setAttribute('data-has-value', 'true');
@@ -821,19 +833,19 @@
                         input.removeAttribute('data-has-value');
                     }
                 };
-                
+
                 // Inicializar
                 updatePlaceholder();
-                
+
                 // Escuchar cambios
                 input.addEventListener('change', updatePlaceholder);
                 input.addEventListener('input', updatePlaceholder);
-                
+
                 // Ocultar placeholder cuando se abre el calendario
                 input.addEventListener('focus', () => {
-                    placeholderEl.style.display = 'none';
+                    if (placeholderEl) placeholderEl.style.display = 'none';
                 });
-                
+
                 // Volver a mostrar si está vacío al cerrar
                 input.addEventListener('blur', updatePlaceholder);
             }
