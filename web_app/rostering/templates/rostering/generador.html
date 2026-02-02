@@ -140,6 +140,8 @@
                                 <h4 class="fw-bold mb-2" style="color: #2f3e4c;">Dotación insuficiente</h4>
                             </div>
 
+                        <!-- (mensaje-pico removed) -->
+
                     <div class="card mb-3 border-0 bg-light" id="card-senior">
                         <div class="card-body py-2 px-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
@@ -174,6 +176,8 @@
                         </div>
                     </div>
 
+                <!-- alerta-pico removed as requested -->
+
                 <div id="alerta-ausencias" class="alert alert-warning d-flex align-items-center py-2 px-3 d-none">
                     <i class="bi bi-exclamation-triangle me-2"></i>
                     <div class="small lh-sm">Se descontaron <strong id="val-ausencias">0</strong> horas por ausencias durante este período, reduciendo la capacidad disponible para cubrir la demanda.</div>
@@ -188,7 +192,7 @@
 
             <div class="modal-footer border-top-0 pt-0">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <a id="btn-ver-detalle" href="#" class="btn btn-primary d-none">Gestionar Empleados</a>
+                <a id="btn-ver-detalle" href="#" class="btn btn-primary">Gestionar Empleados</a>
             </div>
         </div>
     </div>
@@ -434,10 +438,7 @@
     /* Estilo del párrafo explicativo: más grande y centrado */
     #modalErrorDotacion .modal-body p.text-muted.modal-explain { color: #6c757d; font-size: 0.95rem; margin-bottom: .8rem; font-style: normal; text-align: center; line-height: 1.35; }
 
-    /* Aviso puntual (pico) estilo tarjeta rosada) */
-    #alerta-pico { background-color: #fdecea; border: 1px solid #f5c6cb; color: #8a1f2d; border-radius: 10px; }
-    #alerta-pico i { color: #c41c3b; font-size: 1.15rem; }
-    #alerta-pico #texto-pico { font-size: 0.95rem; }
+    /* mensaje-pico styles removed */
 
     /* Tarjetas internas: seniors / juniors */
     #modalErrorDotacion .card { border-radius: 10px; box-shadow: none; border: 1px solid #eef0f3; background: #ffffff; }
@@ -464,11 +465,20 @@
     #modalErrorDotacion #alerta-ausencias { border-radius: 10px; font-size: 0.9rem; }
 
     /* Footer y botón */
-    #modalErrorDotacion .modal-footer { background: #ffffff; border-top: 0; padding: 1rem; display: flex; justify-content: center; }
-    /* Estilo general de botones en el footer (no sobreescribir btn-primary) */
-    #modalErrorDotacion .modal-footer .btn { border-radius: 10px; font-weight: 600; min-width: 140px; padding: .45rem .8rem; }
-    /* Aplicar borde y color solo a botones secundarios (outline) para mantener consistencia) */
-    #modalErrorDotacion .modal-footer .btn.btn-outline-secondary { border: 1px solid #bfc6cc; color: #495057; background-color: transparent; }
+    #modalErrorDotacion .modal-footer { background: #ffffff; border-top: 0; padding: 1rem; display: flex; justify-content: center; gap: 0.75rem; }
+    /* Estilo general de botones en el footer */
+    #modalErrorDotacion .modal-footer .btn { border-radius: 12px; font-weight: 700; min-width: 150px; padding: .6rem 1rem; box-shadow: none; transition: all .12s ease; }
+    /* Botón secundario (Cancelar) - estilo blanco con borde tenue */
+    #modalErrorDotacion .modal-footer .btn.btn-outline-secondary { border: 1px solid #dee2e6; color: #495057; background-color: #ffffff; }
+    #modalErrorDotacion .modal-footer .btn.btn-outline-secondary:hover { background-color: #f8f9fa; transform: translateY(-1px); }
+    /* Botón primario (Gestionar Empleados) - estilo azul destacado */
+    #modalErrorDotacion .modal-footer .btn.btn-primary {
+        background: linear-gradient(180deg,#2b8bff 0%,#0d6efd 100%);
+        border: 1px solid rgba(13,110,253,0.15);
+        color: #ffffff;
+        box-shadow: 0 8px 28px rgba(13,110,253,0.18);
+    }
+    #modalErrorDotacion .modal-footer .btn.btn-primary:hover { filter: brightness(0.95); transform: translateY(-1px); }
 
     /* Ajustes responsivos */
     @media (max-width: 575px){
@@ -499,9 +509,7 @@
     /* Titular más prominente */
     #modalErrorDotacion .modal-title { font-size: 1.15rem; letter-spacing: .2px; }
 
-    /* Alerta pico estilo tarjeta con sombra sutil y borde interior */
-    #alerta-pico { padding: .7rem .9rem; box-shadow: 0 6px 18px rgba(200,30,50,0.06); border-left: 4px solid #f5c6cb; }
-    #alerta-pico i { background: transparent; color: #941827; font-size: 1.05rem; }
+    /* alerta-pico styles removed */
 
     /* Cards: fondo gris claro y contenido en caja blanca (efecto tarjeta interna) */
     #modalErrorDotacion .card { background: transparent; border: none; }
@@ -554,33 +562,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const modalEl = document.getElementById('modalErrorDotacion');
         const modal = new bootstrap.Modal(modalEl);
         
-        // --- 1. MOSTRAR MENSAJE DE PICO ESPECÍFICO (SI EXISTE) ---
-        let alertaPico = document.getElementById('alerta-pico');
-        if (!alertaPico) {
-            const modalBody = modalEl.querySelector('.modal-body') || modalEl;
-            if (modalBody) {
-                alertaPico = document.createElement('div');
-                alertaPico.id = 'alerta-pico';
-                alertaPico.className = 'alert alert-danger d-flex align-items-center py-2 px-3 mb-3 d-none';
-                alertaPico.innerHTML = '<div id="texto-pico" class="small fw-bold"></div>';
-                const pIntro = modalBody.querySelector('p.text-muted');
-                if (pIntro && typeof pIntro.insertAdjacentElement === 'function') {
-                    pIntro.insertAdjacentElement('afterend', alertaPico);
-                } else {
-                    // fallback: prepend to modal body
-                    modalBody.insertBefore(alertaPico, modalBody.firstChild);
-                }
-            }
-        }
-
-        if (detalles.error_pico && detalles.mensaje) {
-            const raw = detalles.mensaje || '';
-            const texto = raw.replace(/^[Dd][íi]a\s+:/, '').replace(/^[Dd][íi]a\s+/, '');
-            document.getElementById('texto-pico').textContent = texto;
-            alertaPico.classList.remove('d-none');
-        } else {
-            alertaPico.classList.add('d-none');
-        }
+        // (mensaje-pico removed) -- no banner processing here
 
         // --- 2. SENIORS ---
         const s = detalles.senior;
@@ -626,6 +608,31 @@ document.addEventListener('DOMContentLoaded', function() {
                     profesionalesEstimados = Math.ceil(totalFaltHoras / jornadaPeriodo);
                 }
 
+                // Preparar texto puntual (detalles.mensaje) para mostrar si existe
+                let picoText = '';
+                if (detalles && detalles.mensaje) {
+                    const raw = (detalles.mensaje || '').trim();
+                    // Intentar parsear mensajes con formato conocido
+                    const re = /^(\d{4}-\d{2}-\d{2}):\s*Se piden\s*(\d+)\s*([A-Za-zÁÉÍÓÚáéíóúÑñ]+)s?\s*\(([^)]+)\),?\s*pero hay\s*(\d+)/i;
+                    const m = raw.match(re);
+                    if (m) {
+                        const fecha = m[1];
+                        const pedidos = parseInt(m[2], 10);
+                        let rol = m[3];
+                        const turno = m[4];
+                        const enNomina = parseInt(m[5], 10);
+                        const faltan = Math.max(0, pedidos - enNomina);
+                        // Normalizar rol a singular
+                        if (/s$/i.test(rol)) rol = rol.replace(/s$/i, '');
+                        const verbo = (faltan === 1) ? 'Falta' : 'Faltan';
+                        picoText = `Día ${fecha}: ${verbo} ${faltan} ${rol} en turno ${turno}. Solicitados: ${pedidos}; En nómina: ${enNomina}.`;
+                    } else {
+                        // Fallback: limpiar prefijo "Día:"
+                        picoText = raw.replace(/^[Dd][íi]a\s*:\s*/, '').trim();
+                        if (picoText && !/^[Dd][íi]a\s+/i.test(picoText)) picoText = 'Día ' + picoText;
+                    }
+                }
+
                 // Crear / actualizar bloque de estimado en el modal
                 const modalBody = document.querySelector('#modalErrorDotacion .modal-body');
                     if (modalBody) {
@@ -652,21 +659,49 @@ document.addEventListener('DOMContentLoaded', function() {
                                     else if (faltJInt > 0) experiencia = '(junior)';
 
                                     const mensaje = `Faltan aproximadamente ${totalProfs} profesionales ${experiencia} para cubrir la demanda.`;
+                                    // Mensaje principal (estimado)
                                     estimEl.innerHTML = `<div class="fw-bold text-danger" style="font-size:1rem;">${mensaje}</div>`;
+                                    // Si además viene un mensaje puntual (pico), mostrarlo debajo (también en rojo)
+                                    if (picoText) {
+                                        try {
+                                            const picoDiv = document.createElement('div');
+                                            picoDiv.className = 'fw-bold text-danger';
+                                            picoDiv.style.fontSize = '0.95rem';
+                                            picoDiv.style.marginTop = '0.5rem';
+                                            picoDiv.textContent = picoText;
+                                            estimEl.appendChild(picoDiv);
+                                        } catch(e) {
+                                            /* fallback: append as HTML */
+                                            estimEl.insertAdjacentHTML('beforeend', `<div class="fw-bold text-danger" style="font-size:0.95rem; margin-top:0.5rem;">${picoText}</div>`);
+                                        }
+                                    }
                         // Mostrar botón detalle
                         const btnDetalle = document.getElementById('btn-ver-detalle');
                         if (btnDetalle) {
                             const espVal = document.getElementById('especialidad')?.value || '';
-                            const inicioVal = document.getElementById('fecha_inicio')?.value || '';
-                            const finVal = document.getElementById('fecha_fin')?.value || '';
                             const empleadoListBase = "{% url 'empleado_list' %}";
                             btnDetalle.href = empleadoListBase + `?especialidad=${encodeURIComponent(espVal)}`;
                             btnDetalle.classList.remove('d-none');
                         }
                     } else {
-                        estimEl.innerHTML = `<div class="fw-bold text-secondary" style="font-size:0.95rem;">Estimado: no es posible calcular profesionales faltantes con los datos disponibles.</div>`;
+                        // Reemplazar texto por el mensaje de detalle (si está disponible) o por el texto genérico
+                        // Mostrar el mensaje puntual en rojo si viene desde el servidor.
+                        // Asegurarnos de que comience con 'Día ' si no lo hace.
+                        const rawMsg = (picoText || '').trim();
+                        let displayText;
+                        if (rawMsg) {
+                            displayText = /^[Dd][íi]a\s+/i.test(rawMsg) ? rawMsg : ('Día ' + rawMsg);
+                        } else {
+                            displayText = 'Estimado: no es posible calcular profesionales faltantes con los datos disponibles.';
+                        }
+                        estimEl.innerHTML = `<div class="fw-bold text-danger" style="font-size:0.95rem;">${displayText}</div>`;
                         const btnDetalle = document.getElementById('btn-ver-detalle');
-                        if (btnDetalle) btnDetalle.classList.add('d-none');
+                        if (btnDetalle) {
+                            const espVal = document.getElementById('especialidad')?.value || '';
+                            const empleadoListBase = "{% url 'empleado_list' %}";
+                            btnDetalle.href = empleadoListBase + `?especialidad=${encodeURIComponent(espVal)}`;
+                            btnDetalle.classList.remove('d-none');
+                        }
                     }
                 }
             } catch (e) {
