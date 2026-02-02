@@ -120,7 +120,7 @@
     </div>
 
     <div class="mt-3 small text-muted">
-        Consejo: Antes de ejecutar, revisá que existan tipos de turno, personal activo y una plantilla de demanda para la especialidad seleccionada.
+        Consejo: Antes de ejecutar, revisá que exista un esquema de turnos, personal activo y una plantilla de demanda para la especialidad seleccionada.
     </div>
 </div>
 
@@ -896,7 +896,21 @@ document.addEventListener('DOMContentLoaded', function() {
         window.__generadorJobInProgress = false;
     }
 
-    resetUI();
+    // Si la plantilla ya está en estado 'resultado-ok' (ej. render server-side
+    // o visitante vuelve tras ejecución), mantenemos el estado completado y
+    // bloqueamos el botón de iniciar. En caso contrario, reseteamos la UI.
+    if($ok && !$ok.classList.contains('d-none')){
+        if($panelEstado) $panelEstado.classList.remove('d-none');
+        if($btnReset) $btnReset.classList.remove('d-none');
+        if($btnStart) $btnStart.disabled = true;
+        setEstado('Completado','success');
+        setProgreso(100, false);
+        if($msg) $msg.classList.add('d-none');
+        window.__generadorJobInProgress = false;
+        window.__generadorCompleted = true;
+    } else {
+        resetUI();
+    }
 
     // --- Cargar plantillas al cambiar especialidad (CORREGIDO) ---
     if($esp) {
@@ -956,6 +970,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if($form) {
         $form.addEventListener('submit', async function(ev){
             ev.preventDefault();
+            // Bloquear envío si ya existe una planificación generada
+            if (window.__generadorCompleted || ($btnStart && $btnStart.disabled && !window.__generadorJobInProgress)){
+                showWarn('Ya existe una planificación generada. Reiniciá para ejecutar de nuevo.');
+                return;
+            }
             if($warn) $warn.classList.add('d-none');
 
             const requiredChecks = [
@@ -1122,6 +1141,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     if($linkAnalisis) $linkAnalisis.href = `{% url 'cronograma_analisis' pk=0 %}`.replace('/0/', `/${id}/`);
                     
                     toggleLoading(false);
+                    // Bloquear iniciar una nueva ejecución hasta reiniciar
+                    if($btnStart) $btnStart.disabled = true;
+                    window.__generadorCompleted = true;
                     break;
                 } else if(data.status === 'running' || data.status === 'queued' || resp.status === 202){
                     // wait

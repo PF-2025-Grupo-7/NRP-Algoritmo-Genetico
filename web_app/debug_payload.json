@@ -8,7 +8,7 @@
         "seed": 42
     },
     "datos_problema": {
-        "num_dias": 8,
+        "num_dias": 24,
         "requerimientos_cobertura_explicita": [
             {
                 "25": {
@@ -46,6 +46,26 @@
                     "senior": 2
                 },
                 "26": {
+                    "junior": 2,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 5,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 4,
+                    "senior": 2
+                },
+                "26": {
                     "junior": 5,
                     "senior": 3
                 }
@@ -62,11 +82,151 @@
             },
             {
                 "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 2,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 2,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 2,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 2,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 5,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
                     "junior": 4,
                     "senior": 2
                 },
                 "26": {
                     "junior": 5,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 4,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 5,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 2,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 2,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 2,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 2,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 5,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 4,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 5,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 4,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 5,
+                    "senior": 3
+                }
+            },
+            {
+                "25": {
+                    "junior": 3,
+                    "senior": 2
+                },
+                "26": {
+                    "junior": 2,
                     "senior": 3
                 }
             },
@@ -92,8 +252,12 @@
             }
         ],
         "dias_no_habiles": [
-            4,
-            5
+            5,
+            6,
+            12,
+            13,
+            19,
+            20
         ],
         "reglas_cobertura": {},
         "max_turno_val": 26,
@@ -127,240 +291,240 @@
                 "id": 15,
                 "nombre": "Ronaldinho",
                 "skill": "junior",
-                "t_min": 2,
-                "t_max": 4
+                "t_min": 8,
+                "t_max": 13
             },
             {
                 "id_db": 14,
                 "id": 14,
                 "nombre": "Vinicius Jr.",
                 "skill": "junior",
-                "t_min": 2,
-                "t_max": 4
+                "t_min": 8,
+                "t_max": 13
             },
             {
                 "id_db": 13,
                 "id": 13,
                 "nombre": "Marthin Luther King Jr.",
                 "skill": "junior",
-                "t_min": 2,
-                "t_max": 4
+                "t_min": 8,
+                "t_max": 13
             },
             {
                 "id_db": 38,
                 "id": 38,
                 "nombre": "Roman Riquelme",
                 "skill": "junior",
-                "t_min": 2,
-                "t_max": 5
+                "t_min": 8,
+                "t_max": 16
             },
             {
                 "id_db": 39,
                 "id": 39,
                 "nombre": "Paulo Dybala",
                 "skill": "junior",
-                "t_min": 2,
-                "t_max": 5
+                "t_min": 8,
+                "t_max": 16
             },
             {
                 "id_db": 20,
                 "id": 20,
                 "nombre": "Florence Nightingale",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 21,
                 "id": 21,
                 "nombre": "Clara Barton",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 22,
                 "id": 22,
                 "nombre": "Walt Whitman",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 23,
                 "id": 23,
                 "nombre": "Mary Seacole",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 24,
                 "id": 24,
                 "nombre": "Dorothea Dix",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 25,
                 "id": 25,
                 "nombre": "Virginia Henderson",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 26,
                 "id": 26,
                 "nombre": "Edith Cavell",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 27,
                 "id": 27,
                 "nombre": "Margaret Sanger",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 28,
                 "id": 28,
                 "nombre": "Hazel Johnson",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 29,
                 "id": 29,
                 "nombre": "Martha Rogers",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 30,
                 "id": 30,
                 "nombre": "Greg Focker",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 31,
                 "id": 31,
                 "nombre": "Carla Espinosa",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 32,
                 "id": 32,
                 "nombre": "Ann Perkins",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 33,
                 "id": 33,
                 "nombre": "Rory Williams",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 34,
                 "id": 34,
                 "nombre": "Madam Pomfrey",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 35,
                 "id": 35,
                 "nombre": "Jackie Peyton",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 36,
                 "id": 36,
                 "nombre": "Christine Chapel",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 37,
                 "id": 37,
                 "nombre": "Peter Petrelli",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             },
             {
                 "id_db": 12,
                 "id": 12,
                 "nombre": "Neymar Jr.",
                 "skill": "junior",
-                "t_min": 2,
-                "t_max": 4
+                "t_min": 8,
+                "t_max": 13
             },
             {
                 "id_db": 40,
                 "id": 40,
                 "nombre": "Oriana Sabatini",
                 "skill": "junior",
-                "t_min": 2,
-                "t_max": 5
+                "t_min": 8,
+                "t_max": 16
             },
             {
                 "id_db": 41,
                 "id": 41,
                 "nombre": "Antonella Rocuzzo",
                 "skill": "junior",
-                "t_min": 2,
-                "t_max": 5
+                "t_min": 8,
+                "t_max": 16
             },
             {
                 "id_db": 90,
                 "id": 90,
                 "nombre": "dfssfd",
                 "skill": "junior",
-                "t_min": 2,
-                "t_max": 5
+                "t_min": 8,
+                "t_max": 16
             },
             {
                 "id_db": 42,
                 "id": 42,
                 "nombre": "Leandro Paredes",
                 "skill": "junior",
-                "t_min": 2,
-                "t_max": 5
+                "t_min": 8,
+                "t_max": 16
             },
             {
                 "id_db": 2,
                 "id": 2,
                 "nombre": "Aaron Ramsey",
                 "skill": "senior",
-                "t_min": 2,
-                "t_max": 4
+                "t_min": 8,
+                "t_max": 13
             },
             {
                 "id_db": 3,
                 "id": 3,
                 "nombre": "Paul Gascoigne",
                 "skill": "senior",
-                "t_min": 2,
-                "t_max": 4
+                "t_min": 8,
+                "t_max": 13
             },
             {
                 "id_db": 79,
@@ -368,31 +532,31 @@
                 "nombre": "Francisco Ram\u00edrez",
                 "skill": "senior",
                 "t_min": 0,
-                "t_max": 8
+                "t_max": 24
             },
             {
                 "id_db": 78,
                 "id": 78,
                 "nombre": "Nicolas Orccellet",
                 "skill": "senior",
-                "t_min": 2,
-                "t_max": 5
+                "t_min": 8,
+                "t_max": 16
             },
             {
                 "id_db": 43,
                 "id": 43,
                 "nombre": "Emilia Fern\u00e1ndez",
                 "skill": "junior",
-                "t_min": 2,
-                "t_max": 4
+                "t_min": 8,
+                "t_max": 12
             },
             {
                 "id_db": 1,
                 "id": 1,
                 "nombre": "Pablo P\u00e9rez",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 12,
+                "t_max": 20
             }
         ],
         "secuencias_prohibidas": [
@@ -403,10 +567,10 @@
         ],
         "excepciones_disponibilidad": [
             {
-                "prof_index": 7,
+                "prof_index": 3,
                 "dias_range": [
-                    1,
-                    2
+                    3,
+                    14
                 ],
                 "disponible": false
             }
