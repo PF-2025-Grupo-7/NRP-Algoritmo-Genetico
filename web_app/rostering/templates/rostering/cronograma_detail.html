@@ -30,9 +30,6 @@
     </div>
 </div>
 
-{# Modal de publicación eliminado: usamos switch para publicar/despublicar #}
-
-<!-- Publish/Unpublish confirmation modal -->
 <div class="modal fade" id="publishConfirmModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
@@ -69,25 +66,18 @@
                 {% for turno in tipos_turno %}
                     {% with ab=turno.abreviatura %}
                         <div class="legend-item d-inline-flex align-items-center" title="{{ turno.nombre }}">
-                                {% if tipos_turno|length == 2 %}
-                                {# Force first = shift-1 (blue light), second = shift-3 (blue dark) when exactly two turnos defined #}
-                                {% if forloop.counter0 == 0 %}
-                                    <div class="legend-swatch shift-1" aria-hidden="true">{{ ab }}</div>
+                            {# LÓGICA DE COLOR BASADA EN NOMBRE/TIPO #}
+                            
+                            <div class="legend-swatch 
+                                {% if turno.nocturno or ab == 'N' %}
+                                    shift-dark
+                                {% elif ab == 'T' %}
+                                    shift-medium
                                 {% else %}
-                                    <div class="legend-swatch shift-3" aria-hidden="true">{{ ab }}</div>
-                                {% endif %}
-                            {% else %}
-                                {# Assign distinct shift colors by index in tipos_turno to ensure uniqueness #}
-                                {% if forloop.counter0 == 0 %}
-                                    <div class="legend-swatch shift-1" aria-hidden="true">{{ ab }}</div>
-                                {% elif forloop.counter0 == 1 %}
-                                    <div class="legend-swatch shift-2" aria-hidden="true">{{ ab }}</div>
-                                {% elif forloop.counter0 == 2 %}
-                                    <div class="legend-swatch shift-3" aria-hidden="true">{{ ab }}</div>
-                                {% else %}
-                                    <div class="legend-swatch shift-1" aria-hidden="true">{{ ab }}</div>
-                                {% endif %}
-                            {% endif %}
+                                    shift-light
+                                {% endif %}" 
+                                aria-hidden="true">{{ ab }}</div>
+                            
                             <div class="legend-label small text-muted ms-2">{{ turno.nombre }}</div>
                         </div>
                     {% endwith %}
@@ -99,6 +89,7 @@
                 {% endfor %}
             </div>
         </div>
+
         <div class="table-responsive" style="max-height: 80vh;">
             <table class="table table-bordered table-hover mb-0 text-center align-middle" style="font-size: 0.9rem;">
                 <thead class="table-light sticky-top" style="z-index: 2;">
@@ -131,39 +122,21 @@
 
                         {% for celda in fila.celdas %}
                             {% if celda.turno %}
-                                {# If the specialty has exactly 2 turnos, force cell colors to match legend mapping (first=green, second=red) #}
-                                {% if tipos_turno|length == 2 %}
-                                    {% if celda.turno.id == tipos_turno.0.id %}
-                                        <td class="p-1 text-center align-middle shift-1">
-                                            <span class="fw-bold">{{ celda.turno.abreviatura }}</span>
-                                        </td>
-                                    {% elif celda.turno.id == tipos_turno.1.id %}
-                                        <td class="p-1 text-center align-middle shift-3">
-                                            <span class="fw-bold">{{ celda.turno.abreviatura }}</span>
-                                        </td>
-                                    {% else %}
-                                        <td class="p-1 text-center align-middle bg-light">
+                                {# Misma lógica aplicada a las celdas #}
+                                {% for t in tipos_turno %}
+                                    {% if celda.turno.id == t.id %}
+                                        <td class="p-1 text-center align-middle 
+                                            {% if t.nocturno or t.abreviatura == 'N' %}
+                                                shift-dark
+                                            {% elif t.abreviatura == 'T' %}
+                                                shift-medium
+                                            {% else %}
+                                                shift-light
+                                            {% endif %}">
                                             <span class="fw-bold">{{ celda.turno.abreviatura }}</span>
                                         </td>
                                     {% endif %}
-                                {% else %}
-                                    {# Map the cell color by matching celda.turno against tipos_turno list to ensure unique colors per turno #}
-                                    {% for t in tipos_turno %}
-                                        {% if celda.turno.id == t.id %}
-                                            {% if forloop.counter0 == 0 %}
-                                                <td class="p-1 text-center align-middle shift-1">
-                                            {% elif forloop.counter0 == 1 %}
-                                                <td class="p-1 text-center align-middle shift-2">
-                                            {% elif forloop.counter0 == 2 %}
-                                                <td class="p-1 text-center align-middle shift-3">
-                                            {% else %}
-                                                <td class="p-1 text-center align-middle shift-1">
-                                            {% endif %}
-                                                    <span class="fw-bold">{{ celda.turno.abreviatura }}</span>
-                                                </td>
-                                        {% endif %}
-                                    {% endfor %}
-                                {% endif %}
+                                {% endfor %}
                             {% else %}
                                 <td class="p-1 bg-light text-center align-middle">
                                 </td>
@@ -183,11 +156,20 @@
         --accent-blue: #0d6efd;
         --muted-ink: #5a5c69;
         --card-radius: 12px;
-        --shift-yellow: #ffd43b;
-        /* Blue shift palette: distinct dark, medium, light blues */
-        --shift-3-color: #2c6fb0; /* softened dark blue - shift 3 */
-        --shift-2-color: #6ea8e8; /* softened medium blue - shift 2 */
-        --shift-1-color: #CBE7F3; /* light blue - shift 1 (user-specified) */
+        
+        /* --- PALETA DE GRADIENTE AZUL (Final) --- */
+        
+        /* 1. CLARO (Día/Mañana - D) */
+        --shift-light-bg: #e3f2fd; 
+        --shift-light-text: #0d47a1;
+        
+        /* 2. MEDIO (Tarde - T) */
+        --shift-medium-bg: #64b5f6;
+        --shift-medium-text: #0d47a1; /* Letra oscura para buen contraste */
+
+        /* 3. OSCURO (Noche - N) */
+        --shift-dark-bg: #1565c0;
+        --shift-dark-text: #ffffff; /* Letra blanca obligatoria */
     }
 
     .sticky-col-start {
@@ -198,113 +180,65 @@
         background-color: #fff;
     }
     thead .sticky-col-start {
-        z-index: 4 !important; /* Esquina superior izquierda siempre arriba */
+        z-index: 4 !important;
     }
 
-    /* Shift badge: estilo consistente con resto de la app (rounded, sombra, colores)
-       Se determinan aquí según propiedad de turno en template */
-    .shift-badge{
-        display: inline-block;
-        padding: 0.35rem 0.9rem; /* pill-like padding like plantilla_list */
-        font-size: 1rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        border-radius: 16px;
-        min-height: 36px;
-        line-height: 1;
-        vertical-align: middle;
-        transition: transform 0.12s ease, box-shadow 0.12s ease;
+    /* CLASES SEMÁNTICAS */
+    
+    .shift-light { 
+        background-color: var(--shift-light-bg) !important; 
+        color: var(--shift-light-text) !important; 
     }
-    .shift-badge:active, .shift-badge:focus{ transform: translateY(0); }
-    .shift-badge.shadow-sm{ box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+    
+    .shift-medium { 
+        background-color: var(--shift-medium-bg) !important; 
+        color: var(--shift-medium-text) !important; 
+    }
+    
+    .shift-dark { 
+        background-color: var(--shift-dark-bg) !important; 
+        color: var(--shift-dark-text) !important; 
+    }
 
-    /* Darker backgrounds for full table cells when using bg-*-bg-opacity-10 classes */
+    /* Aplicar también a los cuadritos de la leyenda */
+    .legend-swatch.shift-light { background-color: var(--shift-light-bg); color: var(--shift-light-text); }
+    .legend-swatch.shift-medium { background-color: var(--shift-medium-bg); color: var(--shift-medium-text); }
+    .legend-swatch.shift-dark { background-color: var(--shift-dark-bg); color: var(--shift-dark-text); }
+
+
+    /* Otros estilos base */
     td.bg-warning.bg-opacity-10 { background-color: rgba(237, 208, 115, 0.5) !important; }
     td.bg-success.bg-opacity-10 { background-color: rgba(34, 167, 109, 0.318) !important; }
     td.bg-danger.bg-opacity-10 { background-color: rgba(220, 53, 70, 0.256) !important; }
 
-    /* Weekend / difícil day styling (header only) - slightly darker light gray for weekends */
     th.weekend-col { background-color: #e6e9ec; color: #5a5c69 !important; }
-    /* Keep body cells white unless a shift color is applied; header numbers remain muted */
     th.weekend-col .small { color: #5a5c69 !important; }
 
-    /* Ensure letter contrast inside colored cells */
-    td.text-warning { color: #c59e12 !important; }
-    td.text-success { color: #1f7a53 !important; }
-    td.text-danger { color: #dc3545 !important; }
-
-    /* Hover y separación de filas */
     tbody tr:hover { background-color: #fbfdff; transform: translateY(0); }
     td { vertical-align: middle !important; }
 
-    /* Separation between professional columns (Profesional + Total) and the day columns */
     .table { border-collapse: collapse; }
-    /* make the first day column visually separated with a darker left border and extra padding */
     .table thead th:nth-child(3),
     .table tbody td:nth-child(3) {
         border-left: 4px solid rgba(0,0,0,0.10);
         padding-left: 1.05rem;
     }
-    /* Give the Total column a bit more right padding to increase separation */
     .table thead th.total-col, .table tbody td.total-col {
         padding-right: 1.2rem;
-        background-color: #f7fbfd; /* slightly more contrast */
+        background-color: #f7fbfd;
         border-right: 4px solid rgba(0,0,0,0.10);
     }
-
-    /* Make first column slightly distinct from table body to emphasize 'profesional' area */
     .sticky-col-start { background-color: #f7fbfd !important; }
-
-    /* Add a subtle shadow on the separation to give depth */
     .table tbody td.total-col { box-shadow: inset -6px 0 10px -8px rgba(0,0,0,0.05); }
 
-    /* Leyenda compacta encima de la tabla para referencia rápida */
     .cronograma-legend { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f3f5; background: #ffffff; }
-
-    /* Legend swatches (compact visual indicators) */
     .legend-item { display: inline-flex; align-items: center; gap: 0.5rem; }
     .legend-swatch{ width: 32px; height: 32px; border-radius: 8px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
     .cronograma-legend .legend-item + .legend-item { margin-left: 10px; }
     .legend-label { font-weight:600; color: #5a5c69; }
-    .legend-caption { line-height: 1; }
 
-    /* Tipografía y colores coherentes con dashboard */
-    .cronograma-title { color: #2f3e4c; }
-
-    .badge-status {
-        display: inline-block;
-        padding: 0.4rem 0.7rem;
-        font-size: 0.85rem;
-        font-weight: 700;
-        text-transform: none;
-        border-radius: 8px;
-    }
-
-    .bg-success-subtle-custom { background-color: #d1e7dd !important; color: #678d7b !important; }
-    .bg-warning-subtle-custom { background-color: #fff3cd !important; color: #928560 !important; }
-
-    /* Shift (blue) palette classes */
-    .legend-swatch.shift-1 { background-color: var(--shift-1-color); color: var(--shift-3-color); }
-    .legend-swatch.shift-2 { background-color: var(--shift-2-color); color: #08314b; }
-    .legend-swatch.shift-3 { background-color: var(--shift-3-color); color: #ffffff; }
-
-    /* Table cell styles for shifts: use the same colors as the header swatches */
-    td.shift-3 { background-color: var(--shift-3-color) !important; color: #ffffff !important; }
-    td.shift-2 { background-color: var(--shift-2-color) !important; color: #08314b !important; }
-    td.shift-1 { background-color: var(--shift-1-color) !important; color: var(--shift-3-color) !important; }
-
-    /* Emphasize bold letters moderately on darker cells */
-    td.shift-3 span.fw-bold { font-weight: 700; }
-
-    /* Table color harmonization with dashboard */
-    .table tbody td { color: #6c757d; }
-    .table thead th { color: #5a5c69 !important; }
-
-    /* Card adjustments to match dashboard look */
     .card { box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important; border-radius: var(--card-radius); }
 
-    /* Switch sizing (keep original sizing used elsewhere) */
     .switch-custom .form-check-input {
         width: 3.5em;
         height: 1.75em;
@@ -320,7 +254,6 @@
         font-weight: 700;
     }
 
-    /* 2. ESTILOS PARA IMPRESIÓN (PDF) */
     @media print {
         @page { size: landscape; margin: 5mm; }
         header, footer, nav, .sidebar, .navbar, .no-print, .btn { display: none !important; }
@@ -337,39 +270,30 @@
     document.addEventListener('DOMContentLoaded', function(){
         var toggle = document.getElementById('togglePublicado');
         var form = document.getElementById('form-toggle-publicado');
-        var silentInput = document.getElementById('silent_toggle');
         var publishModalEl = document.getElementById('publishConfirmModal');
         var publishModal = publishModalEl ? new bootstrap.Modal(publishModalEl) : null;
         var publishText = document.getElementById('publishModalText');
         var confirmPublishBtn = document.getElementById('confirmPublishBtn');
 
         if(!toggle || !form) return;
-
-        // Keep previous state to revert if user cancels
         var previousChecked = toggle.checked;
 
         toggle.addEventListener('change', function(e){
             var willPublish = this.checked;
-            // Update modal text and confirm button depending on action
             if (publishText) {
                 publishText.textContent = willPublish
                     ? 'Estas a punto de publicar este cronograma oficialmente'
                     : 'Estas a punto de despublicar este cronograma oficialmente';
             }
             if (confirmPublishBtn) {
-                // Publish -> show 'Publicar'; Unpublish -> show 'Continuar' (both blue)
                 confirmPublishBtn.textContent = willPublish ? 'Publicar' : 'Continuar';
                 confirmPublishBtn.classList.remove('btn-danger');
                 confirmPublishBtn.classList.add('btn-primary');
             }
-
-            // Show modal and wait for confirmation
             if (publishModal) {
-                // prevent immediate submit
                 e.preventDefault();
                 publishModal.show();
             } else {
-                // Fallback: submit directly
                 submitPublish(willPublish);
             }
         });
@@ -388,7 +312,6 @@
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             }).then(function(resp){
                 if (resp.ok) {
-                    // stay on the same page; preserve silent behavior
                     previousChecked = toggle.checked;
                 } else {
                     toggle.checked = previousChecked;
@@ -402,26 +325,18 @@
 
         if (confirmPublishBtn) {
             confirmPublishBtn.addEventListener('click', function(){
-                // Read desired state from the checkbox
                 var desired = toggle.checked;
-                // Hide modal and submit
                 if (publishModal) publishModal.hide();
                 submitPublish(desired);
             });
 
-            // If modal dismissed, revert the toggle to previous state
             if (publishModalEl) {
                 publishModalEl.addEventListener('hidden.bs.modal', function(){
-                    // If form didn't submit, revert visual toggle to previous state
-                    // We assume that when modal is hidden without confirm, user cancelled
-                    if (toggle.checked === previousChecked) return; // no change
-                    // revert
+                    if (toggle.checked === previousChecked) return; 
                     toggle.checked = previousChecked;
                 });
             }
         }
-
-        // No automatic coloring of body cells for weekends: headers only
     });
 </script>
 {% endblock %}
