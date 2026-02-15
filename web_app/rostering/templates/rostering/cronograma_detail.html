@@ -64,25 +64,19 @@
         <div class="cronograma-legend d-flex align-items-center gap-3 no-print">
             <div class="d-flex gap-3 align-items-center w-100 flex-wrap">
                 {% for turno in tipos_turno %}
-                    {% with ab=turno.abreviatura %}
-                        {# TRUCO CSS ORDER: 1=Día, 2=Tarde, 3=Noche #}
-                        <div class="legend-item d-inline-flex align-items-center" 
-                             title="{{ turno.nombre }}"
-                             style="order: {% if turno.nocturno or ab == 'N' %}3{% elif ab == 'T' %}2{% else %}1{% endif %};">
-                            
-                            <div class="legend-swatch 
-                                {% if turno.nocturno or ab == 'N' %}
-                                    shift-dark
-                                {% elif ab == 'T' %}
-                                    shift-medium
-                                {% else %}
-                                    shift-light
-                                {% endif %}" 
-                                aria-hidden="true">{{ ab }}</div>
-                            
-                            <div class="legend-label small text-muted ms-2">{{ turno.nombre }}</div>
-                        </div>
-                    {% endwith %}
+                <div class="legend-item d-inline-flex align-items-center" 
+                title="{{ turno.nombre }}">
+           
+               <div class="legend-swatch {{ turno.color_class }}"
+                    aria-hidden="true">
+                   {{ turno.abreviatura }}
+               </div>
+           
+               <div class="legend-label small text-muted ms-2">
+                   {{ turno.nombre }}
+               </div>
+           </div>
+           
                 {% empty %}
                     <div class="legend-item d-inline-flex align-items-center">
                         <div class="legend-swatch bg-secondary bg-opacity-10 text-secondary">-</div>
@@ -124,20 +118,9 @@
 
                         {% for celda in fila.celdas %}
                             {% if celda.turno %}
-                                {% for t in tipos_turno %}
-                                    {% if celda.turno.id == t.id %}
-                                        <td class="p-1 text-center align-middle 
-                                            {% if t.nocturno or t.abreviatura == 'N' %}
-                                                shift-dark
-                                            {% elif t.abreviatura == 'T' %}
-                                                shift-medium
-                                            {% else %}
-                                                shift-light
-                                            {% endif %}">
-                                            <span class="fw-bold">{{ celda.turno.abreviatura }}</span>
-                                        </td>
-                                    {% endif %}
-                                {% endfor %}
+                            <td class="p-1 text-center align-middle {{ celda.color_class }}">
+                                <span class="fw-bold">{{ celda.turno.abreviatura }}</span>
+                            </td>                            
                             {% else %}
                                 <td class="p-1 bg-light text-center align-middle">
                                 </td>

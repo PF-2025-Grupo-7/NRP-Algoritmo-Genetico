@@ -279,7 +279,46 @@ def construir_matriz_cronograma(cronograma):
         activo=True
     ).order_by('experiencia', 'legajo')
 
-    # 5. Construir estructura para el template
+    # 5. Obtener lista de turnos ordenada y asignar los colores correctos.
+    tipos_turno = list(
+        TipoTurno.objects.filter(
+            especialidad=cronograma.especialidad
+        ).order_by('hora_inicio', 'nombre')
+    )
+
+    turno_nocturno = None
+    turnos_diurnos = []
+
+    for t in tipos_turno:
+        if t.es_nocturno:
+            turno_nocturno = t
+        else:
+            turnos_diurnos.append(t)
+
+    turnos_diurnos = sorted(turnos_diurnos, key=lambda x: x.hora_inicio)
+
+    total_turnos = len(tipos_turno)
+
+    if total_turnos == 2:
+        if turno_nocturno:
+            turno_nocturno.color_class = "shift-dark"
+            turnos_diurnos[0].color_class = "shift-light"
+        else:
+            turnos_diurnos[0].color_class = "shift-light"
+            turnos_diurnos[1].color_class = "shift-medium"
+    else:
+        if turno_nocturno:
+            turno_nocturno.color_class = "shift-dark"
+            turnos_diurnos[0].color_class = "shift-light"
+            turnos_diurnos[1].color_class = "shift-medium"
+        else:
+            turnos_diurnos[0].color_class = "shift-light"
+            turnos_diurnos[1].color_class = "shift-medium"
+            turnos_diurnos[2].color_class = "shift-dark"
+
+    mapa_colores = {t.id: t.color_class for t in tipos_turno}
+
+    # 6. Construir estructura para el template
     filas_tabla = []
     for emp in empleados:
         celdas = []
@@ -293,6 +332,7 @@ def construir_matriz_cronograma(cronograma):
             celdas.append({
                 'fecha': fecha,
                 'turno': turno, # Puede ser None
+                'color_class': mapa_colores.get(turno.id) if turno else None
             })
             
             if turno:
@@ -308,7 +348,7 @@ def construir_matriz_cronograma(cronograma):
     return {
         'rango_fechas': rango_fechas,
         'filas_tabla': filas_tabla,
-        'tipos_turno': TipoTurno.objects.filter(especialidad=cronograma.especialidad).order_by('hora_inicio', 'nombre')
+        'tipos_turno': tipos_turno
     }
 
 
