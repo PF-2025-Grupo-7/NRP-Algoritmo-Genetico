@@ -523,9 +523,11 @@ def config_turnos_edit(request, especialidad):
                             turno_obj.nombre = meta['n']
                             turno_obj.abreviatura = meta['a']
                             
+                            es_noc_form = meta['noc']
                             es_noc_calc = datos['fin'] < datos['inicio']
-                            turno_obj.es_nocturno = True if es_noc_calc else meta['noc']
-                            
+
+                            turno_obj.es_nocturno = es_noc_form
+                                                        
                             turno_obj.hora_inicio = datos['inicio']
                             turno_obj.hora_fin = datos['fin']
                             turno_obj.save()
