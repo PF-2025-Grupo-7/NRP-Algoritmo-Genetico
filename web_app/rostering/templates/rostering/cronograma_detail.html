@@ -64,65 +64,92 @@
                 {% for turno in tipos_turno %}
                     {% with ab=turno.abreviatura %}
                         
-                        {# --- LÓGICA DE ROTACIÓN CÍCLICA --- #}
-                        {# Determinamos color y orden basado en la posición relativa al turno nocturno #}
-                        {# CASO A: 3 Turnos #}
+                        {# DEFINICIÓN DE CLASES CSS Y ORDEN VISUAL #}
+                        {# Variables: orden_visual (1=Claro, 2=Medio, 3=Oscuro) y clase_color #}
+                        
                         {% if tipos_turno|length == 3 %}
-                            {# 1. Si el 1ro es Noche [N, A, B]: A=Claro, B=Medio #}
-                            {% if tipos_turno.0.es_nocturno or tipos_turno.0.abreviatura == 'N' %}
-                                {% if forloop.counter0 == 0 %}<div class="d-none" data-style="dark-3"></div>{% endif %}
-                                {% if forloop.counter0 == 1 %}<div class="d-none" data-style="light-1"></div>{% endif %}
-                                {% if forloop.counter0 == 2 %}<div class="d-none" data-style="medium-2"></div>{% endif %}
+                            {# --- LÓGICA DE 3 TURNOS --- #}
+                            {% if tipos_turno.0.es_nocturno %}
+                                {# Caso [N, A, B] -> N=Dark, A=Light, B=Medium #}
+                                {% if forloop.counter0 == 0 %}<div class="d-none" data-cls="shift-dark" data-ord="3"></div>{% endif %}
+                                {% if forloop.counter0 == 1 %}<div class="d-none" data-cls="shift-light" data-ord="1"></div>{% endif %}
+                                {% if forloop.counter0 == 2 %}<div class="d-none" data-cls="shift-medium" data-ord="2"></div>{% endif %}
                             
-                            {# 2. Si el 2do es Noche [A, N, B]: B=Claro, A=Medio (Tu caso actual) #}
-                            {% elif tipos_turno.1.es_nocturno or tipos_turno.1.abreviatura == 'N' %}
-                                {% if forloop.counter0 == 1 %}<div class="d-none" data-style="dark-3"></div>{% endif %}
-                                {% if forloop.counter0 == 2 %}<div class="d-none" data-style="light-1"></div>{% endif %}
-                                {% if forloop.counter0 == 0 %}<div class="d-none" data-style="medium-2"></div>{% endif %}
+                            {% elif tipos_turno.1.es_nocturno %}
+                                {# Caso [A, N, B] -> N=Dark, B=Light, A=Medium #}
+                                {% if forloop.counter0 == 1 %}<div class="d-none" data-cls="shift-dark" data-ord="3"></div>{% endif %}
+                                {% if forloop.counter0 == 2 %}<div class="d-none" data-cls="shift-light" data-ord="1"></div>{% endif %}
+                                {% if forloop.counter0 == 0 %}<div class="d-none" data-cls="shift-medium" data-ord="2"></div>{% endif %}
                             
-                            {# 3. Si el 3ro es Noche [A, B, N]: A=Claro, B=Medio (Estándar) #}
+                            {% elif tipos_turno.2.es_nocturno %}
+                                {# Caso [A, B, N] -> N=Dark, A=Light, B=Medium #}
+                                {% if forloop.counter0 == 2 %}<div class="d-none" data-cls="shift-dark" data-ord="3"></div>{% endif %}
+                                {% if forloop.counter0 == 0 %}<div class="d-none" data-cls="shift-light" data-ord="1"></div>{% endif %}
+                                {% if forloop.counter0 == 1 %}<div class="d-none" data-cls="shift-medium" data-ord="2"></div>{% endif %}
+                            
                             {% else %}
-                                {% if forloop.counter0 == 2 %}<div class="d-none" data-style="dark-3"></div>{% endif %}
-                                {% if forloop.counter0 == 0 %}<div class="d-none" data-style="light-1"></div>{% endif %}
-                                {% if forloop.counter0 == 1 %}<div class="d-none" data-style="medium-2"></div>{% endif %}
+                                {# FALLBACK: Ninguno es nocturno -> Orden cronológico puro #}
+                                {# [A, B, C] -> A=Light, B=Medium, C=Dark #}
+                                {% if forloop.counter0 == 0 %}<div class="d-none" data-cls="shift-light" data-ord="1"></div>{% endif %}
+                                {% if forloop.counter0 == 1 %}<div class="d-none" data-cls="shift-medium" data-ord="2"></div>{% endif %}
+                                {% if forloop.counter0 == 2 %}<div class="d-none" data-cls="shift-dark" data-ord="3"></div>{% endif %}
                             {% endif %}
 
-                        {# CASO B: 2 Turnos #}
                         {% elif tipos_turno|length == 2 %}
-                            {% if turno.es_nocturno or ab == 'N' %}
-                                <div class="d-none" data-style="dark-3"></div>
+                            {# --- LÓGICA DE 2 TURNOS --- #}
+                            {% if turno.es_nocturno %}
+                                <div class="d-none" data-cls="shift-dark" data-ord="3"></div>
+                            {% elif not tipos_turno.0.es_nocturno and not tipos_turno.1.es_nocturno %}
+                                {# Fallback: Ninguno es nocturno #}
+                                {% if forloop.counter0 == 0 %}<div class="d-none" data-cls="shift-light" data-ord="1"></div>{% endif %}
+                                {% if forloop.counter0 == 1 %}<div class="d-none" data-cls="shift-dark" data-ord="3"></div>{% endif %}
                             {% else %}
-                                <div class="d-none" data-style="light-1"></div>
+                                {# Si hay un nocturno y yo no soy él, soy Light #}
+                                <div class="d-none" data-cls="shift-light" data-ord="1"></div>
                             {% endif %}
                         {% else %}
-                            <div class="d-none" data-style="light-1"></div>
+                            {# 1 Turno #}
+                            <div class="d-none" data-cls="shift-light" data-ord="1"></div>
                         {% endif %}
 
-                        {# Aplicamos el estilo calculado (Truco para extraer variables en template puro) #}
                         <div class="legend-item d-inline-flex align-items-center" 
                              title="{{ turno.nombre }}"
                              style="order: 
                                 {% if tipos_turno|length == 3 %}
-                                    {% if tipos_turno.0.es_nocturno or tipos_turno.0.abreviatura == 'N' %}
+                                    {% if tipos_turno.0.es_nocturno %}
                                         {% if forloop.counter0 == 0 %}3{% elif forloop.counter0 == 1 %}1{% else %}2{% endif %}
-                                    {% elif tipos_turno.1.es_nocturno or tipos_turno.1.abreviatura == 'N' %}
+                                    {% elif tipos_turno.1.es_nocturno %}
                                         {% if forloop.counter0 == 1 %}3{% elif forloop.counter0 == 2 %}1{% else %}2{% endif %}
-                                    {% else %}
+                                    {% elif tipos_turno.2.es_nocturno %}
                                         {% if forloop.counter0 == 2 %}3{% elif forloop.counter0 == 0 %}1{% else %}2{% endif %}
+                                    {% else %}
+                                        {# Fallback #}
+                                        {% if forloop.counter0 == 0 %}1{% elif forloop.counter0 == 1 %}2{% else %}3{% endif %}
                                     {% endif %}
-                                {% elif turno.es_nocturno or ab == 'N' %}2
+                                {% elif tipos_turno|length == 2 %}
+                                    {% if turno.es_nocturno %}3
+                                    {% elif not tipos_turno.0.es_nocturno and not tipos_turno.1.es_nocturno %}
+                                        {% if forloop.counter0 == 0 %}1{% else %}3{% endif %}
+                                    {% else %}1{% endif %}
                                 {% else %}1{% endif %};">
                             
                             <div class="legend-swatch 
                                 {% if tipos_turno|length == 3 %}
-                                    {% if tipos_turno.0.es_nocturno or tipos_turno.0.abreviatura == 'N' %}
+                                    {% if tipos_turno.0.es_nocturno %}
                                         {% if forloop.counter0 == 0 %}shift-dark{% elif forloop.counter0 == 1 %}shift-light{% else %}shift-medium{% endif %}
-                                    {% elif tipos_turno.1.es_nocturno or tipos_turno.1.abreviatura == 'N' %}
+                                    {% elif tipos_turno.1.es_nocturno %}
                                         {% if forloop.counter0 == 1 %}shift-dark{% elif forloop.counter0 == 2 %}shift-light{% else %}shift-medium{% endif %}
-                                    {% else %}
+                                    {% elif tipos_turno.2.es_nocturno %}
                                         {% if forloop.counter0 == 2 %}shift-dark{% elif forloop.counter0 == 0 %}shift-light{% else %}shift-medium{% endif %}
+                                    {% else %}
+                                        {# Fallback #}
+                                        {% if forloop.counter0 == 0 %}shift-light{% elif forloop.counter0 == 1 %}shift-medium{% else %}shift-dark{% endif %}
                                     {% endif %}
-                                {% elif turno.es_nocturno or ab == 'N' %}shift-dark
+                                {% elif tipos_turno|length == 2 %}
+                                    {% if turno.es_nocturno %}shift-dark
+                                    {% elif not tipos_turno.0.es_nocturno and not tipos_turno.1.es_nocturno %}
+                                        {% if forloop.counter0 == 0 %}shift-light{% else %}shift-dark{% endif %}
+                                    {% else %}shift-light{% endif %}
                                 {% else %}shift-light{% endif %}" 
                                 aria-hidden="true">{{ ab }}</div>
                             
@@ -170,37 +197,37 @@
 
                         {% for celda in fila.celdas %}
                             {% if celda.turno %}
-                                {# BUSCAR LA REFERENCIA EN LA LISTA ORDENADA #}
-                                {# Usamos la misma lógica de "posición relativa al nocturno" #}
+                                {# LÓGICA DE COLOR APLICADA A LA CELDA (Réplica exacta de la leyenda) #}
                                 <td class="p-1 text-center align-middle 
                                     {% if tipos_turno|length == 3 %}
-                                        {# --- LÓGICA DE 3 TURNOS --- #}
-                                        {% if tipos_turno.0.es_nocturno or tipos_turno.0.abreviatura == 'N' %}
-                                            {# Noche es index 0. #}
+                                        {% if tipos_turno.0.es_nocturno %}
                                             {% if celda.turno.id == tipos_turno.0.id %}shift-dark
-                                            {% elif celda.turno.id == tipos_turno.1.id %}shift-light {# Next #}
+                                            {% elif celda.turno.id == tipos_turno.1.id %}shift-light
                                             {% else %}shift-medium{% endif %}
                                         
-                                        {% elif tipos_turno.1.es_nocturno or tipos_turno.1.abreviatura == 'N' %}
-                                            {# Noche es index 1 (Tu caso: 15hs). #}
+                                        {% elif tipos_turno.1.es_nocturno %}
                                             {% if celda.turno.id == tipos_turno.1.id %}shift-dark
-                                            {% elif celda.turno.id == tipos_turno.2.id %}shift-light {# Next: 23hs #}
-                                            {% else %}shift-medium{% endif %} {# Wrapped: 07hs #}
+                                            {% elif celda.turno.id == tipos_turno.2.id %}shift-light
+                                            {% else %}shift-medium{% endif %}
+                                        
+                                        {% elif tipos_turno.2.es_nocturno %}
+                                            {% if celda.turno.id == tipos_turno.2.id %}shift-dark
+                                            {% elif celda.turno.id == tipos_turno.0.id %}shift-light
+                                            {% else %}shift-medium{% endif %}
                                         
                                         {% else %}
-                                            {# Noche es index 2 (o default). #}
-                                            {% if celda.turno.id == tipos_turno.2.id %}shift-dark
-                                            {% elif celda.turno.id == tipos_turno.0.id %}shift-light {# Next: 08hs #}
-                                            {% else %}shift-medium{% endif %}
+                                            {# Fallback: Orden 0=L, 1=M, 2=D #}
+                                            {% if celda.turno.id == tipos_turno.0.id %}shift-light
+                                            {% elif celda.turno.id == tipos_turno.1.id %}shift-medium
+                                            {% else %}shift-dark{% endif %}
                                         {% endif %}
 
                                     {% elif tipos_turno|length == 2 %}
-                                        {# --- LÓGICA DE 2 TURNOS --- #}
-                                        {% if celda.turno.es_nocturno or celda.turno.abreviatura == 'N' %}
-                                            shift-dark
-                                        {% else %}
-                                            shift-light
-                                        {% endif %}
+                                        {% if celda.turno.es_nocturno %}shift-dark
+                                        {% elif not tipos_turno.0.es_nocturno and not tipos_turno.1.es_nocturno %}
+                                            {# Fallback 2 turnos: 0=L, 1=D #}
+                                            {% if celda.turno.id == tipos_turno.0.id %}shift-light{% else %}shift-dark{% endif %}
+                                        {% else %}shift-light{% endif %}
                                     {% else %}
                                         shift-light
                                     {% endif %}">
@@ -226,15 +253,15 @@
         --card-radius: 12px;
         
         /* --- PALETA DE GRADIENTE AZUL --- */
-        /* 1. CLARO (Siguiente a la noche) */
+        /* 1. CLARO (Siguiente a la noche o 1ro en lista) */
         --shift-light-bg: #bbdefb; 
         --shift-light-text: #06367a;
         
-        /* 2. MEDIO (Restante) */
+        /* 2. MEDIO (Restante o 2do en lista) */
         --shift-medium-bg: #42a5f5; 
         --shift-medium-text: #002171;
 
-        /* 3. OSCURO (Nocturno) */
+        /* 3. OSCURO (Nocturno o último en lista) */
         --shift-dark-bg: #1565c0;
         --shift-dark-text: #ffffff;
     }
