@@ -1034,7 +1034,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const fechaInicio = new Date($inicio.value);
             const fechaFin = new Date($fin.value);
             const diffTime = Math.abs(fechaFin - fechaInicio);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            // Le sumamos 1 para contar el día de inicio inclusivamente
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; 
             
             if(diffDays < 7){
                 showWarn('El período a planificar debe ser de al menos 7 días.');
