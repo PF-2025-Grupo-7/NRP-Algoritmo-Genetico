@@ -121,14 +121,42 @@ class ConfiguracionTurnosForm(BootstrapFormMixin, forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        
+        # 1. Validación de campos requeridos (Ya la tenías)
         esquema = cleaned_data.get('esquema')
-
-        # Validación condicional (Igual que antes)
         if esquema == ConfiguracionTurnos.TipoEsquema.TURNO_08_HS:
             if not cleaned_data.get('nombre_t3') or not cleaned_data.get('abrev_t3'):
                 self.add_error('nombre_t3', 'Requerido para esquema de 3 turnos.')
                 self.add_error('abrev_t3', 'Requerido.')
+
+        # 2. VALIDACIÓN DE UNICIDAD DE NOCTURNOS (NUEVO)
+        noc_1 = cleaned_data.get('nocturno_t1', False)
+        noc_2 = cleaned_data.get('nocturno_t2', False)
+        noc_3 = cleaned_data.get('nocturno_t3', False)
         
+        total_nocturnos = sum([noc_1, noc_2, noc_3])
+        
+        if total_nocturnos > 1:
+            raise ValidationError("Solo se permite UN turno nocturno por esquema.")
+        
+        # Opcional: Advertencia si no hay ninguno (aunque el sistema lo permite)
+        # if total_nocturnos == 0:
+        #     self.add_warning("No has definido ningún turno nocturno. Las reglas de descanso entre días podrían no aplicarse.")
+
+        # 3. VALIDACIÓN DE ABREVIATURAS DUPLICADAS (NUEVO)
+        # Evita que el usuario ponga "T" en dos turnos distintos
+        abreviaturas = [
+            cleaned_data.get('abrev_t1', '').upper(),
+            cleaned_data.get('abrev_t2', '').upper()
+        ]
+        if esquema == '3x8':
+            abreviaturas.append(cleaned_data.get('abrev_t3', '').upper())
+        
+        # Filtramos vacíos y chequeamos duplicados
+        abreviaturas = [a for a in abreviaturas if a]
+        if len(abreviaturas) != len(set(abreviaturas)):
+             raise ValidationError("Las abreviaturas deben ser únicas para cada turno.")
+
         return cleaned_data
     
 class NoDisponibilidadForm(BootstrapFormMixin, forms.ModelForm):

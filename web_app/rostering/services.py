@@ -6,6 +6,8 @@ import copy
 from datetime import timedelta, datetime, date
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Case, When, Value, IntegerField
+from datetime import time
 from django.utils.dateparse import parse_date
 
 # --- MODELOS ---
@@ -305,10 +307,21 @@ def construir_matriz_cronograma(cronograma):
             'stats': {'horas': horas_totales, 'turnos': turnos_totales}
         })
         
+    limite_madrugada = time(4, 0, 0)
+
+    # Consulta con ordenamiento inteligente
+    qs_turnos = TipoTurno.objects.filter(especialidad=cronograma.especialidad).annotate(
+        es_madrugada=Case(
+            When(hora_inicio__lt=limite_madrugada, then=Value(1)), # Si es < 4AM, va al final (1)
+            default=Value(0),                                      # Si es >= 4AM, va al principio (0)
+            output_field=IntegerField(),
+        )
+    ).order_by('es_madrugada', 'hora_inicio') # Ordenamos primero por grupo, luego por hora
+
     return {
         'rango_fechas': rango_fechas,
         'filas_tabla': filas_tabla,
-        'tipos_turno': TipoTurno.objects.filter(especialidad=cronograma.especialidad).order_by('hora_inicio', 'nombre')
+        'tipos_turno': qs_turnos # <--- Aquí pasamos el QuerySet ordenado
     }
 
 
