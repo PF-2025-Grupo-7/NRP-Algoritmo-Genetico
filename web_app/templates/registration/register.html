@@ -29,8 +29,8 @@
                             {% if form.username.errors %}
                                 <div class="field-error">
                                     <i class="bi bi-exclamation-circle"></i>
-                                    {% if "already exists" in form.username.errors.0|lower or "already taken" in form.username.errors.0|lower %}
-                                        Ingresá un nombre de usuario válido. Este valor puede contener solo letras, números y @/./+/-/_
+                                    {% if "already exists" in form.username.errors.0|lower or "already taken" in form.username.errors.0|lower or "ya existe" in form.username.errors.0|lower or "en uso" in form.username.errors.0|lower or "ya está" in form.username.errors.0|lower or "ya esta" in form.username.errors.0|lower %}
+                                        El nombre de usuario ya está en uso. Elegí otro nombre de usuario.
                                     {% elif "required" in form.username.errors.0|lower %}
                                         Este campo es obligatorio.
                                     {% else %}
@@ -126,6 +126,36 @@
                                 }
                                 // allow submit
                             });
+                        });
+                    </script>
+
+                    <script>
+                        // Al recargar la página con F5 (tipo navigation 'reload'), ocultar errores renderizados
+                        document.addEventListener('DOMContentLoaded', function() {
+                            try {
+                                var navType = '';
+                                if (performance && typeof performance.getEntriesByType === 'function') {
+                                    var entries = performance.getEntriesByType('navigation');
+                                    if (entries && entries.length) navType = entries[0].type || '';
+                                }
+                                // Fallback legacy
+                                if (!navType && performance && performance.navigation) {
+                                    navType = performance.navigation.type === 1 ? 'reload' : '';
+                                }
+
+                                if (navType === 'reload') {
+                                    // Ocultar mensajes de error y limpiar marcas visuales
+                                    document.querySelectorAll('.field-error').forEach(function(el){ el.classList.add('d-none'); });
+                                    var form = document.getElementById('registerForm');
+                                    if (form) form.classList.remove('form-with-errors');
+                                    document.querySelectorAll('.is-invalid').forEach(function(i){ i.classList.remove('is-invalid'); });
+                                    var warningDiv = document.getElementById('form-warning'); if (warningDiv) warningDiv.classList.add('d-none');
+                                    var warningText = document.getElementById('form-warning-text'); if (warningText) warningText.textContent = '';
+                                }
+                            } catch (e) {
+                                // No bloquear la carga si algo falla
+                                console.warn('Clear errors on reload failed', e);
+                            }
                         });
                     </script>
 

@@ -94,7 +94,6 @@
                                     <td class="text-center col-group-info">
                                         <div class="custom-select-wrapper">
                                             <select id="selectTurno" class="form-select d-none">
-                                                <option value="">Seleccionar Turno</option>
                                                 {% for turno in turnos %}
                                                 <option value="{{ turno.pk }}">{{ turno.nombre }}</option>
                                                 {% endfor %}
@@ -102,10 +101,9 @@
                                             <div class="custom-dropdown">
                                                 <div class="custom-dropdown-header" tabindex="0" id="selectTurno_header" data-placeholder="Seleccionar Turno">Seleccionar Turno</div>
                                                 <div class="custom-dropdown-menu" id="selectTurno_menu">
-                                                    <div class="custom-option option-all" data-value="">Seleccionar Turno</div>
-                                                    {% for turno in turnos %}
-                                                    <div class="custom-option" data-value="{{ turno.pk }}">{{ turno.nombre }}</div>
-                                                    {% endfor %}
+                                                        {% for turno in turnos %}
+                                                        <div class="custom-option" data-value="{{ turno.pk }}">{{ turno.nombre }}</div>
+                                                        {% endfor %}
                                                 </div>
                                             </div>
                                         </div>
@@ -363,7 +361,7 @@
                     const selectNuevoRegla = document.getElementById('selectTurno');
                     const turnos = [];
                     if (selectNuevoRegla) {
-                        for (let i = 1; i < selectNuevoRegla.options.length; i++) {
+                        for (let i = 0; i < selectNuevoRegla.options.length; i++) {
                             turnos.push({
                                 pk: selectNuevoRegla.options[i].value,
                                 nombre: selectNuevoRegla.options[i].textContent
@@ -852,31 +850,36 @@
                         option.onclick = (e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            
+
                             const value = option.getAttribute('data-value') ?? '';
                             const text = option.textContent;
-                            
+
+                            // No permitir seleccionar la opción placeholder (valor vacío)
+                            if (value === '') {
+                                // simplemente cerrar el menú y no cambiar nada
+                                dropdown.classList.remove('open');
+                                return;
+                            }
+
                             // Remover atributo data-selected de todas las opciones
                             menu.querySelectorAll('.custom-option').forEach(opt => {
                                 opt.removeAttribute('data-selected');
                             });
-                            
+
                             // Agregar atributo data-selected a la opción seleccionada
-                            if (value !== '') {
-                                option.setAttribute('data-selected', 'true');
-                            }
-                            
+                            option.setAttribute('data-selected', 'true');
+
                             // Establecer el valor en el select nativo
                             nativeSelect.value = value;
                             const matchingIndex = Array.from(nativeSelect.options).findIndex(opt => opt.value === value);
                             if (matchingIndex >= 0) {
                                 nativeSelect.selectedIndex = matchingIndex;
                             }
-                            
+
                             // Actualizar el header
-                            header.textContent = value === '' ? placeholderText : text;
+                            header.textContent = text;
                             header.classList.remove('is-invalid');
-                            
+
                             // Cerrar el dropdown
                             dropdown.classList.remove('open');
 
@@ -952,31 +955,35 @@
                         option.onclick = (e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            
+
                             const value = option.getAttribute('data-value') ?? '';
                             const text = option.textContent;
-                            
+
+                            // No permitir seleccionar la opción placeholder (valor vacío)
+                            if (value === '') {
+                                dropdown.classList.remove('open');
+                                return;
+                            }
+
                             // Remover atributo data-selected de todas las opciones
                             menu.querySelectorAll('.custom-option').forEach(opt => {
                                 opt.removeAttribute('data-selected');
                             });
-                            
+
                             // Agregar atributo data-selected a la opción seleccionada
-                            if (value !== '') {
-                                option.setAttribute('data-selected', 'true');
-                            }
-                            
+                            option.setAttribute('data-selected', 'true');
+
                             // Establecer el valor en el select nativo
                             nativeSelect.value = value;
                             const matchingIndex = Array.from(nativeSelect.options).findIndex(opt => opt.value === value);
                             if (matchingIndex >= 0) {
                                 nativeSelect.selectedIndex = matchingIndex;
                             }
-                            
+
                             // Actualizar el header
-                            header.textContent = value === '' ? placeholderText : text;
+                            header.textContent = text;
                             header.classList.remove('is-invalid');
-                            
+
                             // Cerrar el dropdown
                             dropdown.classList.remove('open');
 
