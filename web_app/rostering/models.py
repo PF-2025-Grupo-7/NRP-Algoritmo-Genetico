@@ -156,11 +156,8 @@ class TipoTurno(models.Model):
 
     def clean(self):
         super().clean()
-        if self.hora_inicio and self.hora_fin:
-            if (self.hora_fin < self.hora_inicio and not self.es_nocturno):
-                raise ValidationError({
-                    "es_nocturno": "El turno cambia de día (cruza medianoche), debe marcarse como nocturno."
-                })
+        # Eliminamos la validación automática para que el usuario tenga control total
+        pass
 
     def __str__(self):
         return f"{self.nombre} ({self.get_especialidad_display()})"

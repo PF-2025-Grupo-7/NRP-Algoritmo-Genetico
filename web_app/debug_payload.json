@@ -8,18 +8,18 @@
         "seed": 42
     },
     "datos_problema": {
-        "num_dias": 8,
+        "num_dias": 31,
         "requerimientos_cobertura_explicita": [
             {
                 "17": {
                     "junior": 2,
                     "senior": 3
                 },
-                "18": {
-                    "junior": 3,
+                "19": {
+                    "junior": 2,
                     "senior": 2
                 },
-                "19": {
+                "18": {
                     "junior": 1,
                     "senior": 2
                 }
@@ -29,53 +29,11 @@
                     "junior": 2,
                     "senior": 3
                 },
-                "18": {
-                    "junior": 3,
-                    "senior": 2
-                },
                 "19": {
-                    "junior": 1,
-                    "senior": 2
-                }
-            },
-            {
-                "17": {
                     "junior": 2,
                     "senior": 2
                 },
                 "18": {
-                    "junior": 1,
-                    "senior": 3
-                },
-                "19": {
-                    "junior": 1,
-                    "senior": 3
-                }
-            },
-            {
-                "17": {
-                    "junior": 2,
-                    "senior": 2
-                },
-                "18": {
-                    "junior": 1,
-                    "senior": 3
-                },
-                "19": {
-                    "junior": 1,
-                    "senior": 3
-                }
-            },
-            {
-                "17": {
-                    "junior": 2,
-                    "senior": 3
-                },
-                "18": {
-                    "junior": 3,
-                    "senior": 2
-                },
-                "19": {
                     "junior": 1,
                     "senior": 2
                 }
@@ -85,11 +43,11 @@
                     "junior": 2,
                     "senior": 3
                 },
-                "18": {
-                    "junior": 3,
+                "19": {
+                    "junior": 2,
                     "senior": 2
                 },
-                "19": {
+                "18": {
                     "junior": 1,
                     "senior": 2
                 }
@@ -99,11 +57,11 @@
                     "junior": 2,
                     "senior": 3
                 },
-                "18": {
-                    "junior": 3,
+                "19": {
+                    "junior": 2,
                     "senior": 2
                 },
-                "19": {
+                "18": {
                     "junior": 1,
                     "senior": 2
                 }
@@ -113,19 +71,389 @@
                     "junior": 2,
                     "senior": 3
                 },
-                "18": {
-                    "junior": 3,
+                "19": {
+                    "junior": 2,
                     "senior": 2
                 },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
                 "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
+                    "junior": 1,
+                    "senior": 2
+                }
+            },
+            {
+                "17": {
+                    "junior": 2,
+                    "senior": 3
+                },
+                "19": {
+                    "junior": 2,
+                    "senior": 2
+                },
+                "18": {
                     "junior": 1,
                     "senior": 2
                 }
             }
         ],
         "dias_no_habiles": [
-            2,
-            3
+            3,
+            4,
+            10,
+            11,
+            17,
+            18,
+            24,
+            25
         ],
         "reglas_cobertura": {},
         "max_turno_val": 19,
@@ -139,7 +467,7 @@
             "senior"
         ],
         "turnos_noche": [
-            17
+            19
         ],
         "duracion_turnos": {
             "17": 8.0,
@@ -159,160 +487,160 @@
             {
                 "id_db": 20,
                 "id": 20,
-                "nombre": "Florence Nightingale",
+                "nombre": "Lic. Ayane Kimura",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 21,
                 "id": 21,
-                "nombre": "Clara Barton",
+                "nombre": "Lic. Kaito Saito",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 22,
                 "id": 22,
-                "nombre": "Walt Whitman",
+                "nombre": "Lic. Ryosuke Hayashi",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 23,
                 "id": 23,
-                "nombre": "Mary Seacole",
+                "nombre": "Lic. Misaki Shimizu",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 24,
                 "id": 24,
-                "nombre": "Dorothea Dix",
+                "nombre": "Lic. Tsubasa Yamaguchi",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 25,
                 "id": 25,
-                "nombre": "Virginia Henderson",
+                "nombre": "Lic. Natsumi Mori",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 26,
                 "id": 26,
-                "nombre": "Edith Cavell",
+                "nombre": "Lic. Shiori Ikeda",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 27,
                 "id": 27,
-                "nombre": "Margaret Sanger",
+                "nombre": "Lic. Takumi Hashimoto",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 28,
                 "id": 28,
-                "nombre": "Hazel Johnson",
+                "nombre": "Lic. Hina Yamashita",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 29,
                 "id": 29,
-                "nombre": "Martha Rogers",
+                "nombre": "Lic. Sora Ogawa",
                 "skill": "senior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 30,
                 "id": 30,
-                "nombre": "Greg Focker",
+                "nombre": "Enf. Yuma Goto",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 31,
                 "id": 31,
-                "nombre": "Carla Espinosa",
+                "nombre": "Enf. Koharu Hasegawa",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 32,
                 "id": 32,
-                "nombre": "Ann Perkins",
+                "nombre": "Enf. Mei Murakami",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 33,
                 "id": 33,
-                "nombre": "Rory Williams",
+                "nombre": "Enf. Haruto Kondo",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 34,
                 "id": 34,
-                "nombre": "Madam Pomfrey",
+                "nombre": "Enf. Asahi Ishii",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 35,
                 "id": 35,
-                "nombre": "Jackie Peyton",
+                "nombre": "Enf. Yuina Fujita",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 36,
                 "id": 36,
-                "nombre": "Christine Chapel",
+                "nombre": "Enf. Aoi Endo",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             },
             {
                 "id_db": 37,
                 "id": 37,
-                "nombre": "Peter Petrelli",
+                "nombre": "Enf. Hayato Aoki",
                 "skill": "junior",
-                "t_min": 4,
-                "t_max": 6
+                "t_min": 15,
+                "t_max": 25
             }
         ],
         "secuencias_prohibidas": [
             [
-                17,
-                18
-            ],
-            [
-                17,
-                19
+                19,
+                17
             ],
             [
                 19,
                 18
+            ],
+            [
+                18,
+                17
             ]
         ],
         "excepciones_disponibilidad": [],
