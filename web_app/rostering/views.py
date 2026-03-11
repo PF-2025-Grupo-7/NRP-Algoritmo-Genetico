@@ -497,14 +497,11 @@ def config_turnos_edit(request, especialidad):
                     # CASO 1: PRIMERA VEZ (Crear objetos TipoTurno)
                     for datos in nuevos_datos:
                         meta = nombres[datos['key']]
-                        es_noc_calc = datos['fin'] < datos['inicio']
-                        es_noc_final = True if es_noc_calc else meta['noc']
 
-                        # CORRECCIÓN: Eliminamos activo=True
                         TipoTurno.objects.create(
                             nombre=meta['n'], abreviatura=meta['a'], especialidad=especialidad,
                             hora_inicio=datos['inicio'], hora_fin=datos['fin'], 
-                            es_nocturno=es_noc_final
+                            es_nocturno=meta['noc'] # <-- Mapeo 100% explícito a la UI
                         )
                     
                     regenerar_secuencias(especialidad)
@@ -523,10 +520,7 @@ def config_turnos_edit(request, especialidad):
                             turno_obj.nombre = meta['n']
                             turno_obj.abreviatura = meta['a']
                             
-                            es_noc_form = meta['noc']
-                            es_noc_calc = datos['fin'] < datos['inicio']
-
-                            turno_obj.es_nocturno = es_noc_form
+                            turno_obj.es_nocturno = meta['noc'] # <-- Mapeo 100% explícito a la UI
                                                         
                             turno_obj.hora_inicio = datos['inicio']
                             turno_obj.hora_fin = datos['fin']
@@ -563,8 +557,8 @@ def regenerar_secuencias(especialidad):
     """Helper para regenerar secuencias prohibidas."""
     SecuenciaProhibida.objects.filter(especialidad=especialidad).delete()
     
-    # CORRECCIÓN: Eliminamos activo=True
-    turnos_ordenados = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('hora_inicio'))
+    # ORDENAMOS POR ID para asegurar que la secuencia siempre sea T1->T2, T2->T3, T3->T1
+    turnos_ordenados = list(TipoTurno.objects.filter(especialidad=especialidad).order_by('id'))
     
     secuencias = []
 

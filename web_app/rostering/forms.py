@@ -213,6 +213,7 @@ class PlantillaDemandaForm(BootstrapFormMixin, forms.ModelForm):
         model = PlantillaDemanda
         fields = '__all__'
         widgets = {
+            'nombre': forms.TextInput(attrs={'autocomplete': 'off'}),
             'especialidad': SELECT_WIDGET,
             'descripcion': forms.Textarea(attrs={'rows': 3}),
         }
@@ -243,6 +244,7 @@ class PlantillaDemandaUpdateForm(forms.ModelForm):
         model = PlantillaDemanda
         fields = ['nombre', 'especialidad', 'descripcion']
         widgets = {
+            'nombre': forms.TextInput(attrs={'autocomplete': 'off'}),
             'descripcion': forms.Textarea(attrs={'rows': 3}),
         }
 
